@@ -1179,8 +1179,17 @@ service osi /system/bin/osi
     #seclabel u:r:osi:s0
 
 #BSP:add meta features XLQLBH-14 by wang.qin 20220412 start
-on property:persist.vendor.tran.wipedata=1 && property:ro.boot.atm=enable
-    tran_factory_reset
+# REMOVED: the action below invoked 'tran_factory_reset', an init builtin that
+# exists only in itel's patched init binary. AOSP init has no such keyword, so
+# host_init_verifier fails the build outright:
+#   init.mt6789.rc: 1183: Invalid keyword 'tran_factory_reset'
+#
+# Nothing is lost. The action is gated on ro.boot.atm=enable, which is only set
+# in Transsion's factory ATM mode, and this ROM runs AOSP init -- the command
+# could never have executed here even if the trigger fired.
+#
+# on property:persist.vendor.tran.wipedata=1 && property:ro.boot.atm=enable
+#     tran_factory_reset
 #BSP:add meta features XLQLBH-14 by wang.qin 20220412 end
 
 #SPD: add resmonitor and smartpanel bind small core by rui.fu 20230117 start
