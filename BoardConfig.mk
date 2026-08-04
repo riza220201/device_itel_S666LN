@@ -245,6 +245,18 @@ SYSTEM_EXT_PUBLIC_SEPOLICY_DIRS += $(DEVICE_PATH)/sepolicy/public
 BOARD_VENDOR_SEPOLICY_DIRS += $(DEVICE_PATH)/sepolicy/vendor
 
 # Hardware
+#
+# BOARD_HAS_MTK_HARDWARE gates hardware/mediatek/Android.mk, which is
+#   ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
+#   include $(call all-subdir-makefiles)
+#   endif
+# Without it none of that repo's make-based modules are built AND the nested
+# hardware/mediatek/wlan is never descended into, so libwifi-hal-mt66xx does not
+# exist and frameworks/opt/net/wifi fails with
+#   "libwifi-hal (SHARED_LIBRARIES) missing libwifi-hal-mt66xx (STATIC_LIBRARIES)".
+# Its Android.bp modules are picked up regardless, which is why the soong-side
+# collisions appeared before this was noticed.
+BOARD_HAS_MTK_HARDWARE := true
 BOARD_HAVE_BLUETOOTH := true
 BOARD_WLAN_DEVICE := MediaTek
 WPA_SUPPLICANT_VERSION := VER_0_8_X
