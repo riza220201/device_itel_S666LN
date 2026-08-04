@@ -121,9 +121,44 @@ TARGET_KERNEL_SOURCE := kernel/itel/S666LN
 TARGET_KERNEL_CONFIG := s666ln_defconfig
 TARGET_KERNEL_CLANG_COMPILE := true
 TARGET_KERNEL_CLANG_VERSION := r416183b
+
+# CROSS_COMPILE must be passed even though this kernel is built entirely with
+# clang, and getting that wrong does NOT fail the build -- it silently produces a
+# kernel that cannot load a single vendor module.
+#
+# BoardConfigKernel.mk:76-86 defaults TARGET_KERNEL_NO_GCC to true for any 5.10+
+# kernel ("5.10+ can fully compile without GCC"). That flag also gates the block
+# that sets KERNEL_CROSS_COMPILE and KERNEL_CLANG_TRIPLE, so make is invoked with
+# neither. Linux 5.10 only adds the clang target from CROSS_COMPILE:
+#
+#     ifneq ($(CROSS_COMPILE),)
+#     CLANG_FLAGS += --target=$(notdir $(CROSS_COMPILE:%-=%))
+#     endif
+#
+# With no target, clang assembles for the HOST. Kconfig's arm64 probes then fail,
+# and the failure cascades somewhere completely unrelated:
+#
+#   ARM64_AS_HAS_MTE   is $(as-instr,.arch armv8.5-a+memtag / stgm ...) -> n
+#   HAVE_ARCH_KASAN_HW_TAGS                                             -> n
+#   KASAN_HW_TAGS      unavailable, so Kconfig picks KASAN_GENERIC
+#   HAS_LTO_CLANG      depends on "!KASAN || KASAN_HW_TAGS"             -> n
+#   => LTO_NONE=y and CFI_CLANG vanishes
+#
+# LTO_CLANG_FULL + CFI_CLANG + MODVERSIONS are precisely what reproduce
+# module_layout 0x7c24b32d, so the result is a kernel that builds cleanly, boots
+# nothing, and whose defconfig looked correct the whole time. Note AS_HAS_ARMV8_5
+# still reports y -- it is only a cc-option, not a real assembler probe -- so the
+# config looks half-right and invites the wrong conclusion.
+#
+# aarch64-linux-gnu- (not the aarch64-linux-android- default) matches the
+# toolchain triple the KMI-verified kernel was built with.
+TARGET_KERNEL_NO_GCC := false
+TARGET_KERNEL_CROSS_COMPILE_PREFIX := aarch64-linux-gnu-
 # BoardConfigKernel.mk:95 would resolve this to prebuilts/clang/host/..., which
-# on a LineageOS 20 tree only ever contains clang-r450784d. r416183b ships as its
-# own LineageOS project under prebuilts/clang/kernel/ -- see S666LN.xml.
+# on a LineageOS 20 tree only ever contains clang-r450784d. r416183b is already
+# in the tree at prebuilts/clang/kernel/, supplied by LineageOS's own manifest
+# snippet (.repo/manifests/snippets/lineage.xml), so no local manifest entry is
+# needed -- only this path override.
 #
 # NOTE the '=' -- this MUST be a recursively-expanded assignment. BUILD_TOP is
 # not defined yet when BoardConfig.mk is parsed, so ':=' bakes in an empty
