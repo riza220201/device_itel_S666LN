@@ -153,7 +153,17 @@ BOARD_VENDOR_KERNEL_MODULES := \
     $(wildcard $(KMI_VENDOR_MODULES_DIR)/*.ko)
 
 # Recovery lives in vendor_boot; there is no dedicated recovery partition. [V]
+#
+# BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT is what actually enables
+# BUILDING_RECOVERY_IMAGE for this layout (board_config.mk:501). Recovery
+# resources ARE built — they are just packed into vendor_boot rather than a
+# recovery.img. Without it, BUILDING_RECOVERY_IMAGE stays unset and
+# BOARD_EXCLUDE_KERNEL_FROM_RECOVERY_IMAGE below errors out at line 1068.
+#
+# BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT is a separate, complementary
+# variable; setting it alone does NOT enable recovery-resource building.
 BOARD_USES_RECOVERY_AS_BOOT :=
+BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT := true
 BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := true
 TARGET_NO_RECOVERY := true
 BOARD_EXCLUDE_KERNEL_FROM_RECOVERY_IMAGE := true
