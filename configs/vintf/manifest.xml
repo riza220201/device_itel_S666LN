@@ -65,16 +65,6 @@
         <fqname>@2.1::IBluetoothAudioProvidersFactory/default</fqname>
     </hal>
     <hal format="hidl">
-        <name>android.hardware.boot</name>
-        <transport>hwbinder</transport>
-        <version>1.0</version>
-        <interface>
-            <name>IBootControl</name>
-            <instance>default</instance>
-        </interface>
-        <fqname>@1.0::IBootControl/default</fqname>
-    </hal>
-    <hal format="hidl">
         <name>android.hardware.gatekeeper</name>
         <transport>hwbinder</transport>
         <version>1.0</version>
@@ -93,16 +83,6 @@
             <instance>default</instance>
         </interface>
         <fqname>@4.0::IAllocator/default</fqname>
-    </hal>
-    <hal format="hidl">
-        <name>android.hardware.graphics.composer</name>
-        <transport>hwbinder</transport>
-        <version>2.1</version>
-        <interface>
-            <name>IComposer</name>
-            <instance>default</instance>
-        </interface>
-        <fqname>@2.1::IComposer/default</fqname>
     </hal>
     <hal format="hidl">
         <name>android.hardware.graphics.mapper</name>
@@ -209,16 +189,6 @@
         </interface>
         <fqname>@1.2::ISecureElement/SIM1</fqname>
         <fqname>@1.2::ISecureElement/SIM2</fqname>
-    </hal>
-    <hal format="hidl">
-        <name>android.hardware.sensors</name>
-        <transport>hwbinder</transport>
-        <version>2.0</version>
-        <interface>
-            <name>ISensors</name>
-            <instance>default</instance>
-        </interface>
-        <fqname>@2.0::ISensors/default</fqname>
     </hal>
     <hal format="hidl">
         <name>android.hardware.soundtrigger</name>
@@ -621,8 +591,17 @@
         </interface>
         <fqname>@1.0::ITui/default</fqname>
     </hal>
-    <sepolicy>
-        <version>31.0</version>
-    </sepolicy>
+    <!--
+        No <sepolicy><version>. Stock declares 31.0, describing the sepolicy
+        ITEL's vendor was compiled against. This ROM sets BOARD_VENDOR_SEPOLICY_DIRS
+        and builds its vendor sepolicy from source against the LineageOS 20
+        platform, i.e. 33.0, so stock's number describes someone else's build.
+
+        Hardcoding it here is also not merely wrong but fatal: assemble_vintf
+        refuses to reconcile the two with
+          Cannot override existing value 31.0 with BOARD_SEPOLICY_VERS (which is 33.0)
+        Leaving it out lets assemble_vintf write whatever BOARD_SEPOLICY_VERS is,
+        so this file cannot drift from the sepolicy actually being built.
+    -->
     <kernel target-level="6"/>
 </manifest>
