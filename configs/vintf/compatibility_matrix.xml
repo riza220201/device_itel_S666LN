@@ -27,10 +27,18 @@
         <name>android.system.wifi.keystore</name>
         <version>1.0</version>
     </hal>
-    <vendor-ndk>
-        <version>31</version>
-    </vendor-ndk>
-    <system-sdk>
-        <version>31</version>
-    </system-sdk>
+    <!--
+        No hard-coded <vendor-ndk> or <system-sdk>. Stock pins both to 31, which
+        is the third place stock's stale "31" shows up: the device LAUNCHED on
+        Android 12 (ro.product.first_api_level=31) but its vendor is built at 33
+        (ro.vendor.build.version.sdk / ro.vndk.version), and this ROM's platform
+        is 33 as well. See the VNDK note in device.mk.
+
+        Hard-coding them is fatal, not merely stale:
+          Hard-coded <vendor-ndk> version in device compatibility matrix, '31',
+          does not match value inferred from BOARD_VNDK_VERSION '33'
+        assemble_vintf fills both in from BOARD_VNDK_VERSION and
+        BOARD_SYSTEMSDK_VERSIONS when they are absent, so leaving them out keeps
+        this file from drifting away from what is actually being built.
+    -->
 </compatibility-matrix>
