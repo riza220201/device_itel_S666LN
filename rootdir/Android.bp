@@ -1,0 +1,22 @@
+//
+// Copyright (C) 2026 The LineageOS Project
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+
+// Everything else under rootdir/ is plain data and ships through
+// PRODUCT_COPY_FILES in device.mk. This one file needs the execute bit, and
+// PRODUCT_COPY_FILES installs 0644.
+//
+// init.mtkgki.rc runs it as:
+//   service insmod_sh /vendor/bin/init.insmod.sh \
+//       /vendor/etc/init.insmod.${ro.hardware}.cfg
+// and the cfg's only real directive is `modprobe|*`, which the script turns
+// into `modprobe -a -d /vendor/lib/modules $(cat .../modules.load)`. modprobe
+// resolves modules.dep itself, so the order of names in modules.load does not
+// determine load order.
+sh_binary {
+    name: "init.insmod.sh",
+    src: "bin/init.insmod.sh",
+    vendor: true,
+}

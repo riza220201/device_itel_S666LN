@@ -1,0 +1,5 @@
+# The MediaTek location daemon probes a property that has no type of its own, so
+# the lookup lands on default_prop. SILENCED rather than granted: reading
+# default_prop wholesale is far broader than anything mnld legitimately needs,
+# and GPS works without it (lock confirmed on hardware).
+dontaudit mnld default_prop:file read;

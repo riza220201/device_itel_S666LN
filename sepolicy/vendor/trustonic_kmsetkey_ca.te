@@ -1,0 +1,33 @@
+# Trustonic keymaster set-key CA. Its init service is literally named
+# trustonic_check_keybox_service (/vendor/etc/init/trustonic.mc_kmsetkey_ca.rc)
+# and runs "kmsetkey_ca.trustonic -c" at late_start to check the Google
+# attestation keybox and publish vendor.tee.googlekey.status.
+#
+# With no domain of its own, init refuses to start it under enforcing — the same
+# failure mode as pnpmgr — so the keybox is never checked and that property
+# stays empty on every boot, even with keymint-trustonic running and
+# ro.hardware.kmsetkey=trustonic.
+#
+# HONESTY NOTE: this does NOT on its own explain losing MEETS_STRONG_INTEGRITY.
+# The same gap existed on a build where STRONG was observed. It is a real defect
+# on the attestation path, worth fixing on its own merits; do not record it as
+# the STRONG root cause without evidence.
+type trustonic_kmsetkey_ca, domain;
+type trustonic_kmsetkey_ca_exec, exec_type, file_type, vendor_file_type;
+
+init_daemon_domain(trustonic_kmsetkey_ca)
+
+# vendor.tee.googlekey.status. See property_contexts: the MediaTek type is used
+# rather than vendor_default_prop, set_prop on which is neverallowed.
+set_prop(trustonic_kmsetkey_ca, vendor_mtk_trustonic_tee_prop)
+
+# The keybox lives on the persist partition.
+allow trustonic_kmsetkey_ca mnt_vendor_file:dir search;
+allow trustonic_kmsetkey_ca persist_data_file:dir search;
+allow trustonic_kmsetkey_ca persist_data_file:file { getattr open read };
+allow trustonic_kmsetkey_ca ut_keymaster_device:chr_file rw_file_perms;
+
+# This device runs keymint (vendor.keymint-trustonic); keymaster is kept for
+# parity with the upstream rule.
+hal_client_domain(trustonic_kmsetkey_ca, hal_keymaster)
+hal_client_domain(trustonic_kmsetkey_ca, hal_keymint)

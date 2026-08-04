@@ -1,0 +1,10 @@
+# system_suspend reads battery info directly instead of going through the health
+# HAL.
+#
+# It is NOT an oversight that this is a dontaudit rather than an allow: reading
+# sysfs_batteryinfo files from coredomain is NEVERALLOWED
+# (public/domain.te, full_treble_only) — "Platform must not have access to
+# sysfs_batteryinfo, but should do it via health HAL". An allow fails the build
+# outright. system_suspend works without it and the health HAL is the sanctioned
+# path.
+dontaudit system_suspend sysfs_batteryinfo:file r_file_perms;

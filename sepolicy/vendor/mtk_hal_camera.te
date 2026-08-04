@@ -1,0 +1,9 @@
+# Persists per-sensor calibration versions (persist.vendor.cam.param.*.version).
+set_prop(mtk_hal_camera, vendor_cam_param_prop)
+
+# camerahalserver traverses /data to reach its own storage. Only `search` is
+# granted, and that is the sanctioned case rather than an oversight: the
+# relevant neverallow in domain.te NEGATES its permission set
+# (~{ getattr search }), so vendor domains may traverse /data while read, write
+# and enumerate stay barred.
+allow mtk_hal_camera system_data_file:dir search;

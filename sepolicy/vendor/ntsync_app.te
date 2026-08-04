@@ -1,0 +1,22 @@
+# Let ordinary apps use /dev/ntsync. This is the whole point of shipping the
+# driver: Wine (Winlator/Proton) backs Windows semaphores, mutexes and events
+# with real kernel objects instead of eventfd-based esync/fsync.
+#
+# The kernel is only half of it — the node ships 0600 root:root and unlabeled,
+# so an app cannot open it whatever SELinux says. rootdir/etc/ueventd.mt6789.rc
+# carries the DAC half; this file and device.te carry the MAC half.
+#
+# Deliberately scoped to its own type. AOSP's app neverallows name specific
+# device types (graphics_device, nfc_device, tee_device, vndbinder_device,
+# kmsg_device, ...), not dev_type as a whole, so a purpose-made ntsync_device is
+# permitted where a generic grant would not be.
+#
+# A13 defines exactly these four legacy targetSdk variants alongside
+# untrusted_app — there is no untrusted_app_32. Enumerated rather than granted
+# through a broad attribute so that isolated_app (WebView renderers and friends)
+# is NOT included; nothing sandboxed has business opening a sync primitive.
+allow untrusted_app ntsync_device:chr_file rw_file_perms;
+allow untrusted_app_25 ntsync_device:chr_file rw_file_perms;
+allow untrusted_app_27 ntsync_device:chr_file rw_file_perms;
+allow untrusted_app_29 ntsync_device:chr_file rw_file_perms;
+allow untrusted_app_30 ntsync_device:chr_file rw_file_perms;

@@ -1,0 +1,5 @@
+# atrace enables a tracefs event at boot. SILENCED rather than granted: atrace
+# is a debugging tool, this is a `user` build, and the only consequence of the
+# denial is that one trace category stays off. Granting write on debugfs tracing
+# to make a log line disappear would be the wrong trade.
+dontaudit atrace debugfs_tracing_debug:file write;

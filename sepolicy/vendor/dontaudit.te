@@ -1,0 +1,3 @@
+# hal_power_default asks for dac_override. That is a symptom of file ownership,
+# not something to grant — AOSP neverallows it for good reason. Silence it.
+dontaudit hal_power_default self:capability dac_override;

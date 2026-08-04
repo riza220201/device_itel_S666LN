@@ -1,0 +1,25 @@
+# Recovery-mode init. Lands at the root of the recovery ramdisk, where init
+# picks it up as /init.recovery.${ro.hardware}.rc — ro.hardware is mt6789,
+# appended to the cmdline by the LK.
+#
+# Without this the recovery ramdisk has no USB gadget configuration at all, so
+# `adb sideload` — the way this ROM is installed — never enumerates.
+#
+# Derived from stock revision 28's copy, with two removals:
+#   * import /init.recovery.project.rc — no such file ships in revision 28.
+#   * an `on boot` exec of /system/bin/mtk_plpath_utils, which builds the
+#     legacy /dev/block/platform/... symlink tree. This tree does not install
+#     that binary into the recovery ramdisk, and everything here addresses
+#     partitions through /dev/block/by-name, which ueventd creates.
+
+on init
+    setprop sys.usb.configfs 1
+    setprop sys.usb.controller "musb-hdrc"
+    setprop sys.usb.ffs.aio_compat 0
+
+on fs && property:ro.debuggable=0
+    # Tell the charger whether USB is a CDP or an SDP port. Without this the
+    # port is treated as charging-only and waits for USB activation that never
+    # comes.
+    write /sys/class/udc/musb-hdrc/device/cmode 2
+    start adbd

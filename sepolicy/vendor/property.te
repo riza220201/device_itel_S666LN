@@ -1,0 +1,15 @@
+# persist.vendor.cam.param.*.version, written by the MTK camera HAL. It cannot
+# be given vendor_default_prop — domain.te neverallows setting that — so the
+# properties get a type of their own and a property_contexts prefix match.
+vendor_internal_prop(vendor_cam_param_prop)
+
+# vendor.prop.pnp.* and vendor.sys.pnpmgr.state, written by /vendor/bin/pnpmgr.
+# The names were recovered from the binary itself (strings /vendor/bin/pnpmgr);
+# the avc record only ever named property_socket, never which property.
+vendor_internal_prop(vendor_pnpmgr_prop)
+
+# NOTE: nothing is declared here for the power HAL's tunables, on purpose.
+# device/mediatek/sepolicy_vndr on lineage-20.0 already declares
+# vendor_mtk_powerhal_prop and maps `persist.vendor.powerhal.` to it; declaring
+# it again here would be a duplicate-type build failure. See hal_power_default.te
+# for why vendor_power_prop is NOT the right substitute on this branch.

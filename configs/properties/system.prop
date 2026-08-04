@@ -1,0 +1,36 @@
+#
+# Copyright (C) 2026 The LineageOS Project
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# /system/build.prop additions, wired up as TARGET_SYSTEM_PROP in
+# BoardConfig.mk.
+#
+# Deliberately short. Stock's /system/build.prop carries around 130 functional
+# properties, but nearly all of them configure Transsion's own HiOS system
+# apps (ro.tran_appm.support, ro.smartcaller_support, ro.thub.core.support,
+# ro.trancare.*, ...) or set dalvik.vm.* / pm.dexopt.* tunings that LineageOS
+# sets for itself. Carrying those would mean shipping configuration for
+# software that is not in this ROM. Only properties with a consumer that
+# actually exists here are kept.
+
+# RIL. mtk-ril.so is the MediaTek RIL implementation the modem blobs expect.
+#
+# NOTE: this is the reason configs/properties/*.prop exist at all. The value
+# below contains a SPACE, and PRODUCT_PROPERTY_OVERRIDES / PRODUCT_PROPERTIES
+# split on whitespace, so a space-bearing value can only be set through a raw
+# .prop file fed to TARGET_SYSTEM_PROP / TARGET_VENDOR_PROP.
+vendor.rild.libpath=mtk-ril.so
+vendor.rild.libargs=-d /dev/ttyC0
+
+# Wi-Fi interface names. wlan0 / p2p0 / ap0 match what the gen4m_6789 driver
+# creates; ro.vendor.wifi.sap.interface in vendor.prop is the vendor-side half
+# of the same fact.
+wifi.interface=wlan0
+wifi.direct.interface=p2p0
+wifi.tethering.interface=ap0
+
+# MediaTek Wi-Fi feature flags.
+ro.mediatek.wlan.p2p=1
+ro.mediatek.wlan.wsc=1
+mediatek.wlan.ctia=0

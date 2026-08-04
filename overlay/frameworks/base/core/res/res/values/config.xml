@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2026 The LineageOS Project
+
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <!-- Display cutout.
+
+         Values taken from the STOCK framework RRO, not from the device as it
+         currently runs:
+           .build/work/product/overlay/framework-res__auto_generated_rro_product.apk
+         That distinction matters. The phone is presently on a third-party ROM
+         whose overlay declares the cutout 36dp tall; stock declares 40dp. Reading
+         a running device would have baked somebody else's authored value into
+         this tree.
+
+         The path is a bounding region, deliberately larger than the hole itself.
+         Stock's Transsion-specific resources describe the actual punch-hole as
+         centre (360,48)px radius 26px on a 720px-wide panel — a ~52px circle —
+         while this rect is 48dp x 40dp (~82 x 68px at density 273). Do not
+         "tighten" it to the circle; the extra area is the layout safe zone. -->
+    <string name="config_mainBuiltInDisplayCutout" translatable="false">M -24,0 L -24,40 L 24,40 L 24,0 Z @dp</string>
+
+    <!-- Stock leaves the cutout unfilled, so the status bar keeps its normal
+         background rather than painting the notch region black. -->
+    <bool name="config_fillMainBuiltInDisplayCutout">false</bool>
+
+    <!-- Rounded corners: stock says 25dp. The 44px figure noted earlier came
+         from the running device and is the same quantity resolved at density
+         273 (25dp * 273/160 = 42.7px); the dp source value is what belongs in
+         an overlay, since it stays correct if the density is ever retuned. -->
+    <dimen name="rounded_corner_radius">25dp</dimen>
+
+    <!-- Refresh rate. The panel exposes 60 / 90 / 120 Hz (dumpsys display on
+         the hardware; 120 is the mode it comes up in). Stock ships NO
+         config_defaultPeakRefreshRate override, so this one line is an
+         authored choice, not a recovered stock fact: without it AOSP settles
+         at 60 and the 90/120 modes are never selected.
+
+         Deliberately no config_defaultRefreshRate — leaving it unset lets the
+         framework drop to 60 on static content instead of pinning a floor. -->
+    <integer name="config_defaultPeakRefreshRate">120</integer>
+</resources>

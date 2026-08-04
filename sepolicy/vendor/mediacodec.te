@@ -1,0 +1,8 @@
+# mediaserver reads an untyped vendor property (codec configuration).
+# SILENCED, not granted: reading vendor_default_prop is neverallowed for
+# coredomain, not merely setting it — there is a separate neverallow on the file
+# class, so an allow here fails the build with
+#   neverallow ... vendor_default_prop (file (ioctl read write ...))
+# The property has no type of its own to target more narrowly, and mediaserver
+# works without it, so silencing is the only correct option.
+dontaudit mediaserver vendor_default_prop:file r_file_perms;

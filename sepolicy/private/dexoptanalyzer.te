@@ -1,0 +1,8 @@
+# dexoptanalyzer traverses per-app data dirs to decide whether a package needs
+# re-dexopting. SILENCED rather than granted: privapp_data_file carries MLS
+# categories (c512,c768), so a plain allow would not reliably satisfy the
+# constraint anyway — an MLS constraint is not an allow rule and no allow can
+# satisfy one. The only cost of the denial is that dexoptanalyzer falls back to
+# a full dexopt decision, a startup optimisation rather than correctness. Apps
+# install and run normally.
+dontaudit dexoptanalyzer privapp_data_file:dir search;

@@ -1,0 +1,9 @@
+Rules here rather than in sepolicy/vendor/ for one reason: vendor policy cannot
+reference types declared in system/sepolicy/private — the build fails with an
+unknown type. system_suspend, adbd_prop, system_adbd_prop, privapp_data_file and
+the gmscore_app / untrusted_app domains are all private types, so their rules
+must live in SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS (BoardConfig.mk).
+
+Vendor domains — pnpmgr, mnld, epdg_wod, mtk_hal_camera and the rest — stay in
+sepolicy/vendor/. Check where a type is declared before choosing the file; it is
+not cosmetic.

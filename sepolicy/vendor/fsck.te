@@ -1,0 +1,14 @@
+# fsck_untrusted walks /sys/devices/.../block when checking a volume, and
+# fsck.exfat then reads the partition start offset out of it. Both are needed:
+# granting only the dir search leaves the file read denied behind it.
+allow fsck_untrusted sysfs_devices_block:dir search;
+allow fsck_untrusted sysfs_devices_block:file r_file_perms;
+
+# fstab.mt6789 mounts /tranfs with `check`, so e2fsck opens the device.
+allow fsck tranfs_block_device:blk_file rw_file_perms;
+
+# It reaches it through /dev/block/by-name/tranfs, which is a symlink on tmpfs.
+# Required by the by-name labeling in file_contexts — blk_file alone is not
+# enough, and the link denial only appears once fsck gets far enough to need it,
+# which it never did while the label pointed at the wrong partition number.
+allow fsck tmpfs:lnk_file r_file_perms;

@@ -1,0 +1,9 @@
+# Only ever seen because /data/local/tmp had adb-pushed test files during
+# development; a shipped device will not hit this. Silenced so it cannot be
+# mistaken for a real finding later.
+#
+# NOTE: the /dev/ntsync grant for untrusted_app is NOT here — it is in
+# sepolicy/vendor/ntsync_app.te, because ntsync_device is a type this tree
+# declares in vendor policy. BLUEPRINT.md §7 lists it against this file; that
+# line is wrong.
+dontaudit untrusted_app shell_test_data_file:dir search;

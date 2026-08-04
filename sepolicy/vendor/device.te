@@ -1,0 +1,19 @@
+# Transsion logging control node. It ships unlabeled (u:object_r:device:s0),
+# which denied hal_fingerprint_default read access on every FP HAL start.
+type tranlog_device, dev_type;
+
+# /dev/ntsync (CONFIG_NTSYNC). Its own type so apps can be granted access
+# without widening anything else — the app neverallows are per-type, naming
+# specific device types rather than dev_type as a whole.
+type ntsync_device, dev_type;
+
+# The Transsion "tranfs" partition. fstab.mt6789 mounts it at /tranfs with
+# `check` and `first_stage_mount`, so init relabels it and e2fsck opens it.
+#
+# Declared here because device/mediatek/sepolicy_vndr does NOT declare it —
+# checked against its full set of 41 *_block_device types, which covers the
+# MediaTek partitions (tee, logo, scp, sspm, dpm, ...) but not this Transsion
+# one. If the sepolicy_vndr branch you build against does declare it, delete
+# this line; the duplicate will fail the build loudly and immediately, which is
+# the failure mode we want.
+type tranfs_block_device, dev_type;

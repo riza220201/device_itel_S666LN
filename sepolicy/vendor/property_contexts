@@ -1,0 +1,9 @@
+persist.vendor.cam.param.                   u:object_r:vendor_cam_param_prop:s0
+vendor.prop.pnp.                            u:object_r:vendor_pnpmgr_prop:s0
+vendor.sys.pnpmgr.                          u:object_r:vendor_pnpmgr_prop:s0
+
+# vendor.tee.googlekey.status and friends. Uses the MediaTek type, which
+# device/mediatek/sepolicy_vndr already declares, rather than letting these fall
+# through to vendor_default_prop — set_prop on that is neverallowed and fails
+# the build outright.
+vendor.tee.                                 u:object_r:vendor_mtk_trustonic_tee_prop:s0

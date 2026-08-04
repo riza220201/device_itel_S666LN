@@ -1,0 +1,8 @@
+# vold reads the /persist mount root while enumerating volumes.
+# SILENCED, not granted: persist_data_file is a VENDOR data type and vold is
+# coredomain, so the access is neverallowed outright — the Treble boundary.
+# Both types being VISIBLE to vendor policy says nothing about the access being
+# PERMITTED; an allow here fails the build with
+#   neverallow ... (dir (ioctl read write create getattr ... search))
+# vold enumerates volumes fine without it.
+dontaudit vold persist_data_file:dir r_dir_perms;

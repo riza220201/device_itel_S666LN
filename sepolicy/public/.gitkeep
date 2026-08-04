@@ -1,0 +1,9 @@
+# Placeholder so git tracks this directory.
+#
+# BoardConfig.mk:178 has SYSTEM_EXT_PUBLIC_SEPOLICY_DIRS pointing here. The
+# directory is currently empty -- nothing in sepolicy/private declares a type
+# needing a public counterpart -- but git does not track empty directories, so
+# without this file the path would vanish on clone and the build variable would
+# reference something that does not exist.
+#
+# Delete this file once a real .te lands here.

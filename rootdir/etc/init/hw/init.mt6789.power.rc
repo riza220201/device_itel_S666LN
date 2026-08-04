@@ -1,0 +1,41 @@
+# CPU frequency governor selection.
+#
+# NOT STOCK — this whole file is ours. Nothing equivalent ships in revision 28.
+#
+# The kernel this device ships with (device/itel/S666LN-kernel) provides the
+# `reflex` governor. Select it explicitly on both policies.
+#
+# THE TRIGGER MATTERS. Stock init.cgroup.rc — which this tree ships and stock's
+# init.mt6789.rc imports — writes `sugov_ext` to these same two nodes in
+# post-fs-data. Actions bound to one trigger run in the order init parsed them,
+# which depends on import order, so competing writes in post-fs-data would be
+# decided by something as fragile as a line's position in an import list.
+# `on boot` fires strictly after `on post-fs-data`, so this write wins
+# regardless.
+#
+# Measured on hardware, 2026-08-03:
+#   scaling_available_governors (policy0 and policy6):
+#     sugov_ext reflex conservative ondemand userspace powersave performance schedutil
+# so sugov_ext is present on this kernel and init.cgroup.rc's write really does
+# take effect — this is not a no-op being papered over. The previously shipped
+# tree avoided the clash by dropping init.cgroup.rc entirely, losing its uclamp
+# and boot-perf tuning with it.
+#
+# On a kernel without `reflex` the write below fails the way any bad
+# scaling_governor write does — non-fatal, and the policy keeps whatever it had
+# (sugov_ext from init.cgroup.rc, or the kernel default). That is deliberate:
+# this file must not break a build that swaps the kernel out.
+#
+# policy0 = 6x Cortex-A55 (little), policy6 = 2x Cortex-A76 (big). Confirmed on
+# hardware: policy0 related_cpus "0 1 2 3 4 5", policy6 "6 7", and those are the
+# only two policies. Several stock rc files chown a policy4; they are generic
+# MediaTek templates for a 4+4 SoC and the chown simply fails here.
+
+on boot
+    write /sys/devices/system/cpu/cpufreq/policy0/scaling_governor reflex
+    write /sys/devices/system/cpu/cpufreq/policy6/scaling_governor reflex
+
+    chown system system /sys/devices/system/cpu/cpufreq/policy0/scaling_governor
+    chown system system /sys/devices/system/cpu/cpufreq/policy6/scaling_governor
+    chmod 0660 /sys/devices/system/cpu/cpufreq/policy0/scaling_governor
+    chmod 0660 /sys/devices/system/cpu/cpufreq/policy6/scaling_governor

@@ -1,0 +1,11 @@
+# GMS repeatedly tries to register as a Perfetto tracing producer and to read
+# the adb state properties. Both are refused on stock too; AOSP silences rather
+# than grants them, and so do we — an app has no business writing the tracing
+# producer socket, and the adb props are deliberately system-internal.
+#
+# Silencing matters here rather than being cosmetic: the traced_producer attempt
+# fired every 2-4 seconds (75 hits in ~3 minutes), which buries genuine denials
+# and wakes the device.
+dontaudit gmscore_app traced_producer_socket:sock_file write;
+dontaudit gmscore_app adbd_prop:file read;
+dontaudit gmscore_app system_adbd_prop:file read;

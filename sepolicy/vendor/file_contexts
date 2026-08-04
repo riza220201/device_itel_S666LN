@@ -1,0 +1,24 @@
+# Domains this tree adds.
+/vendor/bin/pnpmgr                                                              u:object_r:pnpmgr_exec:s0
+/vendor/bin/kmsetkey_ca\.trustonic                                              u:object_r:trustonic_kmsetkey_ca_exec:s0
+
+# Character devices.
+/dev/tranlog_ctl                                                                u:object_r:tranlog_device:s0
+/dev/ntsync                                                                     u:object_r:ntsync_device:s0
+
+# Block devices, ALWAYS through /dev/block/by-name — never a partition number.
+# On this hardware sdc62 is tee_b and tranfs is sdc64; a tree that hardcodes the
+# number ends up granting init read/relabel on the TEE partition instead, and
+# fsck's tranfs grant can never match. Numbers also move between firmware
+# revisions. Live map is in notes/device-state-2026-08-03.md.
+/dev/block/by-name/tranfs                                                       u:object_r:tranfs_block_device:s0
+
+# A/B device: the logo partition is SLOTTED, so a label written for the
+# non-slotted /dev/block/by-name/logo matches nothing at all and kpoc_charger's
+# "allow kpoc_charger logo_block_device:blk_file { read open }" can never apply.
+# Measured on hardware: logo_a -> sdc32, logo_b -> sdc54, and no unslotted
+# /dev/block/by-name/logo exists. (device/mediatek/sepolicy_vndr fixed this
+# upstream on its lineage-23.2 branch, where the entry is now
+# "by-name/logo(_[ab])?" — but not on 20.0, which is what this tree targets.)
+/dev/block/by-name/logo_a                                                       u:object_r:logo_block_device:s0
+/dev/block/by-name/logo_b                                                       u:object_r:logo_block_device:s0

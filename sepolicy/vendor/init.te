@@ -1,0 +1,23 @@
+# init stats /system/bin/logcat for the vendor "boot_log" service
+# (/vendor/etc/init/*.rc). A vendor rc naming a SYSTEM binary is the unusual
+# part; init legitimately needs getattr on any service executable it is told to
+# start.
+allow init logcat_exec:file getattr;
+
+# tranfs is mounted first-stage from fstab.mt6789, so init relabels the device
+# node. Nothing upstream grants this — tranfs_block_device is a type this tree
+# declares (see device.te).
+allow init tranfs_block_device:blk_file { read relabelto };
+
+# file_contexts labels tranfs and logo through /dev/block/by-name/, which are
+# symlinks on tmpfs, so init relabels the link as well as the device. Grants
+# written for a block device cover blk_file only, and the link denial only
+# appears once the by-name label is actually being used.
+allow init tranfs_block_device:lnk_file relabelto;
+allow init logo_block_device:lnk_file relabelto;
+
+# init tries to ptrace the fingerprint HAL, almost certainly while collecting
+# diagnostics as that process exits — the Goodix HAL is known to exit once after
+# a successful enroll. SILENCED, not granted: ptrace on a HAL is real privilege,
+# nothing depends on it succeeding, and init reaps the process either way.
+dontaudit init hal_fingerprint_default:process ptrace;

@@ -1,0 +1,4 @@
+# The ePDG watchdog daemon issues SIOCGIFADDR (0x8916) on its own socket while
+# probing interface addresses. Denied because device/mediatek/sepolicy_vndr
+# never granted the ioctl. Self-directed and harmless.
+allow epdg_wod self:udp_socket ioctl;

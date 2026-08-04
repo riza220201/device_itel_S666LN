@@ -1,0 +1,17 @@
+# The MediaTek power HAL reads its own tunables
+# (persist.vendor.powerhal.thermal_ux_temp_min / _max, which
+# configs/properties/vendor.prop sets).
+#
+# vendor_mtk_powerhal_prop is declared by device/mediatek/sepolicy_vndr on
+# lineage-20.0 (basic/non_plat/property.te:23) and mapped there from BOTH
+# `persist.vendor.powerhal.` and `vendor.powerhal.`
+# (basic/non_plat/property_contexts:283-284), so it is the correct type for
+# these properties and this tree must NOT declare it.
+#
+# Do not "modernise" this to vendor_power_prop. That type also exists on 20.0,
+# but property_contexts maps it from `vendor.mediatek.powerhal.` — a different
+# prefix that none of these properties use. It would compile and grant nothing.
+# (The confusion is worth naming: on the lineage-23.2 / A16 branch
+# vendor_mtk_powerhal_prop is gone and `persist.vendor.powerhal.` maps to
+# vendor_power_prop instead. Checking the wrong branch gives the wrong answer.)
+get_prop(hal_power_default, vendor_mtk_powerhal_prop)

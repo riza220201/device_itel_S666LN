@@ -1,0 +1,13 @@
+# /sys/pnpmgr/* is generic "sysfs", so pnpmgr could not read or write its own
+# tuning nodes (boost_enable, boost_mode, fre_db_cmd, margin_mode, loading_th,
+# fstb_soft_level, fstb_fps_list) once it had a domain of its own.
+type sysfs_pnpmgr, fs_type, sysfs_type;
+
+# /sys/devices/platform/charger/tran_aichg_disable_charger — the bypass-charging
+# node. device/mediatek/sepolicy_vndr labels several of its siblings
+# (sysfs_vbus, sysfs_pump_express, sysfs_fs_chg_file, sysfs_batteryinfo,
+# sysfs_battery_warning) but not this one, so it is generic sysfs there and the
+# type does not exist. Declared here; see genfs_contexts for the label and
+# system_app.te for the grant. All three are needed — a grant against a type
+# nothing carries is silently dead.
+type sysfs_aichg_file, fs_type, sysfs_type;
