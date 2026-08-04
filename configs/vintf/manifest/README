@@ -1,0 +1,14 @@
+Stock vendor VINTF manifest fragments. These are NOT copied to the device as
+fragments — device.mk lists them in DEVICE_MANIFEST_FILE, and assemble_vintf
+merges all of them plus ../manifest.xml into one /vendor/etc/vintf/manifest.xml.
+
+Two mechanisms are unavailable:
+  - the vendor tree, because extract-utils force-modules etc/vintf/manifest/*
+    and 11 of the module names collide with the HAL libraries themselves
+  - PRODUCT_COPY_FILES, because build/make/core/Makefile:72 rejects VINTF
+    metadata copied that way
+
+32 of stock's 33 are here. android.hardware.health@2.1.xml is deliberately
+absent: that HAL is built from source (PRODUCT_PACKAGES android.hardware.health
+@2.1-impl / -service), so its fragment comes from the source module's own
+vintf_fragments. Shipping stock's copy too would declare it twice.

@@ -104,7 +104,13 @@ PRODUCT_COPY_FILES += \
 # vendor's android.hardware.thermal@2.0-service.mtk cannot register and init
 # respawns it every ~5s. configs/vintf/manifest.xml adds it back for both
 # major versions, matching the service's own .rc.
-DEVICE_MANIFEST_FILE := $(LOCAL_PATH)/configs/vintf/manifest.xml
+# DEVICE_MANIFEST_FILE takes a LIST (build/make/target/board/Android.mk:39).
+# Every file listed is passed to assemble_vintf -i and merged into the single
+# /vendor/etc/vintf/manifest.xml. That is how stock's 32 HAL fragments get
+# installed here — see the note below the matrix.
+DEVICE_MANIFEST_FILE := \
+    $(LOCAL_PATH)/configs/vintf/manifest.xml \
+    $(sort $(wildcard $(LOCAL_PATH)/configs/vintf/manifest/*.xml))
 DEVICE_MATRIX_FILE := $(LOCAL_PATH)/configs/vintf/compatibility_matrix.xml
 # No DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE. The only framework matrix in
 # stock revision 28 is /product/etc/vintf/compatibility_matrix.xml, and its
@@ -139,6 +145,26 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/configs/nfc/libnfc-nxp.conf:$(TARGET_COPY_OUT_VENDOR)/etc/libnfc-nxp.conf \
     $(LOCAL_PATH)/configs/nfc/libnfc-slm.conf:$(TARGET_COPY_OUT_VENDOR)/etc/libnfc-slm.conf \
     $(LOCAL_PATH)/configs/nfc/libnfc-nxp_RF.conf:$(TARGET_COPY_OUT_VENDOR)/libnfc-nxp_RF.conf
+
+# NOTE on the 32 fragments in configs/vintf/manifest/ (merged via
+# DEVICE_MANIFEST_FILE above, not copied):
+#
+# They cannot come through the vendor tree — extract-utils FORCE-creates a module
+# for anything under etc/vintf/manifest/ regardless of the '-' prefix
+# (extract_utils.sh:1219) and names it after the basename, so
+# android.hardware.boot@1.2.xml collides with the android.hardware.boot@1.2
+# library and soong fails "module already defined". Eleven of the 32 collide.
+#
+# They also cannot be PRODUCT_COPY_FILES: build/make/core/Makefile:72 hard-errors
+# on any VINTF metadata copied that way ("use DEVICE_MANIFEST_FILE /
+# DEVICE_MATRIX_FILE / vintf_compatibility_matrix / vintf_fragments instead").
+#
+# Merging is the better outcome anyway. assemble_vintf validates and unions at
+# BUILD time instead of the runtime union VINTF would do over loose fragments, so
+# a malformed or conflicting fragment fails the build rather than silently
+# dropping a HAL. Four fragments overlap manifest.xml and are additive minor
+# versions (boot 1.0+1.2, composer 2.1+2.3, sensors 2.0+2.1) plus one AIDL
+# bluetooth.audio alongside the HIDL entry — all legal unions.
 
 # Seccomp policies for the media stack
 PRODUCT_COPY_FILES += \
