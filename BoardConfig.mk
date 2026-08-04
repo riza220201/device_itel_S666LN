@@ -121,6 +121,18 @@ TARGET_KERNEL_SOURCE := kernel/itel/S666LN
 TARGET_KERNEL_CONFIG := s666ln_defconfig
 TARGET_KERNEL_CLANG_COMPILE := true
 TARGET_KERNEL_CLANG_VERSION := r416183b
+# BoardConfigKernel.mk:95 would resolve this to prebuilts/clang/host/..., which
+# on a LineageOS 20 tree only ever contains clang-r450784d. r416183b ships as its
+# own LineageOS project under prebuilts/clang/kernel/ -- see S666LN.xml.
+#
+# NOTE the '=' -- this MUST be a recursively-expanded assignment. BUILD_TOP is
+# not defined yet when BoardConfig.mk is parsed, so ':=' bakes in an empty
+# prefix and yields the absolute path /prebuilts/clang/... at the filesystem
+# root. The build does not complain; it just puts a nonexistent directory on
+# PATH and the kernel dies at its first host tool with
+# "/bin/sh: 1: clang: not found". BoardConfigKernel.mk:95 avoids this because
+# '?=' is also recursively expanded.
+TARGET_KERNEL_CLANG_PATH = $(BUILD_TOP)/prebuilts/clang/kernel/linux-x86/clang-r416183b
 TARGET_KERNEL_ARCH := arm64
 TARGET_KERNEL_HEADER_ARCH := arm64
 
@@ -162,6 +174,24 @@ BOARD_VENDOR_KERNEL_MODULES := \
 #
 # BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT is a separate, complementary
 # variable; setting it alone does NOT enable recovery-resource building.
+#
+# TARGET_RECOVERY_FSTAB is load-bearing for the OTA ZIP, not just for recovery.
+# build/make/core/Makefile:5021 does
+#     ifeq ($(recovery_fstab),)
+#       build_ota_package := false
+#     endif
+# and recovery_fstab (line 2337) is TARGET_RECOVERY_FSTAB, else a genrule, else
+# $(TARGET_DEVICE_DIR)/recovery.fstab. This tree keeps its fstab under rootdir/
+# and has no recovery.fstab, so with the variable unset all three fall through to
+# empty and OTA packaging turns itself off silently.
+#
+# Nothing errors at that point. INTERNAL_OTA_PACKAGE_TARGET just becomes empty,
+# so `bacon` ends up with no prerequisite and its recipe runs as
+#     mv -f  out/.../crDroidAndroid-*.zip
+# failing 3000 lines later with "mv: Needs 2 arguments" -- which says nothing
+# about fstabs. Point it at the same fstab first-stage init and /vendor use.
+TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/rootdir/etc/fstab.mt6789
+
 BOARD_USES_RECOVERY_AS_BOOT :=
 BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT := true
 BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := true
