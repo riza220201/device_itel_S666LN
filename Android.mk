@@ -9,7 +9,7 @@ LOCAL_PATH := $(call my-dir)
 ifeq ($(TARGET_DEVICE),S666LN)
 include $(call all-makefiles-under,$(LOCAL_PATH))
 
-# /vendor/lib*/foo.so -> mt6789/foo.so (640 links stock ships; see symlinks.mk)
+# /vendor/lib*/foo.so -> mt6789/foo.so (634 of stock's 640; see symlinks.mk)
 include $(LOCAL_PATH)/symlinks.mk
 
 # ---------------------------------------------------------------------------

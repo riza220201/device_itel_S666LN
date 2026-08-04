@@ -10,6 +10,17 @@
 # unreachable, and the failure looks like a missing library rather than a
 # missing symlink.
 #
+# 634 of the 640 are emitted here. The six skipped ones are stock's toolbox
+# applets -- vendor/bin/{getevent,getprop,modprobe,setprop,start,stop} -> toolbox
+# -- which are NOT mt6789 platform links. LineageOS already installs working
+# binaries at all six paths, so emitting them produces
+# "overriding commands for target .../vendor/bin/getevent".
+#
+# That is the only overlap: all 640 were checked against every soong install rule
+# in out/soong/installs-*.mk (4596 vendor paths) and every PRODUCT_COPY_FILES
+# destination in the device and vendor makefiles (758 paths). Re-run that check
+# after a firmware bump rather than assuming it still holds.
+#
 # They are created here rather than in proprietary-files.txt because
 # extract-utils on lineage-20.0 has no ';SYMLINK=' support -- that arrived on a
 # later branch. Passing it here silently emits bogus 'certificate:' fields and
@@ -33,12 +44,6 @@ $(eval $(call s666ln-symlink,bin/hw/camerahalserver,mt6789/camerahalserver))
 $(eval $(call s666ln-symlink,bin/jpegtool,mt6789/jpegtool))
 $(eval $(call s666ln-symlink,bin/v3avpud,mt6789/v3avpud.mt6789))
 $(eval $(call s666ln-symlink,bin/v3avpud.mt6789,mt6789/v3avpud.mt6789))
-$(eval $(call s666ln-symlink,bin/getevent,toolbox))
-$(eval $(call s666ln-symlink,bin/getprop,toolbox))
-$(eval $(call s666ln-symlink,bin/modprobe,toolbox))
-$(eval $(call s666ln-symlink,bin/setprop,toolbox))
-$(eval $(call s666ln-symlink,bin/start,toolbox))
-$(eval $(call s666ln-symlink,bin/stop,toolbox))
 $(eval $(call s666ln-symlink,lib/egl/libGLES_mali.so,mt6789/libGLES_mali.so))
 $(eval $(call s666ln-symlink,lib/hw/audio.primary.mt6789.so,audio.primary.mediatek.so))
 $(eval $(call s666ln-symlink,lib/hw/audio.r_submix.mt6789.so,audio.r_submix.mediatek.so))
