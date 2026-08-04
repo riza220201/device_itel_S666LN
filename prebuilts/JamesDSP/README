@@ -1,0 +1,42 @@
+JamesDSP (rootless) -- replaces AudioFX in this ROM.
+
+The APK is NOT committed here. Run ../../fetch-jamesdsp.sh to fetch and verify
+it; that script also writes the Android.bp and privapp-permissions XML next to
+the APK. Until it is run this directory holds only this README, so the tree
+still builds and AudioFX stays in place.
+
+Pinned artifact
+    me.timschneeberger.rootlessjamesdsp  1.6.14 (versionCode 51)
+    https://f-droid.org/repo/me.timschneeberger.rootlessjamesdsp_51.apk
+    sha256 4cdd6cbc57abb00b1ce28668dc29c021640bae8c4521ec592efc58c4239d83a1
+    38,647,450 bytes, minSdk 29, targetSdk 34, arm64-v8a + armeabi-v7a
+
+Why F-Droid and not GitHub: the upstream GitHub releases carry no APK assets at
+all -- the project publishes through F-Droid, which builds from source and
+serves a stable, checksummable URL per versionCode.
+
+WHAT THIS CHANGES, AND THE HONEST TRADE-OFF
+    AudioFX drives the VENDOR audio effects (equalizer, bass boost, virtualizer)
+    through the platform AudioEffect API. JamesDSP rootless does not: it captures
+    playback with the AudioPlaybackCapture API, processes it, and re-renders.
+
+    Consequences, none of which are bugs:
+      - apps that set allowAudioPlaybackCapture="false" (most DRM video, some
+        streaming apps) CANNOT be processed, by Android design
+      - a small amount of added latency
+      - a persistent foreground-service notification
+
+    It is a far more capable DSP than AudioFX in exchange for those. If the
+    vendor effect chain matters more than the DSP, keep AudioFX and skip this.
+
+WHY PRIVILEGED, AND WHAT IT COSTS
+    Without android.permission.DUMP the app cannot see audio sessions on its own,
+    so the user must re-accept a MediaProjection capture dialog after EVERY
+    reboot. That reads as a broken feature in a shipped ROM.
+
+    The generated XML allowlists exactly one permission, DUMP, for exactly this
+    package. DUMP allows reading system service state (dumpsys). That is a real
+    privilege for a bundled third-party app -- it is FOSS and reproducibly built
+    by F-Droid, which is why it is defensible here, but it IS a decision. To opt
+    out, delete the privapp XML and drop privileged:true from the Android.bp; the
+    app still works with the per-boot dialog.

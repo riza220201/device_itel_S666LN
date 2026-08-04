@@ -70,6 +70,21 @@ PRODUCT_SHIPPING_API_LEVEL := 31
 # actually rebased theirs to Android 13 — while still carrying the A12-era Mali
 # r32p1 and A12 AIDL soname conventions (see blob_fixup in extract-files.sh).
 
+# JamesDSP, replacing AudioFX. OPTIONAL -- see fetch-jamesdsp.sh.
+#
+# Guarded on the APK actually being present. fetch-jamesdsp.sh generates both the
+# APK and its Android.bp, so on a tree where the script was never run there is no
+# JamesDSP module to request and AudioFX stays. Asking for it unconditionally
+# would break every build that skipped the fetch.
+#
+# AudioFX is removed by overrides: in that generated Android.bp, not from here:
+# it enters via an inherited makefile (vendor/lineage/config/common_full.mk) and
+# PRODUCT_PACKAGES cannot be subtracted from.
+ifneq ($(wildcard $(LOCAL_PATH)/prebuilts/JamesDSP/JamesDSP.apk),)
+PRODUCT_PACKAGES += \
+    JamesDSP
+endif
+
 # Overlays
 DEVICE_PACKAGE_OVERLAYS += $(LOCAL_PATH)/overlay
 
