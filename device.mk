@@ -28,7 +28,12 @@ PRODUCT_PACKAGES += \
     update_engine_sideload \
     update_verifier
 
-# Dynamic partitions
+# Dynamic partitions / Virtual A/B.
+# These are PRODUCT_* variables so they must be set from a product makefile —
+# board_config.mk makes PRODUCT_* readonly before BoardConfig.mk is included.
+PRODUCT_USE_DYNAMIC_PARTITIONS := true
+PRODUCT_VIRTUAL_AB_OTA := true
+
 PRODUCT_PACKAGES += \
     fastbootd
 

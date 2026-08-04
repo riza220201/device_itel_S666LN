@@ -198,9 +198,12 @@ TARGET_USERIMAGES_USE_EXT4 := true
 TARGET_USERIMAGES_USE_F2FS := true
 
 # Metadata / Virtual A/B                                                [V]
+#
+# Only the BOARD_* half belongs here. PRODUCT_USE_DYNAMIC_PARTITIONS and
+# PRODUCT_VIRTUAL_AB_OTA are product variables: board_config.mk marks PRODUCT_*
+# readonly before it includes this file, so assigning them here fails with
+# "cannot assign to readonly variable". They live in device.mk instead.
 BOARD_USES_METADATA_PARTITION := true
-PRODUCT_USE_DYNAMIC_PARTITIONS := true
-PRODUCT_VIRTUAL_AB_OTA := true
 
 # AVB. The stock chain is signed with the public AOSP test key, so this
 # offers no real protection; it is kept as-is so verified boot stays green
