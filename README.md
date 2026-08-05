@@ -63,11 +63,31 @@ live in a separate repo, `device/itel/S666LN-kernel`. Proprietary blobs live in
 
 ```
 repo init -u <manifest> -b <branch>
-# add this device, the kernel package and the vendor tree to your local manifest
+cp device/itel/S666LN/S666LN.xml .repo/local_manifests/    # or fetch it first
+repo sync
 . build/envsetup.sh
 lunch lineage_S666LN-userdebug
 mka bacon
 ```
+
+`S666LN.xml` is not optional. Besides this device, the kernel package and the
+vendor tree, it carries fixes without which a current crDroid 13.0 tree does not
+compile at all — two LineageOS projects pinned to the last revision matching
+crDroid's `frameworks/base`, the MediaTek Wi-Fi HAL source, and a corrected
+webview linkfile. Each is commented in the file with why it is there and when it
+can be dropped.
+
+Tested against crDroid 13.0. Build verified end to end on 2026-08-05:
+`crDroidAndroid-13.0-20260805-S666LN-v9.20.zip`, with the KMI gate confirming all
+404 prebuilt vendor modules against the shipped kernel.
+
+### Kernel
+
+The tree builds plain GKI from `kernel/itel/S666LN` by default, and that is the
+reproducible path. Release builds ship a kernel from the separate custom-kernel
+project instead — `import-kernel.sh` installs it and refuses any kernel that
+fails the KMI check. See the comments in that script; the BORE and NTSYNC patches
+belong to that project and deliberately are not in the GKI fork.
 
 ## Vulkan 1.3
 
