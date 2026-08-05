@@ -8,7 +8,14 @@ lib/hw/android.hardware.audio.effect@7.0-impl.so
 lib/hw/android.hardware.bluetooth@1.1-impl-mediatek.so
 lib/hw/android.hardware.bluetooth.audio@2.0-impl.so
 lib/hw/android.hardware.bluetooth.audio@2.1-impl.so
-lib/hw/android.hardware.boot@1.0-impl-1.2-mtkimpl.so
+# DELIBERATELY NOT SHIPPED (32-bit only). hardware/mediatek/bootctrl is
+# restricted to the primary arch by apply-overlays.sh step 35: its 32-bit
+# variant cannot compile, because LineageOS's generated_kernel_headers are
+# generated once for ARCH=arm64 and exported to every ABI, so a 32-bit build
+# reads arm64's asm/sigcontext.h and fails on __uint128_t vregs[32].
+# Only the 64-bit impl is ever loaded: android.hardware.boot@1.2-service is a
+# 64-bit process and dlopen's it from /vendor/lib64/hw.
+# lib/hw/android.hardware.boot@1.0-impl-1.2-mtkimpl.so
 lib/hw/android.hardware.gatekeeper@1.0-impl.so
 lib/hw/android.hardware.graphics.allocator@4.0-impl-mediatek.so
 lib/hw/android.hardware.graphics.mapper@4.0-impl-mediatek.so
