@@ -849,6 +849,8 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/egl/mt6789/libGLES_mali.so
 -vendor/lib/hw/android.hardware.audio.effect@7.0-impl.so
 -vendor/lib/hw/android.hardware.audio@7.0-impl.so
+-vendor/lib/hw/android.hardware.bluetooth.audio@2.0-impl.so
+-vendor/lib/hw/android.hardware.bluetooth.audio@2.1-impl.so
 -vendor/lib/hw/android.hardware.bluetooth@1.1-impl-mediatek.so
 -vendor/lib/hw/android.hardware.gatekeeper@1.0-impl.so
 -vendor/lib/hw/android.hardware.nfc@1.0-impl.so
@@ -1403,6 +1405,8 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/hal_libnfc.so
 -vendor/lib64/hw/android.hardware.audio.effect@7.0-impl.so
 -vendor/lib64/hw/android.hardware.audio@7.0-impl.so
+-vendor/lib64/hw/android.hardware.bluetooth.audio@2.0-impl.so
+-vendor/lib64/hw/android.hardware.bluetooth.audio@2.1-impl.so
 -vendor/lib64/hw/android.hardware.bluetooth@1.1-impl-mediatek.so
 -vendor/lib64/hw/android.hardware.gatekeeper@1.0-impl.so
 -vendor/lib64/hw/android.hardware.gnss-impl-mediatek.so
@@ -2367,3 +2371,13 @@ vendor/usr/keylayout/mtk-tpd.kl
 -vendor/lib64/libcrypto-md.so
 -vendor/lib64/libcurl-md.so
 -vendor/lib64/libssl-md.so
+# Passthrough HAL impls with no platform module (dlopen'd, so invisible to
+# tools/vendor-deps-check.sh -- see the note in device.mk).
+-vendor/lib/hw/android.hardware.audio@6.0-impl-mediatek.so
+-vendor/lib/hw/android.hardware.audio@7.0-impl-mediatek.so
+-vendor/lib/hw/vendor.mediatek.hardware.bluetooth.audio@2.1-impl.so
+-vendor/lib/hw/vendor.mediatek.hardware.mtkpower@1.2-impl.so
+-vendor/lib64/hw/android.hardware.audio@6.0-impl-mediatek.so
+-vendor/lib64/hw/android.hardware.audio@7.0-impl-mediatek.so
+-vendor/lib64/hw/vendor.mediatek.hardware.bluetooth.audio@2.1-impl.so
+-vendor/lib64/hw/vendor.mediatek.hardware.mtkpower@1.2-impl.so

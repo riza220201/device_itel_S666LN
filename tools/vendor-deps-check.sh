@@ -59,8 +59,33 @@ command -v "${READELF}" >/dev/null 2>&1 || { echo "!! readelf not found" >&2; ex
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 
+# --- dangling symlinks ----------------------------------------------------
+# Run this FIRST: a broken link is not a missing file, so every other check
+# here will happily report it as present.
+#
+# The 2026-08-05 build shipped 635 dangling links out of 641, because
+# symlinks.mk deferred its link target to recipe-execution time through a
+# variable name that build/make/core/definitions.mk also uses. Every link
+# pointed at lineage.x509.pem. The image contained gralloc.common.so,
+# libGLES_mali.so, vulkan.mali.so and arm.graphics-V1-ndk_platform.so by name
+# and none of them could be opened, so surfaceflinger never started and the
+# device sat at the boot logo without ever bootlooping.
+# Absolute targets are excluded: they are resolved against / on the device, not
+# against $OUT, so they always look dangling here. vendor/lib/modules ->
+# /vendor_dlkm/lib/modules is the legitimate case. Relative links must resolve.
+find "${VENDOR_DIR}" -type l ! -lname '/*' ! -exec test -e {} \; -printf '%p -> %l\n' \
+    2>/dev/null > "${TMP}/dangling"
+DANGLING="$(wc -l < "${TMP}/dangling")"
+if [ "${DANGLING}" -gt 0 ]; then
+    echo "DANGLING SYMLINKS: ${DANGLING}"
+    sed 's/^/  /' "${TMP}/dangling" | head -20
+    [ "${DANGLING}" -gt 20 ] && echo "  ... $((DANGLING - 20)) more"
+fi
+
 # --- what a vendor process can actually load ------------------------------
-find "${VENDOR_DIR}/lib" "${VENDOR_DIR}/lib64" -name '*.so' 2>/dev/null \
+# -xtype f, not -name alone: a dangling symlink still matches '*.so' and would
+# otherwise be counted as a library that resolves.
+find "${VENDOR_DIR}/lib" "${VENDOR_DIR}/lib64" -name '*.so' -xtype f 2>/dev/null \
     | xargs -r -n1 basename | sort -u > "${TMP}/resolvable"
 
 # VNDK. On this platform it is delivered as an APEX (com.android.vndk.current),
@@ -121,9 +146,62 @@ done < <(find "${VENDOR_DIR}/bin" "${VENDOR_DIR}/lib" "${VENDOR_DIR}/lib64" -typ
 echo "vendor ELFs scanned : ${COUNT}"
 echo "resolvable libraries: $(wc -l < "${TMP}/resolvable")"
 
-if [ ! -s "${TMP}/unresolved" ]; then
-    echo "OK: every DT_NEEDED resolves from /vendor, the VNDK snapshot or public.libraries.txt"
+# --- passthrough HAL implementations ------------------------------------
+# DT_NEEDED cannot see these. A passthrough impl is dlopen'd by name at runtime,
+# so it is not a link dependency of anything and a clean dependency report says
+# nothing about whether it exists. The 2026-08-05 build passed this check with
+# zero unresolved and still would not boot, because
+# android.hardware.boot@1.0-impl-1.2-mtkimpl.so was absent and IBootControl
+# therefore never registered.
+#
+# Compare against a stock vendor reference when one is available: anything in
+# stock's lib{,64}/hw that we do not ship is a HAL that will fail to load.
+IMPL_MISSING=0
+# Reference can be a stock vendor DIRECTORY or, more portably, a manifest listing
+# stock's impl paths one per line (lib64/hw/foo.so). The manifest is a few KB and
+# can live in the tree; the directory is a multi-GB extraction that usually only
+# exists on the machine that did the dump.
+IMPL_LIST="${STOCK_IMPL_LIST:-$(dirname "$0")/stock-impls.txt}"
+if [ -n "${STOCK_VENDOR:-}" ] && [ -d "${STOCK_VENDOR}" ]; then
+    for abi in lib lib64; do
+        [ -d "${STOCK_VENDOR}/${abi}/hw" ] || continue
+        while IFS= read -r impl; do
+            base="$(basename "${impl}")"
+            if [ ! -e "${VENDOR_DIR}/${abi}/hw/${base}" ]; then
+                echo "MISSING IMPL: ${abi}/hw/${base}"
+                IMPL_MISSING=$((IMPL_MISSING + 1))
+            fi
+        done < <(find "${STOCK_VENDOR}/${abi}/hw" -maxdepth 1 -name '*-impl*.so' 2>/dev/null)
+    done
+    echo "passthrough impls missing vs stock: ${IMPL_MISSING}"
+elif [ -f "${IMPL_LIST}" ]; then
+    while IFS= read -r rel; do
+        [ -z "${rel}" ] && continue
+        case "${rel}" in \#*) continue ;; esac
+        if [ ! -e "${VENDOR_DIR}/${rel}" ]; then
+            echo "MISSING IMPL: ${rel}"
+            IMPL_MISSING=$((IMPL_MISSING + 1))
+        fi
+    done < "${IMPL_LIST}"
+    echo "passthrough impls missing vs stock: ${IMPL_MISSING}"
+else
+    echo "NOTE: set STOCK_VENDOR=<stock vendor dir> to also check passthrough HAL impls."
+    echo "      DT_NEEDED alone cannot detect a missing dlopen'd implementation."
+fi
+
+if [ ! -s "${TMP}/unresolved" ] && [ "${IMPL_MISSING}" -eq 0 ] && [ "${DANGLING}" -eq 0 ]; then
+    echo "OK: every DT_NEEDED resolves, no passthrough impl is missing vs stock,"
+    echo "    and no symlink dangles"
     exit 0
+fi
+if [ "${DANGLING}" -gt 0 ]; then
+    echo
+    echo "Fix the dangling symlinks first -- they make every other result here"
+    echo "unreliable, and a library behind a broken link is unloadable."
+fi
+if [ ! -s "${TMP}/unresolved" ]; then
+    echo "Link dependencies are clean, but passthrough implementations are missing."
+    exit 1
 fi
 
 echo

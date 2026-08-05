@@ -32,11 +32,33 @@
 
 LOCAL_PATH := $(call my-dir)
 
+# The link target MUST be baked into the recipe as a literal string.
+#
+# This macro used to read
+#     $(eval _tgt := $(2))
+#     $(eval $$(_lnk): ; ... ln -sf $$(_tgt) $$@)
+# which defers $(_tgt) to recipe-execution time. `_tgt' is not ours: it is a
+# scratch variable inside six macros in build/make/core/definitions.mk
+# (intermediates-dir-for and friends). By the time any of these recipes ran,
+# the build system had long since overwritten it, so all 634 links were created
+# pointing at whatever it held last --
+#     vendor/lib64/hw/android.hardware.graphics.mapper@4.0-impl-mediatek.so
+#         -> vendor/lineage/build/target/product/security/lineage.x509.pem
+# 635 of the image's 641 symlinks were dangling. That is why the device stalled
+# at boot with no bootloop: gralloc, libGLES_mali, vulkan.mali and
+# arm.graphics-V1-ndk_platform were all unreachable, so surfaceflinger never
+# came up. It is also the real reason the "arm.graphics" fix appeared to revert
+# three times -- it never reverted, the path was a broken link the whole time.
+#
+# $(2) below is expanded while $(call) expands this body, so the recipe text
+# contains the literal target. Only $$(dir $$@) and $$@ survive to be expanded
+# when the recipe runs, which is what we want.
+#
+# Do not reintroduce a shared scratch variable here, and do not assume a name
+# is private just because it starts with an underscore.
 define s666ln-symlink
-$(eval _lnk := $$(TARGET_OUT_VENDOR)/$(1)) \
-$(eval _tgt := $(2)) \
-$(eval $$(_lnk): ; @mkdir -p $$(dir $$@); ln -sf $$(_tgt) $$@) \
-$(eval ALL_DEFAULT_INSTALLED_MODULES += $$(_lnk))
+$(eval $(TARGET_OUT_VENDOR)/$(strip $(1)): ; @mkdir -p $$(dir $$@); ln -sf $(strip $(2)) $$@) \
+$(eval ALL_DEFAULT_INSTALLED_MODULES += $(TARGET_OUT_VENDOR)/$(strip $(1)))
 endef
 
 $(eval $(call s666ln-symlink,bin/hw/android.hardware.graphics.allocator@4.0-service-mediatek,mt6789/android.hardware.graphics.allocator@4.0-service-mediatek.mt6789))
