@@ -127,10 +127,23 @@ DEVICE_MANIFEST_FILE := \
     $(LOCAL_PATH)/configs/vintf/manifest.xml \
     $(sort $(wildcard $(LOCAL_PATH)/configs/vintf/manifest/*.xml))
 DEVICE_MATRIX_FILE := $(LOCAL_PATH)/configs/vintf/compatibility_matrix.xml
-# No DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE. The only framework matrix in
-# stock revision 28 is /product/etc/vintf/compatibility_matrix.xml, and its
-# entire content is two optional="true" Transsion HALs (deviceauthen, hap) for
-# HiOS apps this ROM does not ship. There is nothing to require.
+
+# DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE is required, and an earlier note
+# here claimed the opposite. That note observed stock's only framework matrix
+# holds two optional Transsion HALs this ROM does not ship, and concluded there
+# was "nothing to require" -- conflating two different directions:
+#
+#   DEVICE_MATRIX_FILE   what this device REQUIRES of the framework
+#                        (genuinely near-empty on this device)
+#   this file            what the framework PERMITS the device to ADVERTISE
+#
+# With PRODUCT_ENFORCE_VINTF_MANIFEST=true, check_vintf rejects every device
+# manifest instance that no framework matrix mentions -- all 75 non-AOSP HALs
+# here (MediaTek, Transsion, NXP, Trustonic, fpsensor, lineage.touch, plus
+# MediaTek's extra android.hardware.radio instances). The build then fails at
+# "Package OTA", 99% in, with target-files already built.
+DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE := \
+    $(LOCAL_PATH)/configs/vintf/framework_compatibility_matrix.xml
 
 # Health
 PRODUCT_PACKAGES += \

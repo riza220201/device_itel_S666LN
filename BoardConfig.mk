@@ -188,6 +188,7 @@ BOARD_INCLUDE_DTB_IN_BOOTIMG := true
 # module sets, so one kernel satisfies all 404.
 BOARD_KMI_MODULE_LAYOUT := 0x7c24b32d
 KMI_VENDOR_MODULES_DIR := $(TARGET_KERNEL_PACKAGE)/modules/vendor_dlkm
+KMI_RAMDISK_MODULES_DIR := $(TARGET_KERNEL_PACKAGE)/modules/vendor_boot
 
 # Kernel modules. _LOAD is mandatory: if left unset the build defaults it to the
 # FULL module list, and neither partition loads all of what it carries
@@ -294,6 +295,28 @@ BOARD_AVB_VBMETA_SYSTEM_KEY_PATH := external/avb/test/data/testkey_rsa2048.pem
 BOARD_AVB_VBMETA_SYSTEM_ALGORITHM := SHA256_RSA2048
 BOARD_AVB_VBMETA_SYSTEM_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
 BOARD_AVB_VBMETA_SYSTEM_ROLLBACK_INDEX_LOCATION := 2
+
+# vbmeta_vendor. AB_OTA_PARTITIONS lists it, but without this block the build
+# never creates the image and target-files packaging dies with
+#   AssertionError: Failed to find vbmeta_vendor.img
+# at 99%, after every partition image has already been built.
+#
+# Contents and rollback index location read back from the stock images with
+# avbtool info_image, not guessed:
+#
+#   stock vbmeta        chains boot (RIL 3), vbmeta_system (RIL 2),
+#                       vbmeta_vendor (RIL 4), and carries direct descriptors
+#                       for dtbo, vendor_boot, odm_dlkm, system_ext, vendor_dlkm
+#   stock vbmeta_vendor exactly one hashtree descriptor: vendor
+#
+# So vbmeta_vendor chains ONLY vendor. vendor_dlkm and odm_dlkm are deliberately
+# not listed: stock keeps them in the main vbmeta, and moving them here would
+# change which image the bootloader must verify them from.
+BOARD_AVB_VBMETA_VENDOR := vendor
+BOARD_AVB_VBMETA_VENDOR_KEY_PATH := external/avb/test/data/testkey_rsa2048.pem
+BOARD_AVB_VBMETA_VENDOR_ALGORITHM := SHA256_RSA2048
+BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
+BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX_LOCATION := 4
 
 # Display                                                              [V]
 TARGET_SCREEN_DENSITY := 273
