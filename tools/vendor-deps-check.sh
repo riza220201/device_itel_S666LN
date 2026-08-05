@@ -59,6 +59,25 @@ command -v "${READELF}" >/dev/null 2>&1 || { echo "!! readelf not found" >&2; ex
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 
+# --- vendor properties that must not be empty -----------------------------
+# ro.vendor.build.security_patch feeds Tag::VENDOR_PATCHLEVEL in the Trustonic
+# KeyMint HAL. Empty leaves the TA unconfigured, generateKey returns -49
+# (KEYMINT_NOT_CONFIGURED), vold cannot create the metadata encryption key, and
+# init reboots to recovery -- which looks like a bootloop and says nothing about
+# keystore. VENDOR_SECURITY_PATCH is referenced by build/make/core/main.mk but
+# defined by no default, so this ships blank unless BoardConfig.mk sets it.
+PROP_BAD=0
+VPROP="${VENDOR_DIR}/build.prop"
+if [ -f "${VPROP}" ]; then
+    for p in ro.vendor.build.security_patch ro.vendor.build.fingerprint; do
+        v="$(grep -m1 "^${p}=" "${VPROP}" 2>/dev/null | cut -d= -f2-)"
+        if [ -z "${v}" ]; then
+            echo "EMPTY VENDOR PROP: ${p}"
+            PROP_BAD=$((PROP_BAD + 1))
+        fi
+    done
+fi
+
 # --- dangling symlinks ----------------------------------------------------
 # Run this FIRST: a broken link is not a missing file, so every other check
 # here will happily report it as present.
@@ -189,10 +208,16 @@ else
     echo "      DT_NEEDED alone cannot detect a missing dlopen'd implementation."
 fi
 
-if [ ! -s "${TMP}/unresolved" ] && [ "${IMPL_MISSING}" -eq 0 ] && [ "${DANGLING}" -eq 0 ]; then
+if [ ! -s "${TMP}/unresolved" ] && [ "${IMPL_MISSING}" -eq 0 ] && [ "${DANGLING}" -eq 0 ] \
+   && [ "${PROP_BAD}" -eq 0 ]; then
     echo "OK: every DT_NEEDED resolves, no passthrough impl is missing vs stock,"
-    echo "    and no symlink dangles"
+    echo "    no symlink dangles, and no required vendor property is empty"
     exit 0
+fi
+if [ "${PROP_BAD}" -gt 0 ]; then
+    echo
+    echo "An empty vendor property above will boot-loop the device via a path"
+    echo "that never mentions the property. Fix it before flashing."
 fi
 if [ "${DANGLING}" -gt 0 ]; then
     echo

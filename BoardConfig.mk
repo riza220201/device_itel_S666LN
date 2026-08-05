@@ -344,6 +344,29 @@ BOARD_EROFS_PCLUSTER_SIZE := 262144
 TARGET_USERIMAGES_USE_EXT4 := true
 TARGET_USERIMAGES_USE_F2FS := true
 
+# Vendor security patch level. THIS IS LOAD-BEARING; it is not cosmetic.
+#
+# build/make/core/main.mk does
+#     ADDITIONAL_VENDOR_PROPERTIES += ro.vendor.build.security_patch=$(VENDOR_SECURITY_PATCH)
+# and nothing anywhere else in the tree defines VENDOR_SECURITY_PATCH, so
+# without this line the property ships EMPTY:
+#     ro.vendor.build.security_patch=
+#
+# The Trustonic KeyMint HAL reads it to set Tag::VENDOR_PATCHLEVEL. An empty
+# value leaves the TA unconfigured, and every generateKey then fails with
+# KeyMint error -49 (KEYMINT_NOT_CONFIGURED). vold cannot mint the metadata
+# encryption key, /data cannot be prepared, and init reboots to recovery:
+#     vold: keystore2 Keystore generateKey returned service specific error: -49
+#     vold: read_key failed in mountFstab
+#     vdc: Command: cryptfs init_user0 Failed
+#     reboot: Restarting system with command 'recovery'
+# which presents as a bootloop, not as a keystore error.
+#
+# 2025-04-05 is what stock ships (vendor_ex/build.prop). It must match stock
+# rather than PLATFORM_SECURITY_PATCH, because the vendor blobs ARE that stock
+# build and the TA was provisioned against it.
+VENDOR_SECURITY_PATCH := 2025-04-05
+
 # Metadata / Virtual A/B                                                [V]
 #
 # Only the BOARD_* half belongs here. PRODUCT_USE_DYNAMIC_PARTITIONS and
