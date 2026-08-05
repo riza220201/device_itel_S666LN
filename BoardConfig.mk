@@ -276,7 +276,31 @@ BOARD_DTBOIMG_PARTITION_SIZE := 33554432
 
 BOARD_SUPER_PARTITION_SIZE := 9847996416
 BOARD_SUPER_PARTITION_GROUPS := mtk_dynamic_partitions
-BOARD_MTK_DYNAMIC_PARTITIONS_SIZE := 9845899264
+
+# Group max is DELIBERATELY well under the super size, and must stay that way.
+#
+# update_engine refuses a sideload when the sum of the target's group maxima
+# exceeds the allocatable space of the super ALREADY ON THE DEVICE:
+#
+#   [ERROR] The maximum size of all groups for the target slot (9845899264) has
+#           exceeded allocatable space for dynamic partitions 9125756928.
+#   [ERROR] Error ErrorCode::kInstallDeviceOpenError (7)
+#
+# That check reads allocatable space from the EXISTING metadata, not from the
+# block device. This device's super really is 9,847,996,416 B and stock's
+# metadata says so, but a previously-installed ROM had written metadata
+# declaring 9,126,805,504 — so every user coming from that ROM hit a hard
+# install failure, while anyone coming from stock did not. That asymmetry is why
+# it survived to a flash attempt.
+#
+# Claiming the whole super bought nothing: these six partitions total ~2.05 GB.
+# 8 GiB is a 4x headroom and fits inside every super metadata seen in the field
+# (stock 9,845,899,264 and the other ROM's 9,125,756,928), so the package
+# installs from either starting point with no pre-wipe step.
+#
+# Do NOT "restore" this to the stock 9845899264 to match lpdump. It is not a
+# fidelity value; it is a compatibility ceiling.
+BOARD_MTK_DYNAMIC_PARTITIONS_SIZE := 8589934592
 BOARD_MTK_DYNAMIC_PARTITIONS_PARTITION_LIST := \
     odm_dlkm \
     product \
