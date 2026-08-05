@@ -2331,3 +2331,39 @@ vendor/odm/etc/passwd
 
 # usr
 vendor/usr/keylayout/mtk-tpd.kl
+
+# libprotobuf-cpp-{full,lite}-3.9.1 are deliberately NOT here. They look like
+# this same case, but external/protobuf installs them into /vendor transitively
+# via one of the .vendor packages in device.mk, so adding them collides:
+#   overriding commands for target .../vendor/lib64/libprotobuf-cpp-full-3.9.1.so
+# Provenance is what distinguishes the two cases -- check which .intermediates
+# path an install rule comes from, not merely that a rule exists.
+#
+# Stock-only libraries with no platform module. Their absence left vendor HALs
+# unable to link -- see tools/vendor-deps-check.sh and the PRODUCT_PACKAGES notes
+# in device.mk. Do not "replace these with the platform module": there is none,
+# and PRODUCT_PACKAGES entries for them fail with "non-existent modules".
+-vendor/lib/libCamera_pblchi5022qmipiraw_TikTok_Lite.so
+-vendor/lib/libCamera_pblchi5022qmipiraw_TikTok_Lite_zoom.so
+-vendor/lib/libapmonitor_vendor.so
+-vendor/lib/libpowerhalwrap_vendor.so
+-vendor/lib/libstrongswan.so
+-vendor/lib/libthha.so
+-vendor/lib/vendor.mediatek.hardware.apmonitor@2.0.so
+-vendor/lib64/libCamera_pblchi5022qmipiraw_TikTok_Lite.so
+-vendor/lib64/libCamera_pblchi5022qmipiraw_TikTok_Lite_zoom.so
+-vendor/lib64/libapmonitor_vendor.so
+-vendor/lib64/libfft_vendor.so
+-vendor/lib64/libhfmanagerwrapper.so
+-vendor/lib64/libpowerhalwrap_vendor.so
+-vendor/lib64/libstrongswan.so
+-vendor/lib64/libthha.so
+-vendor/lib64/vendor.mediatek.hardware.apmonitor@2.0.so
+-vendor/lib64/vendor.mediatek.hardware.lbs@1.0.so
+# Needed by libstrongswan.so (MediaTek's -md variants; no platform module).
+-vendor/lib/libcrypto-md.so
+-vendor/lib/libcurl-md.so
+-vendor/lib/libssl-md.so
+-vendor/lib64/libcrypto-md.so
+-vendor/lib64/libcurl-md.so
+-vendor/lib64/libssl-md.so

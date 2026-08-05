@@ -71,13 +71,21 @@ function blob_fixup() {
             "${PATCHELF}" --replace-needed "android.hardware.light-V1-ndk_platform.so" \
                 "android.hardware.light-V1-ndk.so" "${2}"
             ;;
-        vendor/lib/egl/mt6789/libGLES_mali.so | \
-        vendor/lib64/egl/mt6789/libGLES_mali.so | \
-        vendor/lib/hw/mt6789/android.hardware.graphics.mapper@4.0-impl-mediatek.so | \
-        vendor/lib64/hw/mt6789/android.hardware.graphics.mapper@4.0-impl-mediatek.so)
-            "${PATCHELF}" --replace-needed "arm.graphics-V1-ndk_platform.so" \
-                "arm.graphics-V1-ndk.so" "${2}"
-            ;;
+        # NOTE: arm.graphics-V1-ndk_platform is deliberately NOT renamed here.
+        #
+        # The android.hardware.light-V1-ndk rename above IS correct -- that AIDL
+        # library really did drop the _platform suffix on the Android 13 branch,
+        # and soong builds android.hardware.light-V1-ndk plus a .vendor variant.
+        #
+        # arm.graphics did not. soong on this branch builds the module
+        # arm.graphics-V1-ndk_platform, WITH the suffix, and stock ships
+        # arm.graphics-V1-ndk_platform.so. Renaming by analogy with the light HAL
+        # left both copies of android.hardware.graphics.mapper@4.0-impl-mediatek.so
+        # depending on a soname nothing on the device provides, which an ELF
+        # dependency audit of the built vendor image caught.
+        #
+        # Check before reinstating any rename here:
+        #   grep '^LOCAL_MODULE := arm.graphics' out/soong/Android-*.mk
     esac
 }
 

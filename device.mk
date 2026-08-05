@@ -85,6 +85,188 @@ PRODUCT_PACKAGES += \
     JamesDSP
 endif
 
+# Vendor variants of platform-built libraries.
+#
+# NOT optional. Without these the vendor partition contains HALs that cannot
+# link. The 2026-08-05 build stalled at 46s on
+#   HidlServiceManagement: Waited one second for android.hardware.boot@1.0::IBootControl/default
+# because android.hardware.boot@{1.0,1.1,1.2}.so were absent from /vendor, so
+# android.hardware.boot@1.2-service died in the linker and IBootControl never
+# registered. The slot was then never marked successful and the bootloader
+# rolled back to the other (empty) slot, which looked like an unrelated
+# bootloop. An ELF audit of the built image found 501 unresolved DT_NEEDED
+# references across 144 libraries.
+#
+# WHY THEY ARE NEEDED. These were once shipped as blobs and were dropped because
+# their soong module names collide with platform modules of the same name. The
+# platform does build them -- but only the SYSTEM variant, because every
+# consumer here is a cc_prebuilt_* whose dependencies soong cannot see. Nothing
+# requests the .vendor variant, so /vendor goes without while the build still
+# succeeds.
+#
+# Neither of these is evidence that a file reaches /vendor:
+#   - an install rule in out/soong/installs-*.mk (rules exist for modules
+#     nothing requests, so they are never built into the image)
+#   - the file existing under /system (a vendor process cannot link it)
+#
+# Re-derive after ANY blob change with tools/vendor-deps-check.sh, which reads
+# DT_NEEDED from every vendor ELF and resolves it against /vendor, the VNDK
+# apex, the LLNDK list and public.libraries.txt. It must report zero.
+PRODUCT_PACKAGES += \
+    android.frameworks.cameraservice.common@2.0.vendor \
+    android.frameworks.cameraservice.device@2.0.vendor \
+    android.frameworks.cameraservice.device@2.1.vendor \
+    android.frameworks.cameraservice.service@2.0.vendor \
+    android.frameworks.cameraservice.service@2.1.vendor \
+    android.frameworks.cameraservice.service@2.2.vendor \
+    android.frameworks.sensorservice@1.0.vendor \
+    android.hardware.audio.common-util.vendor \
+    android.hardware.audio.common@5.0.vendor \
+    android.hardware.audio.common@6.0-util.vendor \
+    android.hardware.audio.common@6.0.vendor \
+    android.hardware.audio.common@7.0-enums.vendor \
+    android.hardware.audio.common@7.0-util.vendor \
+    android.hardware.audio.common@7.0.vendor \
+    android.hardware.audio.effect@6.0.vendor \
+    android.hardware.audio.effect@7.0-util.vendor \
+    android.hardware.audio.effect@7.0.vendor \
+    android.hardware.audio@6.0.vendor \
+    android.hardware.audio@7.0-util.vendor \
+    android.hardware.audio@7.0.vendor \
+    android.hardware.biometrics.fingerprint@2.1.vendor \
+    android.hardware.bluetooth.audio@2.0.vendor \
+    android.hardware.bluetooth.audio@2.1.vendor \
+    android.hardware.bluetooth@1.0.vendor \
+    android.hardware.bluetooth@1.1.vendor \
+    android.hardware.boot@1.0.vendor \
+    android.hardware.boot@1.1.vendor \
+    android.hardware.boot@1.2.vendor \
+    android.hardware.camera.common@1.0.vendor \
+    android.hardware.camera.device@1.0.vendor \
+    android.hardware.camera.device@3.2.vendor \
+    android.hardware.camera.device@3.3.vendor \
+    android.hardware.camera.device@3.4.vendor \
+    android.hardware.camera.device@3.5.vendor \
+    android.hardware.camera.device@3.6.vendor \
+    android.hardware.camera.provider@2.4.vendor \
+    android.hardware.camera.provider@2.5.vendor \
+    android.hardware.camera.provider@2.6.vendor \
+    android.hardware.drm@1.0.vendor \
+    android.hardware.drm@1.1.vendor \
+    android.hardware.drm@1.2.vendor \
+    android.hardware.drm@1.3.vendor \
+    android.hardware.drm@1.4.vendor \
+    android.hardware.gatekeeper@1.0.vendor \
+    android.hardware.gnss-V1-ndk.vendor \
+    android.hardware.gnss.measurement_corrections@1.0.vendor \
+    android.hardware.gnss.measurement_corrections@1.1.vendor \
+    android.hardware.gnss.visibility_control@1.0.vendor \
+    android.hardware.gnss@1.0.vendor \
+    android.hardware.gnss@1.1.vendor \
+    android.hardware.gnss@2.0.vendor \
+    android.hardware.gnss@2.1.vendor \
+    android.hardware.graphics.composer@2.1-resources.vendor \
+    android.hardware.graphics.composer@2.1.vendor \
+    android.hardware.graphics.composer@2.2-resources.vendor \
+    android.hardware.graphics.composer@2.2.vendor \
+    android.hardware.graphics.composer@2.3.vendor \
+    android.hardware.light-V1-ndk.vendor \
+    android.hardware.light@2.0.vendor \
+    android.hardware.media.c2@1.0.vendor \
+    android.hardware.media.c2@1.1.vendor \
+    android.hardware.media.c2@1.2.vendor \
+    android.hardware.nfc@1.0.vendor \
+    android.hardware.nfc@1.1.vendor \
+    android.hardware.nfc@1.2.vendor \
+    android.hardware.power@1.0.vendor \
+    android.hardware.power@1.1.vendor \
+    android.hardware.power@1.2.vendor \
+    android.hardware.power@1.3.vendor \
+    android.hardware.radio.config@1.0.vendor \
+    android.hardware.radio.config@1.1.vendor \
+    android.hardware.radio.config@1.2.vendor \
+    android.hardware.radio.config@1.3.vendor \
+    android.hardware.radio@1.2.vendor \
+    android.hardware.radio@1.3.vendor \
+    android.hardware.radio@1.4.vendor \
+    android.hardware.radio@1.5.vendor \
+    android.hardware.radio@1.6.vendor \
+    android.hardware.secure_element@1.0.vendor \
+    android.hardware.secure_element@1.1.vendor \
+    android.hardware.secure_element@1.2.vendor \
+    android.hardware.security.keymint-V1-ndk.vendor \
+    android.hardware.sensors@1.0.vendor \
+    android.hardware.sensors@2.0-ScopedWakelock.vendor \
+    android.hardware.sensors@2.0.vendor \
+    android.hardware.sensors@2.1.vendor \
+    android.hardware.soundtrigger@2.1.vendor \
+    android.hardware.soundtrigger@2.2.vendor \
+    android.hardware.soundtrigger@2.3.vendor \
+    android.hardware.tetheroffload.config@1.0.vendor \
+    android.hardware.tetheroffload.control@1.0.vendor \
+    android.hardware.tetheroffload.control@1.1.vendor \
+    android.hardware.thermal@1.0.vendor \
+    android.hardware.thermal@2.0.vendor \
+    android.hardware.usb.gadget@1.0.vendor \
+    android.hardware.usb.gadget@1.1.vendor \
+    android.hardware.usb@1.0.vendor \
+    android.hardware.usb@1.1.vendor \
+    android.hardware.usb@1.2.vendor \
+    android.hardware.usb@1.3.vendor \
+    android.hidl.allocator@1.0.vendor \
+    libchrome.vendor \
+    libcodec2_hidl@1.0.vendor \
+    libcodec2_hidl@1.1.vendor \
+    libcodec2_hidl@1.2.vendor \
+    libcodec2_soft_common.vendor \
+    libcodec2_vndk.vendor \
+    libcppbor_external.vendor \
+    libdrm.vendor \
+    libeffectsconfig.vendor \
+    libflatbuffers-cpp.vendor \
+    libhidltransport.vendor \
+    libhwbinder.vendor \
+    libmediautils_vendor.vendor \
+    libmemunreachable.vendor \
+    libpcap.vendor \
+    libruy.vendor \
+    libsfplugin_ccodec_utils.vendor \
+    libtextclassifier_hash.vendor \
+    libvibratorutils.vendor \
+    vendor.lineage.touch@1.0.vendor \
+    vendor.mediatek.hardware.mtkpower@1.0.vendor \
+    vendor.mediatek.hardware.mtkpower@1.1.vendor \
+    vendor.nxp.nxpese@1.0.vendor \
+    vendor.nxp.nxpnfc@2.0.vendor
+
+
+# Vendor-only libraries that soong already builds (mostly hardware/mediatek,
+# which only compiles because BoardConfig sets BOARD_HAS_MTK_HARDWARE). These have
+# no .vendor suffix because the module IS the vendor variant. Like the list above
+# nothing referenced them, so they were absent from /vendor.
+#
+# These six must NOT be shipped as blobs as well: a proprietary-files.txt entry
+# collides with the module and kati fails with
+#   MODULE.TARGET.SHARED_LIBRARIES.libmtkperf_client_vendor already defined by
+#   hardware/mediatek/libmtkperf_client
+#
+# The converse also bit once. Twelve other libraries looked soong-provided when
+# checked with a grep of Android-*.mk, but only because unrelated blob entries
+# were in the vendor tree AT THE TIME OF THE CHECK, so it was reading modules
+# generated from those very blobs. They are genuinely stock-only and are listed
+# in proprietary-files.txt. Verify against a CLEAN vendor tree, or let the build
+# answer: PRODUCT_PACKAGES entries that do not exist fail with
+#   includes non-existent modules in PRODUCT_PACKAGES
+PRODUCT_PACKAGES += \
+    ese_client \
+    libprotobuf-cpp-full.vendor \
+    libprotobuf-cpp-lite.vendor \
+    ese_spi_nxp \
+    libhwc2on1adapter \
+    libhwc2onfbadapter \
+    libmtkperf_client_vendor \
+    nfc_nci_nxp
+
 # Overlays
 DEVICE_PACKAGE_OVERLAYS += $(LOCAL_PATH)/overlay
 
