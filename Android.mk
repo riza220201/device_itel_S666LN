@@ -82,6 +82,38 @@ $(S666LN_KMI_STAMP): $(S666LN_KMI_KERNEL_DEP) $(S666LN_KMI_SCRIPT)
 # because build/make/core/Makefile is parsed after device Android.mk files, so
 # that variable is still empty here. Adding a prerequisite to a rule defined
 # later is fine; only its commands cannot be redefined.
+# Hooking this correctly took three tries; the first two both "worked" in the
+# sense that the build succeeded and the gate never ran.
+#
+#   droidcore              `mka bacon` never builds droidcore.
+#   vendor_dlkm.img        `mka bacon` never builds that either. bacon goes
+#                          bacon -> OTA -> target-files -> STAGED FILES, and
+#                          add_img_to_target_files creates the .img files itself
+#                          at packaging time. Confirmed with
+#                          `ninja -t query` / `-n bacon`: no .img target appears
+#                          anywhere in bacon's graph.
+#
+# What target-files actually consumes is the staged tree, so the gate has to hang
+# off files that get staged. symlinks.mk has already registered 634 of ours in
+# ALL_DEFAULT_INSTALLED_MODULES by the time this runs, all under
+# $(TARGET_OUT_VENDOR), and every one of them is a direct input to the
+# target-files zip.
+#
+# Order-only ('|') on purpose: the stamp must exist before our vendor files are
+# installed, but its timestamp must not make them perpetually dirty.
+#
+# The $(error) is the point of the whole block. Both earlier attempts failed
+# SILENTLY -- a detached gate looks exactly like a passing one. If this filter
+# ever comes up empty the build stops instead of quietly shipping unverified.
+S666LN_KMI_HOOK := $(filter $(TARGET_OUT_VENDOR)/%,$(ALL_DEFAULT_INSTALLED_MODULES))
+ifeq ($(S666LN_KMI_HOOK),)
+$(error S666LN: KMI gate has nothing to attach to. It would not run, and the \
+        build would ship a kernel that was never checked against the vendor \
+        modules. Fix the hook rather than removing this check.)
+endif
+$(S666LN_KMI_HOOK): | $(S666LN_KMI_STAMP)
+
+# Kept for `m`/`make` and for image-only builds, which do reach these.
 droidcore: $(S666LN_KMI_STAMP)
 $(PRODUCT_OUT)/vendor_dlkm.img: $(S666LN_KMI_STAMP)
 
