@@ -105,6 +105,7 @@ vendor/app/mcRegistry/e97c270ea5c44c58bcd3384a2fa2539e.tabin
 -vendor/bin/mt6789/v3avpud.mt6789
 -vendor/bin/mtk_agpsd
 -vendor/bin/mtk_pkm_service
+-vendor/bin/muxreport
 -vendor/bin/netdagent
 -vendor/bin/nvram_daemon
 -vendor/bin/pnpmgr
@@ -440,7 +441,6 @@ vendor/etc/init/android.hardware.security.keymint-service.trustonic.rc
 vendor/etc/init/android.hardware.sensors@2.1-service-multihal.rc
 vendor/etc/init/android.hardware.thermal@2.0-service.mtk.rc
 vendor/etc/init/android.hardware.usb@1.2-service-mediatekv2.rc
-vendor/etc/init/android.hardware.wifi.supplicant-service.rc
 vendor/etc/init/audiocmdservice_atci.rc
 vendor/etc/init/bootperf.rc
 vendor/etc/init/camerahalserver.rc

@@ -59,6 +59,46 @@ command -v "${READELF}" >/dev/null 2>&1 || { echo "!! readelf not found" >&2; ex
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 
+# --- init services whose binary does not exist ----------------------------
+# An init .rc naming a path that is not installed is NOT a build error. The
+# service simply never starts, and the only symptom is whatever depended on it
+# quietly not working.
+#
+# extract-files.sh makes this easy to hit, because a .rc and the binary it
+# starts are two separate lines in proprietary-files.txt and nothing ties them
+# together. Found this way:
+#   android.hardware.wifi.supplicant-service.rc -> /vendor/bin/hw/wpa_supplicant
+#   muxreport.rc                                -> /vendor/bin/muxreport
+# both extracted as .rc only, so Wi-Fi could not work at all.
+#
+# Note the redirect rather than a pipe: running this loop in a pipeline puts it
+# in a subshell, and an earlier version of this check reported six false
+# positives because of it.
+SERVICE_MISSING=0
+: > "${TMP}/svc"
+for rc in "${VENDOR_DIR}"/etc/init/*.rc; do
+    [ -f "${rc}" ] || continue
+    # sub(/\r$/...): several stock .rc files use CRLF, and the trailing carriage
+    # return becomes part of the path. Without this the check reports
+    # "/vendor/bin/dmc_core^M" as missing -- four false positives out of six on
+    # the first run.
+    awk '/^[[:space:]]*service[[:space:]]/ { p = $3; sub(/\r$/, "", p); if (p != "") print p }' \
+        "${rc}" >> "${TMP}/svc" 2>/dev/null
+done
+sort -u "${TMP}/svc" -o "${TMP}/svc"
+while IFS= read -r bin; do
+    case "${bin}" in
+        /vendor/*) target="${VENDOR_DIR}${bin#/vendor}" ;;
+        /system/vendor/*) target="${VENDOR_DIR}${bin#/system/vendor}" ;;
+        *) continue ;;   # /system paths are not ours to verify from here
+    esac
+    if [ ! -e "${target}" ]; then
+        echo "MISSING SERVICE BINARY: ${bin}"
+        SERVICE_MISSING=$((SERVICE_MISSING + 1))
+    fi
+done < "${TMP}/svc"
+[ "${SERVICE_MISSING}" -gt 0 ] && echo "init services with no binary: ${SERVICE_MISSING}"
+
 # --- vendor properties that must not be empty -----------------------------
 # ro.vendor.build.security_patch feeds Tag::VENDOR_PATCHLEVEL in the Trustonic
 # KeyMint HAL. Empty leaves the TA unconfigured, generateKey returns -49
@@ -209,9 +249,10 @@ else
 fi
 
 if [ ! -s "${TMP}/unresolved" ] && [ "${IMPL_MISSING}" -eq 0 ] && [ "${DANGLING}" -eq 0 ] \
-   && [ "${PROP_BAD}" -eq 0 ]; then
+   && [ "${PROP_BAD}" -eq 0 ] && [ "${SERVICE_MISSING}" -eq 0 ]; then
     echo "OK: every DT_NEEDED resolves, no passthrough impl is missing vs stock,"
-    echo "    no symlink dangles, and no required vendor property is empty"
+    echo "    no symlink dangles, no required vendor property is empty, and every"
+    echo "    init service has its binary"
     exit 0
 fi
 if [ "${PROP_BAD}" -gt 0 ]; then

@@ -321,6 +321,30 @@ PRODUCT_PACKAGES += \
 # root namespace and IS displaced by its blob -- it emits zero make modules.
 
 
+# Wi-Fi supplicant.
+#
+# proprietary-files.txt extracted stock's
+# vendor/etc/init/android.hardware.wifi.supplicant-service.rc but NOT the
+# /vendor/bin/hw/wpa_supplicant it starts, so the service could never run and
+# Wi-Fi could not work. Nothing at build time notices: an init .rc naming a
+# path that does not exist is not an error.
+#
+# Built from source rather than blobbed. external/wpa_supplicant_8 is synced and
+# BOARD_WLAN_DEVICE := MediaTek / WPA_SUPPLICANT_VERSION := VER_0_8_X are already
+# set; the module simply was never requested. It is LOCAL_PROPRIETARY_MODULE with
+# LOCAL_MODULE_RELATIVE_PATH := hw, so it installs to the exact path the service
+# expects.
+#
+# The stock .rc is dropped from proprietary-files.txt in the same change, for two
+# reasons. It would collide -- the module carries
+# LOCAL_INIT_RC=aidl/android.hardware.wifi.supplicant-service.rc and installs to
+# the same path. And it is the wrong one: stock's declares the HIDL interfaces
+# android.hardware.wifi.supplicant@{1.0..1.4}::ISupplicant, while this tree's
+# VINTF fragment declares format="aidl" ISupplicant/default. The module's AIDL
+# .rc is what matches the manifest.
+PRODUCT_PACKAGES += \
+    wpa_supplicant
+
 # Overlays
 DEVICE_PACKAGE_OVERLAYS += $(LOCAL_PATH)/overlay
 
