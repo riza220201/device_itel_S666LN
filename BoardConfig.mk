@@ -272,7 +272,22 @@ BOARD_EXCLUDE_KERNEL_FROM_RECOVERY_IMAGE := true
 BOARD_FLASH_BLOCK_SIZE := 262144
 BOARD_BOOTIMAGE_PARTITION_SIZE := 67108864
 BOARD_VENDOR_BOOTIMAGE_PARTITION_SIZE := 67108864
-BOARD_DTBOIMG_PARTITION_SIZE := 33554432
+# 8 MiB, NOT 32. Read off the device (blockdev --getsize64
+# /dev/block/by-name/dtbo_a = 8388608), and it agrees with both stock's dtbo.img
+# and the prebuilt in device/itel/S666LN-kernel, which are 8388608 bytes each.
+#
+# The 32 MiB value here was wrong and this whole block was marked [V] anyway.
+# Nothing catches it at build time: the actual DTB payload is only 112,384 bytes,
+# so avbtool happily pads the image out to whatever partition size is declared
+# and produces a perfectly valid 32 MiB dtbo.img. It fails at FLASH time, four
+# partitions into the payload:
+#
+#   Failed to perform REPLACE_BZ operation 36 ... in partition "dtbo"
+#   Failed to flush cached data!: No space left on device (28)
+#   ErrorCode::kDownloadOperationExecutionError (28)
+#
+# Verify partition sizes against the hardware, not against the scatter file.
+BOARD_DTBOIMG_PARTITION_SIZE := 8388608
 
 BOARD_SUPER_PARTITION_SIZE := 9847996416
 BOARD_SUPER_PARTITION_GROUPS := mtk_dynamic_partitions
