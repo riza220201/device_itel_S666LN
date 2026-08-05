@@ -190,6 +190,38 @@ BOARD_KMI_MODULE_LAYOUT := 0x7c24b32d
 KMI_VENDOR_MODULES_DIR := $(TARGET_KERNEL_PACKAGE)/modules/vendor_dlkm
 KMI_RAMDISK_MODULES_DIR := $(TARGET_KERNEL_PACKAGE)/modules/vendor_boot
 
+# OPTIONAL: ship a kernel built by the separate custom-kernel project
+# (itel-rs4-kernel) instead of compiling the GKI source in this tree.
+#
+# The two are deliberately different things and both are wanted:
+#
+#   kernel/itel/S666LN     plain GKI android12-5.10-lts + s666ln_defconfig. This
+#                          is what the tree builds by default and what anyone
+#                          cloning it reproduces exactly.
+#   itel-rs4-kernel        the custom kernel project, which applies BORE and
+#                          NTSYNC on top before building. Those patches live
+#                          ONLY there, by design; they are not part of the GKI
+#                          fork and must not be committed into it.
+#
+# Note the defconfig committed to the GKI fork still carries CONFIG_SCHED_BORE
+# and CONFIG_NTSYNC. Kconfig drops both silently when the source lacks them, so
+# a from-source build here is simply a kernel without those features -- not a
+# broken one. Do not "fix" that by patching the fork.
+#
+# Run import-kernel.sh to populate this; absent it, the tree builds from source.
+S666LN_CUSTOM_KERNEL := $(wildcard $(TARGET_KERNEL_PACKAGE)/prebuilt/Image.gz)
+ifneq ($(S666LN_CUSTOM_KERNEL),)
+    TARGET_PREBUILT_KERNEL := $(S666LN_CUSTOM_KERNEL)
+    # Required: without it kernel.mk still compiles from source, because
+    # TARGET_KERNEL_SOURCE exists (kernel.mk:128 vs :185).
+    TARGET_FORCE_PREBUILT_KERNEL := true
+    # FULL_KERNEL_BUILD is false in this mode, so $(KERNEL_OUT)/Module.symvers is
+    # never produced. The custom kernel project emits the equivalent as
+    # vmlinux.symvers; the KMI gate reads that instead, so an imported kernel is
+    # checked against all 404 vendor modules exactly like a source-built one.
+    KMI_SYMVERS := $(TARGET_KERNEL_PACKAGE)/prebuilt/vmlinux.symvers
+endif
+
 # Kernel modules. _LOAD is mandatory: if left unset the build defaults it to the
 # FULL module list, and neither partition loads all of what it carries
 # (vendor_dlkm ships 198 and loads 177; vendor_boot ships 206 and loads 171).

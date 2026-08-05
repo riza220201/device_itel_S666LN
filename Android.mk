@@ -42,18 +42,30 @@ S666LN_KMI_STAMP := $(PRODUCT_OUT)/kmi_verified.stamp
 # gate was hooked to a target nothing ever built.
 S666LN_KMI_SCRIPT := $(LOCAL_PATH)/kmi-check.py
 
+# Which symvers to verify against. KMI_SYMVERS is set by BoardConfig.mk only when
+# a custom kernel has been imported; otherwise the file comes from the in-tree
+# source build. $(KERNEL_OUT) is not defined this early, so the fallback stays
+# recursively expanded ('=') and resolves when the recipe runs.
+ifneq ($(KMI_SYMVERS),)
+S666LN_KMI_SYMVERS := $(KMI_SYMVERS)
+S666LN_KMI_KERNEL_DEP := $(TARGET_PREBUILT_KERNEL)
+else
+S666LN_KMI_SYMVERS = $(KERNEL_OUT)/Module.symvers
+S666LN_KMI_KERNEL_DEP = $(TARGET_PREBUILT_INT_KERNEL)
+endif
+
 # BOTH module sets are checked. vendor_dlkm is 198 modules and vendor_boot is
 # 206, and a kernel that satisfies one is not automatically right for the other
 # -- they are separate .ko sets that happen to share a KMI. Checking only
 # vendor_dlkm, as this gate originally did, leaves 206 modules unverified.
-$(S666LN_KMI_STAMP): $(TARGET_PREBUILT_INT_KERNEL) $(S666LN_KMI_SCRIPT)
+$(S666LN_KMI_STAMP): $(S666LN_KMI_KERNEL_DEP) $(S666LN_KMI_SCRIPT)
 	@echo "----- Verifying KMI against stock vendor modules -----"
 	$(hide) python3 $(S666LN_KMI_SCRIPT) \
-	    $(KERNEL_OUT)/Module.symvers \
+	    $(S666LN_KMI_SYMVERS) \
 	    $(KMI_VENDOR_MODULES_DIR) \
 	    $(BOARD_KMI_MODULE_LAYOUT)
 	$(hide) $(if $(wildcard $(KMI_RAMDISK_MODULES_DIR)),python3 $(S666LN_KMI_SCRIPT) \
-	    $(KERNEL_OUT)/Module.symvers \
+	    $(S666LN_KMI_SYMVERS) \
 	    $(KMI_RAMDISK_MODULES_DIR) \
 	    $(BOARD_KMI_MODULE_LAYOUT))
 	$(hide) mkdir -p $(dir $@) && touch $@
