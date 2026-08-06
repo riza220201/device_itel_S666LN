@@ -1,0 +1,20 @@
+# init.insmod.sh reports which kernel modules failed to load, and that report is
+# the only evidence there is: a batched modprobe returns 0 whatever happens, and
+# the script sets vendor.all.modules.ready afterwards regardless. Build 20
+# loaded 0 of 177 vendor_dlkm modules -- mali_kbase among them, so eglInitialize
+# failed and surfaceflinger aborted with "no suitable EGLConfig found" -- and
+# left nothing anywhere saying so.
+#
+# The service carries stdio_to_kmsg (init.mtkgki.rc) so init redirects the
+# script's stdout to the kernel log. init opens the fd, but the SCRIPT does the
+# writing, in this domain -- so stdio_to_kmsg alone is not enough, and build 21
+# lost its whole diagnostic to:
+#
+#   avc: denied { write } for comm="init.insmod.sh" path="/dev/kmsg_debug"
+#     scontext=u:r:init_insmod_sh:s0 tcontext=u:object_r:kmsg_debug_device:s0
+#     tclass=chr_file permissive=0
+#
+# MediaTek routes it to /dev/kmsg_debug (mtk_printk_ctrl), not /dev/kmsg, so the
+# target type is kmsg_debug_device rather than the kmsg_device an AOSP device
+# would need. Write only: the script never reads the log back.
+allow init_insmod_sh kmsg_debug_device:chr_file write;
