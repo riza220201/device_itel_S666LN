@@ -39,17 +39,47 @@ if [ -f $cfg_file ]; then
           "-b *" | "-b") mp_opts="-b" ;;
           "*" | "")      mp_opts="" ;;
         esac
-        mp_n=0; mp_ok=0; mp_fail=0
-        for mp_mod in $(cat /vendor/lib/modules/modules.load); do
-          mp_n=$((mp_n + 1))
-          if modprobe ${mp_opts} -d /vendor/lib/modules "${mp_mod}" 2>&1; then
-            mp_ok=$((mp_ok + 1))
-          else
-            mp_fail=$((mp_fail + 1))
-            echo "init.insmod: FAIL #${mp_n} ${mp_mod}"
-          fi
+
+        # Multi-pass, because this list is raced against driver probing.
+        #
+        # At ~2.4 s the subsystems these modules bind to (SSPM, GPUEB, SCP) are
+        # not up yet, so a module fails, and every module that needs a symbol
+        # from it fails after it -- fpsgo (#109) died on notify_xgf_ko_ready,
+        # exported by mtk_fpsgo (#108), which had failed moments earlier. One
+        # pass loaded 0 of 177 at boot. The identical pass at 968 s uptime, on
+        # the same device in the same state, loaded 174. Nothing about the
+        # modules, the order, modules.dep or the loader is wrong; they are
+        # simply asked too early.
+        #
+        # Rather than guess which subsystem is slow and move the trigger to
+        # match (the trigger is MediaTek's own, and a shipping MT6789 device
+        # uses this rc verbatim), just go round again: a module whose
+        # dependency has since finished probing loads on the next pass. Stop
+        # when a pass loads nothing new, so a genuinely broken module costs one
+        # extra pass and not a boot loop.
+        mp_prev=-1
+        mp_pass=0
+        while [ ${mp_pass} -lt 6 ]; do
+          mp_pass=$((mp_pass + 1))
+          mp_n=0; mp_fail=0
+          for mp_mod in $(cat /vendor/lib/modules/modules.load); do
+            mp_n=$((mp_n + 1))
+            # Already resident: modprobe reports EEXIST as a plain failure, so
+            # without this every later pass would log 174 phantom failures.
+            # /proc/modules spells names with '_' whatever the file uses.
+            mp_name=$(echo "${mp_mod%.ko}" | tr '-' '_')
+            grep -q "^${mp_name} " /proc/modules && continue
+            if ! modprobe ${mp_opts} -d /vendor/lib/modules "${mp_mod}" 2>/dev/null; then
+              mp_fail=$((mp_fail + 1))
+              echo "init.insmod: pass ${mp_pass} FAIL #${mp_n} ${mp_mod}"
+            fi
+          done
+          mp_now=$(wc -l < /proc/modules)
+          echo "init.insmod: pass ${mp_pass}: ${mp_fail} failed of ${mp_n}, ${mp_now} modules resident"
+          [ "${mp_now}" = "${mp_prev}" ] && break
+          mp_prev=${mp_now}
         done
-        echo "init.insmod: ${mp_ok} loaded, ${mp_fail} failed, of ${mp_n}"
+        echo "init.insmod: settled after ${mp_pass} pass(es), ${mp_prev} modules resident"
         ;;
     esac
   done < $cfg_file
