@@ -411,6 +411,23 @@ PRODUCT_PACKAGES += \
     android.hardware.health@2.1-impl \
     android.hardware.health@2.1-service
 
+# Memtrack. Nothing shipped this and its absence hangs the boot: system_server
+# reaches MemtrackProxyService, calls getService() on
+# android.hardware.memtrack.IMemtrack/default, and blocks there forever. The
+# only symptom is a boot animation that never exits plus
+#
+#   ServiceManager: Waited one second for android.hardware.memtrack.IMemtrack/default
+#
+# once a second -- which reads as noise next to a dozen other "waited one
+# second" lines, and is not. It was the last SystemServerTiming entry ever
+# logged, which is what identified it.
+#
+# The MediaTek AIDL service is Mali-specific and reads GPU memory out of sysfs,
+# so it is the right one for a G57 rather than the AOSP example, which reports
+# zeroes. It carries its own init_rc and vintf_fragments.
+PRODUCT_PACKAGES += \
+    android.hardware.memtrack-service.mediatek-mali
+
 # Audio
 PRODUCT_COPY_FILES += \
     $(call find-copy-subdir-files,*,$(LOCAL_PATH)/configs/audio,$(TARGET_COPY_OUT_VENDOR)/etc)
