@@ -141,6 +141,51 @@ if [ "${DANGLING}" -gt 0 ]; then
     [ "${DANGLING}" -gt 20 ] && echo "  ... $((DANGLING - 20)) more"
 fi
 
+# --- kernel module load ORDER ---------------------------------------------
+# The module SET is not the module ORDER, and only the set is obvious from the
+# build. BOARD_*_KERNEL_MODULES_LOAD is optional to the build system and
+# build/make/core/Makefile:447 silently defaults it to the whole _MODULES list,
+# so a tree that never sets it ships modules.load as every .ko in $(wildcard)
+# order. That is a valid image which cannot boot: build 19 loaded 206 modules in
+# glob order instead of MediaTek's 171 in dependency order, hung module init and
+# was killed by the watchdog LK arms before it jumps to the kernel --
+# [pmic_check_rst] AP Watchdog / wdt_status 0x2 / aee_exp_type:2 -- seven times,
+# until the bootloader marked the slot unbootable.
+#
+# It survived nineteen builds because OrangeFox reflashes its own vendor_boot
+# after every install and that ramdisk carries no modules at all, so the broken
+# list was never executed on the slot being tested.
+#
+# Compare against the ordered lists shipping with the kernel package, which are
+# the stock ones. Byte-for-byte: a diff of one line is a diff of the order.
+MODULES_BAD=0
+_out_root="$(dirname "${VENDOR_DIR}")"
+_kpkg="$(cd "$(dirname "$0")/../../S666LN-kernel" 2>/dev/null && pwd)"
+if [ -n "${_kpkg}" ] && [ -d "${_kpkg}/modules" ]; then
+    # built image dir : kernel package dir : list filename
+    for spec in \
+        "vendor_ramdisk:vendor_boot:modules.load" \
+        "vendor_ramdisk:vendor_boot:modules.load.recovery" \
+        "vendor_dlkm:vendor_dlkm:modules.load"; do
+        _img="${spec%%:*}"; _rest="${spec#*:}"
+        _src="${_rest%%:*}"; _name="${_rest#*:}"
+        _built="${_out_root}/${_img}/lib/modules/${_name}"
+        _want="${_kpkg}/modules/${_src}/${_name}"
+        [ -f "${_want}" ] || continue
+        if [ ! -f "${_built}" ]; then
+            echo "MODULE LOAD LIST MISSING FROM IMAGE: ${_img}/lib/modules/${_name}"
+            MODULES_BAD=$((MODULES_BAD + 1))
+            continue
+        fi
+        if ! cmp -s "${_built}" "${_want}"; then
+            echo "MODULE LOAD ORDER WRONG: ${_img}/lib/modules/${_name}"
+            echo "    built $(wc -l < "${_built}") entries, expected $(wc -l < "${_want}")"
+            echo "    first built: $(head -1 "${_built}")   first expected: $(head -1 "${_want}")"
+            MODULES_BAD=$((MODULES_BAD + 1))
+        fi
+    done
+fi
+
 # --- what a vendor process can actually load ------------------------------
 # -xtype f, not -name alone: a dangling symlink still matches '*.so' and would
 # otherwise be counted as a library that resolves.
@@ -249,11 +294,21 @@ else
 fi
 
 if [ ! -s "${TMP}/unresolved" ] && [ "${IMPL_MISSING}" -eq 0 ] && [ "${DANGLING}" -eq 0 ] \
-   && [ "${PROP_BAD}" -eq 0 ] && [ "${SERVICE_MISSING}" -eq 0 ]; then
+   && [ "${PROP_BAD}" -eq 0 ] && [ "${SERVICE_MISSING}" -eq 0 ] \
+   && [ "${MODULES_BAD}" -eq 0 ]; then
     echo "OK: every DT_NEEDED resolves, no passthrough impl is missing vs stock,"
-    echo "    no symlink dangles, no required vendor property is empty, and every"
-    echo "    init service has its binary"
+    echo "    no symlink dangles, no required vendor property is empty, every"
+    echo "    init service has its binary, and every kernel module load list"
+    echo "    matches the kernel package in both content and order"
     exit 0
+fi
+if [ "${MODULES_BAD}" -gt 0 ]; then
+    echo
+    echo "A module load list that differs from the kernel package is a boot"
+    echo "failure with no logcat and no panic: module init hangs and the AP"
+    echo "watchdog resets the device. Set BOARD_*_KERNEL_MODULES_LOAD in"
+    echo "BoardConfig.mk -- leaving it unset does not mean 'default order',"
+    echo "it means 'every .ko in \$(wildcard) order'."
 fi
 if [ "${PROP_BAD}" -gt 0 ]; then
     echo
