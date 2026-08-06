@@ -227,10 +227,58 @@ endif
 # (vendor_dlkm ships 198 and loads 177; vendor_boot ships 206 and loads 171).
 # Orders are stock's, recovered from the rev 28 vendor_boot ramdisk and
 # vendor_dlkm image — see notes/kernel-modules-2026-08-04.md for both lists.
+#
+# That paragraph was written on 2026-08-04. The assignments below were not, and
+# for two days the tree documented the trap directly above the code falling into
+# it. The fallback is build/make/core/Makefile:447 —
+#
+#     $(if $(BOARD_$(1)_KERNEL_MODULES_LOAD$(_sep)$(_kver)),,\
+#       $(eval BOARD_$(1)_KERNEL_MODULES_LOAD... := $(BOARD_$(1)_KERNEL_MODULES...)))
+#
+# — so modules.load shipped as all 206 .ko in $(wildcard) order. That put
+# mtk_wdt.ko at position 143 instead of 12, and mkp.ko at 67 instead of 1. LK
+# arms the hardware watchdog before it jumps to the kernel, so the AP was reset
+# before its own watchdog driver ever probed. Build 19 died at ~5 s with
+#
+#     [pmic_check_rst] AP Watchdog / wdt_status 0x2 / aee_exp_type:2
+#
+# seven times, until the bootloader marked the slot unbootable. No panic, no
+# logcat, no USB enumeration: an HWT leaves no mrdump, so the only trace of it
+# was in the MediaTek expdb partition.
+#
+# Stock ships all 206 .ko in the ramdisk and loads 171 of them, so the wildcard
+# is correct for _MODULES; only _LOAD was ever missing.
 BOARD_VENDOR_RAMDISK_KERNEL_MODULES := \
-    $(wildcard $(TARGET_KERNEL_PACKAGE)/modules/vendor_boot/*.ko)
+    $(wildcard $(KMI_RAMDISK_MODULES_DIR)/*.ko)
 BOARD_VENDOR_KERNEL_MODULES := \
     $(wildcard $(KMI_VENDOR_MODULES_DIR)/*.ko)
+
+# Read the orders from the lists that ship beside the .ko files rather than
+# copying 547 module names in here, so the two cannot drift. _LOAD takes full
+# paths and must be a subset of _MODULES above; the build writes $(notdir) of
+# each into modules.load, in this order.
+BOARD_VENDOR_RAMDISK_KERNEL_MODULES_LOAD := \
+    $(addprefix $(KMI_RAMDISK_MODULES_DIR)/,\
+        $(shell cat $(KMI_RAMDISK_MODULES_DIR)/modules.load))
+BOARD_VENDOR_RAMDISK_RECOVERY_KERNEL_MODULES_LOAD := \
+    $(addprefix $(KMI_RAMDISK_MODULES_DIR)/,\
+        $(shell cat $(KMI_RAMDISK_MODULES_DIR)/modules.load.recovery))
+BOARD_VENDOR_KERNEL_MODULES_LOAD := \
+    $(addprefix $(KMI_VENDOR_MODULES_DIR)/,\
+        $(shell cat $(KMI_VENDOR_MODULES_DIR)/modules.load))
+
+# A missing or unreadable list expands to nothing, which is indistinguishable
+# from never setting _LOAD at all — i.e. silently back to the bug above. Fail
+# the build instead of shipping another watchdog reset.
+ifeq ($(strip $(BOARD_VENDOR_RAMDISK_KERNEL_MODULES_LOAD)),)
+    $(error S666LN: $(KMI_RAMDISK_MODULES_DIR)/modules.load is missing or empty)
+endif
+ifeq ($(strip $(BOARD_VENDOR_RAMDISK_RECOVERY_KERNEL_MODULES_LOAD)),)
+    $(error S666LN: $(KMI_RAMDISK_MODULES_DIR)/modules.load.recovery is missing or empty)
+endif
+ifeq ($(strip $(BOARD_VENDOR_KERNEL_MODULES_LOAD)),)
+    $(error S666LN: $(KMI_VENDOR_MODULES_DIR)/modules.load is missing or empty)
+endif
 
 # Recovery lives in vendor_boot; there is no dedicated recovery partition. [V]
 #
