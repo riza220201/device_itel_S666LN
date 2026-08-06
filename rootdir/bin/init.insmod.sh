@@ -40,46 +40,68 @@ if [ -f $cfg_file ]; then
           "*" | "")      mp_opts="" ;;
         esac
 
-        # Multi-pass, because this list is raced against driver probing.
+        # BUILTINS ONLY. A vendor process's PATH is /vendor/bin, which holds
+        # sh, awk, toolbox, modprobe and little else -- there is no cat, no
+        # wc, no grep and no tr. The stock script's
         #
-        # At ~2.4 s the subsystems these modules bind to (SSPM, GPUEB, SCP) are
-        # not up yet, so a module fails, and every module that needs a symbol
-        # from it fails after it -- fpsgo (#109) died on notify_xgf_ko_ready,
-        # exported by mtk_fpsgo (#108), which had failed moments earlier. One
-        # pass loaded 0 of 177 at boot. The identical pass at 968 s uptime, on
-        # the same device in the same state, loaded 174. Nothing about the
-        # modules, the order, modules.dep or the loader is wrong; they are
-        # simply asked too early.
+        #     arg="$(cat /vendor/lib/modules/modules.load)"
         #
-        # Rather than guess which subsystem is slow and move the trigger to
-        # match (the trigger is MediaTek's own, and a shipping MT6789 device
-        # uses this rc verbatim), just go round again: a module whose
-        # dependency has since finished probing loads on the next pass. Stop
-        # when a pass loads nothing new, so a genuinely broken module costs one
-        # extra pass and not a boot loop.
+        # therefore expanded to nothing at boot, modprobe was handed an empty
+        # list, and it exited 0 having loaded not one module. That is the whole
+        # reason vendor_dlkm loaded 0 of 177: not ordering, not dependencies,
+        # not a probe race. The kernel log said so the moment stdio_to_kmsg and
+        # the sepolicy rule let it speak:
+        #
+        #     init.insmod.sh[86]: cat: inaccessible or not found
+        #     init.insmod: pass 1: 0 failed of 0
+        #
+        # It looked like a timing problem for a day because running the same
+        # script from `adb shell` works -- that PATH includes /system/bin, so
+        # cat resolves. mksh gives us ${x%.ko}, ${x//-/_}, read and case, so
+        # nothing external is needed at all.
+        #
+        # Multi-pass is kept regardless: a module whose dependency has not
+        # finished probing fails and succeeds on a later pass. Stop when a pass
+        # loads nothing new, so a genuinely broken module costs one extra pass
+        # rather than a boot loop.
         mp_prev=-1
         mp_pass=0
         while [ ${mp_pass} -lt 6 ]; do
           mp_pass=$((mp_pass + 1))
-          mp_n=0; mp_fail=0
-          for mp_mod in $(cat /vendor/lib/modules/modules.load); do
+
+          # Resident set and count, straight from /proc/modules.
+          mp_res=" "
+          mp_now=0
+          while read -r mp_l mp_junk; do
+            mp_res="${mp_res}${mp_l} "
+            mp_now=$((mp_now + 1))
+          done < /proc/modules
+
+          mp_n=0
+          mp_fail=0
+          while read -r mp_mod mp_junk; do
+            [ -z "${mp_mod}" ] && continue
             mp_n=$((mp_n + 1))
-            # Already resident: modprobe reports EEXIST as a plain failure, so
-            # without this every later pass would log 174 phantom failures.
-            # /proc/modules spells names with '_' whatever the file uses.
-            mp_name=$(echo "${mp_mod%.ko}" | tr '-' '_')
-            grep -q "^${mp_name} " /proc/modules && continue
-            if ! modprobe ${mp_opts} -d /vendor/lib/modules "${mp_mod}" 2>/dev/null; then
+            # /proc/modules always spells names with '_', whatever the file uses.
+            mp_name=${mp_mod%.ko}
+            mp_name=${mp_name//-/_}
+            case "${mp_res}" in
+              *" ${mp_name} "*) continue ;;
+            esac
+            # stdin from /dev/null: modprobe must not eat the list this loop
+            # is reading.
+            if ! modprobe ${mp_opts} -d /vendor/lib/modules "${mp_mod}" \
+                 < /dev/null 2>/dev/null; then
               mp_fail=$((mp_fail + 1))
               echo "init.insmod: pass ${mp_pass} FAIL #${mp_n} ${mp_mod}"
             fi
-          done
-          mp_now=$(wc -l < /proc/modules)
-          echo "init.insmod: pass ${mp_pass}: ${mp_fail} failed of ${mp_n}, ${mp_now} modules resident"
+          done < /vendor/lib/modules/modules.load
+
+          echo "init.insmod: pass ${mp_pass}: ${mp_fail} failed of ${mp_n}, ${mp_now} resident at pass start"
           [ "${mp_now}" = "${mp_prev}" ] && break
           mp_prev=${mp_now}
         done
-        echo "init.insmod: settled after ${mp_pass} pass(es), ${mp_prev} modules resident"
+        echo "init.insmod: settled after ${mp_pass} pass(es)"
         ;;
     esac
   done < $cfg_file

@@ -16,5 +16,12 @@
 #
 # MediaTek routes it to /dev/kmsg_debug (mtk_printk_ctrl), not /dev/kmsg, so the
 # target type is kmsg_debug_device rather than the kmsg_device an AOSP device
-# would need. Write only: the script never reads the log back.
-allow init_insmod_sh kmsg_debug_device:chr_file write;
+# would need.
+#
+# ioctl as well as write: the shell probes the fd with TCGETS (0x5401) to decide
+# whether it is a terminal, which denied cleanly but filled the log with
+#
+#   avc: denied { ioctl } ... ioctlcmd=0x5401 tclass=chr_file
+#
+# once per line. The script never reads the log back, so no read.
+allow init_insmod_sh kmsg_debug_device:chr_file { write ioctl };
