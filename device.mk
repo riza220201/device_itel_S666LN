@@ -215,6 +215,7 @@ PRODUCT_PACKAGES += \
     android.hardware.usb@1.3.vendor \
     android.hidl.allocator@1.0.vendor \
     libaudiofoundation.vendor \
+    libavservices_minijail.vendor \
     libchrome.vendor \
     libcodec2_hidl@1.0.vendor \
     libcodec2_hidl@1.1.vendor \

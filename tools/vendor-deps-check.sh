@@ -187,10 +187,31 @@ if [ -n "${_kpkg}" ] && [ -d "${_kpkg}/modules" ]; then
 fi
 
 # --- what a vendor process can actually load ------------------------------
+# Split by ABI. A 64-bit process cannot load a 32-bit library, so merging
+# lib/ and lib64/ into one basename set answers the wrong question -- it says
+# "does a file by this name exist anywhere", when the question is "can THIS
+# consumer load it".
+#
+# That merge is how android.hardware.media.c2@1.2-mediatek-64b shipped broken
+# while this gate reported everything resolved: /vendor/lib had
+# libavservices_minijail.so, /vendor/lib64 had only the _vendor-suffixed one,
+# and the 64-bit binary died in the linker at every boot --
+#
+#   CANNOT LINK EXECUTABLE ".../media.c2@1.2-mediatek-64b":
+#     library "libavservices_minijail.so" not found
+#
+# -- so IComponentStore never registered, mediaserver retried forever and the
+# boot animation never exited.
+#
 # -xtype f, not -name alone: a dangling symlink still matches '*.so' and would
 # otherwise be counted as a library that resolves.
-find "${VENDOR_DIR}/lib" "${VENDOR_DIR}/lib64" -name '*.so' -xtype f 2>/dev/null \
-    | xargs -r -n1 basename | sort -u > "${TMP}/resolvable"
+find "${VENDOR_DIR}/lib" -maxdepth 3 -name '*.so' -xtype f 2>/dev/null \
+    | xargs -r -n1 basename | sort -u > "${TMP}/resolvable32"
+find "${VENDOR_DIR}/lib64" -maxdepth 3 -name '*.so' -xtype f 2>/dev/null \
+    | xargs -r -n1 basename | sort -u > "${TMP}/resolvable64"
+# Everything below (VNDK, LLNDK, public.libraries, linker-provided) is added to
+# both: those are delivered per-ABI in matching pairs.
+cat "${TMP}/resolvable32" "${TMP}/resolvable64" | sort -u > "${TMP}/resolvable"
 
 # VNDK. On this platform it is delivered as an APEX (com.android.vndk.current),
 # NOT as system/lib{,64}/vndk-<ver>/ -- those directories do not exist here, and
@@ -234,16 +255,32 @@ printf '%s\n' ld-android.so libdl.so libc.so libm.so libstdc++.so liblog.so \
 sort -u "${TMP}/resolvable" -o "${TMP}/resolvable"
 
 # --- every vendor ELF's dependencies --------------------------------------
+# The per-ABI sets are the vendor libraries only; the shared tail (VNDK, LLNDK,
+# public.libraries, linker-provided) was appended to ${TMP}/resolvable after the
+# split, so fold it back into each. Everything appended there ships in matching
+# 32/64 pairs, so this cannot reintroduce the cross-ABI hole above.
+comm -13 <(cat "${TMP}/resolvable32" "${TMP}/resolvable64" | sort -u) \
+         <(sort -u "${TMP}/resolvable") > "${TMP}/resolvable_common"
+sort -u "${TMP}/resolvable32" "${TMP}/resolvable_common" > "${TMP}/ok32"
+sort -u "${TMP}/resolvable64" "${TMP}/resolvable_common" > "${TMP}/ok64"
+
 : > "${TMP}/unresolved"
 COUNT=0
 while IFS= read -r f; do
     head -c 4 "$f" 2>/dev/null | grep -q $'\x7fELF' || continue
     COUNT=$((COUNT + 1))
+    # ELF class byte (offset 4): 1 = 32-bit, 2 = 64-bit. Check each consumer
+    # against the libraries its own ABI can actually load.
+    case "$(od -An -tu1 -j4 -N1 "$f" 2>/dev/null | tr -d ' ')" in
+        2) _ok="${TMP}/ok64"; _abi=64 ;;
+        *) _ok="${TMP}/ok32"; _abi=32 ;;
+    esac
     "${READELF}" -d "$f" 2>/dev/null \
         | grep -oE 'Shared library: \[[^]]+\]' | sed 's/.*\[//; s/\]//' \
         | while IFS= read -r need; do
-            grep -qxF "${need}" "${TMP}/resolvable" \
-                || printf '%s\t%s\n' "${need}" "${f#"${VENDOR_DIR}"/}" >> "${TMP}/unresolved"
+            grep -qxF "${need}" "${_ok}" \
+                || printf '%s\t%s (%s-bit)\n' "${need}" "${f#"${VENDOR_DIR}"/}" "${_abi}" \
+                   >> "${TMP}/unresolved"
           done
 done < <(find "${VENDOR_DIR}/bin" "${VENDOR_DIR}/lib" "${VENDOR_DIR}/lib64" -type f 2>/dev/null)
 
