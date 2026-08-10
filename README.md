@@ -43,7 +43,7 @@ Independently authored, Apache-2.0. This is not a fork.
 | Storage | 128 / 256 GB, eUFS 2.2 |
 | Display | 720 x 1612, 60/90/120 Hz, density 273 (FT8057S; TD4160 is the alternate panel) |
 | Cameras | 50 MP hi5022q (rear), 8 MP gc08a8 (front) |
-| Shipped OS | Android 13 — vendor built at SDK 33 / VNDK 33, launch API level 31 |
+| Shipped OS | Android 13 system on an Android 12 vendor — vendor SDK 31 / VNDK 31, launch API level 31 |
 
 ## Layout
 
@@ -77,9 +77,15 @@ crDroid's `frameworks/base`, the MediaTek Wi-Fi HAL source, and a corrected
 webview linkfile. Each is commented in the file with why it is there and when it
 can be dropped.
 
-Tested against crDroid 13.0. Build verified end to end on 2026-08-05:
-`crDroidAndroid-13.0-20260805-S666LN-v9.20.zip`, with the KMI gate confirming all
-404 prebuilt vendor modules against the shipped kernel.
+Tested against crDroid 13.0. The KMI gate runs inside the build and confirms all
+404 prebuilt vendor modules against the shipped kernel; it is wired to the staged
+vendor files rather than to an image target, because `bacon` never builds one.
+
+Boot status, stated plainly rather than optimistically: the tree builds clean and
+reaches `system_server`. First-stage and second-stage module loading, the GPU,
+the media stack and memtrack are all verified on hardware. The HAL-linkage work
+above is newer than the last confirmed full boot, so treat "boots to UI" as
+unproven until you have seen it yourself on your own build.
 
 ### Kernel
 
@@ -89,10 +95,12 @@ project instead — `import-kernel.sh` installs it and refuses any kernel that
 fails the KMI check. See the comments in that script; the BORE and NTSYNC patches
 belong to that project and deliberately are not in the GKI fork.
 
-## Vulkan 1.3
+## Vulkan 1.3 (opt-in)
 
-Stock ships Mali **r32p1**, which caps at Vulkan 1.1. This tree runs **r38p1**,
-verified on hardware:
+Stock ships Mali **r32p1**, which caps at Vulkan 1.1. This tree ships stock, and
+**r38p1 is an opt-in extra step** — `gpu-driver-r38p1.sh`, run after
+`extract-files.sh`. Nothing in a default build fetches it, and the driver is
+never committed to this repository. With it, verified on hardware:
 
 ```
 GLES  : ARM, Mali-G57 MC2, OpenGL ES 3.2 v1.r38p1
@@ -141,32 +149,77 @@ A/B device, so the by-name nodes are slotted** (`logo_a`/`logo_b`, not `logo`).
 Labelling by partition number is how `tranfs_block_device` ended up applied to
 the TEE partition.
 
-**Three different API numbers, easily conflated.** Stock declares
-`ro.product.first_api_level=31` (the device launched on Android 12),
-`ro.vendor.build.version.sdk=33` and `ro.vndk.version=33` (the vendor was built
-at Android 13). `PRODUCT_SHIPPING_API_LEVEL` takes the launch level, 31.
-`PRODUCT_TARGET_VNDK_VERSION` is deliberately **unset**: the vendor is VNDK 33,
-which matches the platform on this branch, and the nine blobs that want older
-VNDK ship `libutils-v31.so`, `libhidlbase-v31.so`, `libbinder-v31.so`,
-`libutils-v32.so` and `libstagefright_foundation-v32.so` inside the vendor
-partition itself. Pinning a snapshot is neither needed nor correct.
+**Every blob must come from the stock firmware, and there is a check for it.**
+`tools/provenance-check.sh` asserts that every path in `proprietary-files.txt`
+exists in the rev 28 dump. It is not ceremony: this tree spent its first fifteen
+commits extracting from a *previous ROM build's* vendor partition, because the
+generator had that path as a default argument while its docstring claimed stock.
+44 files were things itel never shipped, and the missing stock counterparts
+included the AIDL power HAL — which the VINTF manifest still declared, so
+`PowerManagerService.nativeInit()` blocked forever and the device boot-looped
+with no tombstone. Run the check before any commit that touches the blob list.
 
-**itel is unusual among MT6789 phones.** Infinix, Tecno, Xiaomi and Samsung all
-ship an Android-12 vendor under a newer system; itel actually rebased theirs to
-Android 13 — while still carrying A12-era AIDL sonames, which `blob_fixup` in
-`extract-files.sh` renames (`arm.graphics-V1-ndk_platform.so` →
-`arm.graphics-V1-ndk.so`, likewise for the light HAL). Those five renames across
-five files are derived by scanning the blobs' own `DT_NEEDED`; the command to
-re-derive them after a firmware bump is in the script.
+**Three different API numbers, easily conflated.** Stock declares
+`ro.product.first_api_level=31`, `ro.vendor.build.version.sdk=31` and
+`ro.vndk.version=31` — an Android 13 *system* on an Android 12 *vendor*, like
+every other MT6789 device. The 33 that appears everywhere is
+`ro.build.version.sdk`, the system side. `PRODUCT_SHIPPING_API_LEVEL` takes 31.
+
+Do not reach for `PRODUCT_TARGET_VNDK_VERSION`: it does not exist on
+lineage-20.0 (`grep -rn PRODUCT_TARGET_VNDK_VERSION build/make/` is empty) and
+setting it changes nothing while looking like a fix. The variable this branch
+reads is `BOARD_VNDK_VERSION`, and it is deliberately unset — pinning 31 would
+rebuild every vendor module against the v31 snapshot to satisfy a handful of
+sonames in prebuilts, which `blob_fixup` handles directly instead.
+
+**A12 AIDL sonames carry a `_platform` suffix that Android 13 dropped**, and the
+libraries behind the old names live in `com.android.vndk.v31.apex`, which stock
+ships in `/system_ext/apex/` and this tree does not. `blob_fixup` in
+`extract-files.sh` renames them on five binaries:
+
+```
+vendor/bin/factory                               light-V1-ndk
+vendor/bin/hw/android.hardware.lights-service.mediatek        light-V1-ndk
+vendor/bin/hw/android.hardware.gnss-service.mediatek          gnss-V1-ndk
+vendor/lib64/hw/android.hardware.gnss-impl-mediatek.so        gnss-V1-ndk
+vendor/bin/hw/vendor.mediatek.hardware.mtkpower@1.0-service   power-V2-ndk
+vendor/bin/hw/android.hardware.security.keymint-service.trustonic
+                              keymint + secureclock + sharedsecret V1-ndk
+```
+
+Two rules learned the hard way. **Derive the list by sweeping the built vendor
+image** for `_platform` sonames nothing installs — not by reading the blob list,
+which cannot see what the platform provides. And **confirm the replacement is
+actually installed to `/vendor` before adding a rename**: soong will not build a
+`.vendor` variant merely because a `cc_prebuilt` names it, so `device.mk` has to
+request `secureclock-V1-ndk.vendor` and `sharedsecret-V1-ndk.vendor` explicitly.
+A rename pointing at a library nothing ships is worse than no rename — that is
+what forced the `arm.graphics-V1-ndk_platform` rename to be reverted, and why
+that one is now documented in the script as deliberately absent.
+
+**Some HALs are built from source rather than blobbed**, because
+`hardware/mediatek` defines modules of the same name and a blob would be a
+duplicate definition: `android.hardware.power-service-mediatek`,
+`android.hardware.vibrator-service.mediatek`, and
+`android.hardware.memtrack-service.mediatek-mali`. Each carries its own
+`vintf_fragments` and `init_rc`, so the declaration and the implementation ship
+together — which matters, because a HAL declared in VINTF with nothing behind it
+does not fail the build, it hangs `system_server` until Watchdog kills it.
 
 **Identity, signing keys and GApps are deliberately not set here.** They are ROM
 decisions and belong in a build recipe, so this tree stays reusable.
 
 ## Credits
 
-Hardware bring-up knowledge for this device was accumulated across the Droidian,
-AOSPA and crDroid ports of the RS4. Blobs and configuration are itel's and
-MediaTek's.
+Hardware bring-up knowledge for this device was accumulated across the
+maintainer's own Droidian, AOSPA and crDroid porting work on the RS4 — the
+partition map, the KMI constraint, the charger-mode findings and the diagnostic
+techniques all came out of those. Blobs and configuration are itel's and
+MediaTek's, extracted from retail firmware revision 28.
+
+No code, blobs or configuration from any other RS4 device tree are used here.
+That is the reason this repository exists, and `tools/provenance-check.sh` is
+what keeps it true rather than merely intended.
 
 ## License
 
