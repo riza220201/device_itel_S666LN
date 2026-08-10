@@ -450,6 +450,33 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     android.hardware.memtrack-service.mediatek-mali
 
+# Power and vibrator: built from hardware/mediatek, NOT blobbed.
+#
+# Both were first added here as stock blobs, which failed the build immediately:
+#
+#   base_rules.mk:338: error: hardware/mediatek/aidl/power-mediatek:
+#     MODULE.TARGET.SHARED_LIBRARIES.android.hardware.power-service-mediatek
+#     already defined by vendor/itel/S666LN.
+#
+# hardware/mediatek/aidl/{power-mediatek,vibrator} define modules of exactly
+# those names, so a blob of the same name is a duplicate definition rather than
+# a fallback. They were simply never requested, which is why neither shipped.
+#
+# Taking the source module is also the better answer on its own terms: each
+# carries its own LOCAL_VINTF_FRAGMENTS and LOCAL_INIT_RC, so the declaration
+# and the implementation arrive together and cannot drift apart -- which is the
+# precise failure that boot-looped this device (VINTF declared
+# android.hardware.power, nothing provided it). And power-mediatek links
+# android.hardware.power-V2-ndk, the Android 13 soname, so it does not depend on
+# the VNDK 31 apex the way stock's prebuilt does.
+#
+# The stock service BINARY (vendor.mediatek.hardware.mtkpower@1.0-service) is
+# still a blob and still needed -- it is what hosts the AIDL interface. Only the
+# library and the vibrator executable moved to source.
+PRODUCT_PACKAGES += \
+    android.hardware.power-service-mediatek \
+    android.hardware.vibrator-service.mediatek
+
 # Audio
 PRODUCT_COPY_FILES += \
     $(call find-copy-subdir-files,*,$(LOCAL_PATH)/configs/audio,$(TARGET_COPY_OUT_VENDOR)/etc)

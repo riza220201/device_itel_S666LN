@@ -127,7 +127,6 @@ vendor/app/mcRegistry/e97c270ea5c44c58bcd3384a2fa2539e.tabin
 -vendor/bin/hw/vendor.mediatek.hardware.mtkpower@1.0-service
 -vendor/bin/hw/android.hardware.audio.service.mediatek
 -vendor/bin/hw/android.hardware.lights-service.mediatek
--vendor/bin/hw/android.hardware.vibrator-service.mediatek
 -vendor/bin/hw/android.hardware.sensors@2.0-service.multihal-mediatek
 -vendor/bin/hw/android.hardware.drm@1.4-service.clearkey
 
@@ -713,7 +712,6 @@ vendor/etc/init/vendor.mediatek.hardware.mtkpower@1.0-service.rc
 vendor/etc/init/vendor.mediatek.hardware.mtkpower@1.0-init.rc
 vendor/etc/init/android.hardware.audio.service.mediatek.rc
 vendor/etc/init/lights-mtk-default.rc
-vendor/etc/init/vibrator-mtk-default.rc
 vendor/etc/init/android.hardware.sensors@2.0-service.multihal-mediatek.rc
 vendor/etc/init/android.hardware.drm@1.4-service.clearkey.rc
 
@@ -2296,7 +2294,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/vendor.trustonic.tee.tui@1.0.so
 -vendor/lib64/vendor.trustonic.tee@1.0.so
 -vendor/lib64/vendor.trustonic.tee@1.1.so
--vendor/lib64/android.hardware.power-service-mediatek.so
 
 # odm
 vendor/odm/etc/build.prop
