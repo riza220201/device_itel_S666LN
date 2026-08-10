@@ -317,6 +317,42 @@ BOARD_EXCLUDE_KERNEL_FROM_RECOVERY_IMAGE := true
 # Partition sizes                                                       [V]
 # super: block device 9,847,996,416 B (scatter 0x24AFC8000), group max
 # 9,845,899,264 B — both read back from the stock super metadata (lpdump).
+# VNDK 31. This is what the vendor partition was BUILT against, and the blobs
+# do not tolerate anything else.
+#
+# Stock's vendor build.prop says ro.vendor.build.version.sdk=31 and
+# ro.vndk.version=31 in both prop blocks. 33 is the SYSTEM side. Left unset, the
+# build ships /apex/com.android.vndk.v33 and every stock blob's bare
+# libhidlbase.so / libutils.so / libcutils.so resolves to a VNDK it was not
+# compiled for.
+#
+# 🔴 Measured on hardware 2026-08-11, build 34. Three passthrough HIDL services
+# aborted in a five-second loop from the first seconds of boot:
+#
+#   pq@2.2-service    'incStrongRequireStrong() ... which isn't already owned'
+#                     inside registerPassthroughServiceImplementation<IPictureQuality>
+#   audio.service.mediatek                          'terminating'
+#   sensors@2.0-service.multihal-mediatek           abort
+#
+# incStrongRequireStrong is a libutils RefBase assertion -- the signature of ABI
+# drift between a service and the -impl.so it dlopens. The audio one is the
+# boot blocker: with it dead, AudioPolicyService never publishes, system_server
+# blocks in native_list_audio_product_strategies, and Watchdog kills it.
+#
+# The services affected are exactly the ones the PREVIOUS device tree had
+# patched to link libhidlbase-v31 / libutils-v31 / libstagefright_foundation-v32
+# -- pq@2.2-service, camerahalserver, media.c2@1.2-mediatek-64b. Those files
+# were removed from this tree as contamination, which was right about their
+# provenance and wrong about the problem they solved: shipping VNDK-31 snapshot
+# libraries was a real fix for a real ABI mismatch. Setting this variable is the
+# supported way to get the same result, instead of patching each blob.
+#
+# Note this also makes /apex/com.android.vndk.v31 available, which is where the
+# _platform-suffixed AIDL sonames live -- see blob_fixup in extract-files.sh.
+# Those renames stay: they point at libraries this build installs, and are not
+# conditional on which apex is present.
+BOARD_VNDK_VERSION := 31
+
 BOARD_FLASH_BLOCK_SIZE := 262144
 BOARD_BOOTIMAGE_PARTITION_SIZE := 67108864
 BOARD_VENDOR_BOOTIMAGE_PARTITION_SIZE := 67108864
