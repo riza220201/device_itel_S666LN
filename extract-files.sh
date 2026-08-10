@@ -71,6 +71,7 @@ function blob_fixup() {
             "${PATCHELF}" --replace-needed "android.hardware.light-V1-ndk_platform.so" \
                 "android.hardware.light-V1-ndk.so" "${2}"
             ;;
+        vendor/lib64/android.hardware.power-service-mediatek.so | \
         vendor/bin/hw/vendor.mediatek.hardware.mtkpower@1.0-service)
             # This binary is the AIDL android.hardware.power IPower/default
             # provider -- the HAL whose absence boot-looped the device on
@@ -161,11 +162,30 @@ extract "${MY_DIR}/proprietary-files.txt" "${SRC}" "${KANG}" --section "${SECTIO
 "${MY_DIR}/setup-makefiles.sh"
 
 # CLEAN_VENDOR defaults to true, so the run above WIPED the vendor directory and
-# re-extracted everything from stock. That silently reverts the GPU driver to
-# stock r32p1 and drops Vulkan from 1.3 back to 1.1 -- no error, no warning.
-if [ -x "${MY_DIR}/gpu-driver-r38p1.sh" ]; then
-    echo
-    echo "NOTE: the Mali driver is now stock r32p1 (Vulkan 1.1)."
-    echo "      To restore r38p1 / Vulkan 1.3, run:"
-    echo "          ${MY_DIR}/gpu-driver-r38p1.sh"
+# re-extracted everything from stock -- including the GPU driver.
+#
+# The vendor repository carries Mali r38p1 (Vulkan 1.3) committed at
+#   proprietary/vendor/lib64/egl/mt6789/libGLES_mali.so
+#   proprietary/vendor/lib/egl/mt6789/libGLES_mali.so
+# and a clean extraction has just replaced both with itel's stock r32p1
+# (Vulkan 1.1). No error, no warning -- the build is perfectly valid, it is
+# simply two Khronos versions behind.
+#
+# This is deliberately left VISIBLE rather than automated away. Those two paths
+# stay listed in proprietary-files.txt, so an extraction always produces a
+# working driver even on a tree that has never seen r38p1, and the difference
+# shows up as two modified files in `git status` instead of as a silent
+# regression discovered later by a user whose Winlator got slower.
+if git -C "${ANDROID_ROOT}/vendor/${VENDOR}/${DEVICE}" rev-parse --git-dir >/dev/null 2>&1; then
+    if ! git -C "${ANDROID_ROOT}/vendor/${VENDOR}/${DEVICE}" diff --quiet -- \
+            proprietary/vendor/lib64/egl/mt6789/libGLES_mali.so 2>/dev/null; then
+        echo
+        echo "NOTE: the Mali driver is now stock r32p1 (Vulkan 1.1)."
+        echo "      The vendor repo has r38p1 committed. To restore Vulkan 1.3:"
+        echo "          git -C vendor/${VENDOR}/${DEVICE} checkout -- \\"
+        echo "              proprietary/vendor/lib64/egl/mt6789/libGLES_mali.so \\"
+        echo "              proprietary/vendor/lib/egl/mt6789/libGLES_mali.so"
+        echo "      Then wipe the shader caches on first boot:"
+        echo "          rm -f /data/user_de/0/*/code_cache/com.android.*.shaders_cache"
+    fi
 fi

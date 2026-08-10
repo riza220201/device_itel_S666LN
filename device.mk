@@ -492,9 +492,44 @@ PRODUCT_PACKAGES += \
 # The stock service BINARY (vendor.mediatek.hardware.mtkpower@1.0-service) is
 # still a blob and still needed -- it is what hosts the AIDL interface. Only the
 # library and the vibrator executable moved to source.
+# 🔴 android.hardware.power-service-mediatek is NOT requested here, on purpose.
+#
+# hardware/mediatek/aidl/power-mediatek builds a module of that name, and asking
+# for it installs an implementation stock's own binary cannot use. Measured on
+# hardware 2026-08-11: the HIDL half registered fine
+#
+#     mtkpower@1.0-service: mtkPowerService register IMtkPerf
+#     HidlServiceManagement: Registered ...mtkpower@1.2::IMtkPerf/default
+#
+# and then the AIDL half aborted inside the constructor:
+#
+#     F DEBUG: #01 /vendor/lib64/android.hardware.power-service-mediatek.so
+#                  (aidl::...::mediatek::Power::Power()+460)
+#              #02 /vendor/bin/hw/vendor.mediatek.hardware.mtkpower@1.0-service
+#                  (mtkPowerAidlService(void*)+56)
+#
+# Power::Power() dlopens libpowerhal.so, resolves five symbols and calls
+# libpowerhal_Init(1). No "Could not dlopen"/"Could not locate symbol" appeared,
+# so it died inside libpowerhal_Init -- the source build (19,960 B) and stock's
+# libpowerhal do not agree, where stock's own impl (23,936 B) does.
+#
+# So the AIDL impl is taken from the firmware instead, listed in
+# proprietary-files.txt WITHOUT a dash so extract-utils emits a
+# PRODUCT_COPY_FILES rule rather than a prebuilt module. A module would collide
+# with hardware/mediatek's by name; a copy-file has no name to collide with.
+#
+# The lesson generalises: a prebuilt service binary and its implementation
+# library are one unit. Swapping half of a matched pair for a source build is
+# not an upgrade, it is a mismatch -- and it fails at runtime, not at build time.
 PRODUCT_PACKAGES += \
-    android.hardware.power-service-mediatek \
     android.hardware.vibrator-service.mediatek
+
+# Stock's power AIDL impl links android.hardware.power-V2-ndk_platform.so, which
+# blob_fixup renames to the Android 13 soname. Nothing else pulls that library
+# in now that the source power HAL is not built, so request it explicitly --
+# soong will not build a .vendor variant for a cc_prebuilt's benefit.
+PRODUCT_PACKAGES += \
+    android.hardware.power-V2-ndk.vendor
 
 # AIDL NDK libraries that stock's blobs need under their Android 13 names.
 #
