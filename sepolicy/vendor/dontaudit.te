@@ -1,3 +1,21 @@
 # hal_power_default asks for dac_override. That is a symptom of file ownership,
 # not something to grant — AOSP neverallows it for good reason. Silence it.
 dontaudit hal_power_default self:capability dac_override;
+
+# --- boot 2026-08-11, build 34: high-volume noise, no functional impact ---
+#
+# These three are loud but harmless, and are silenced rather than granted so a
+# future denial sweep is readable. 1,344 + 496 + 66 records in one boot drowns
+# out everything else -- and this project's method depends on a clean sweep
+# meaning something.
+#
+# system_suspend walks /sys looking for wakeup sources; the health HAL and
+# system_server poke at battery/thermal nodes the vendor labels generically.
+# All three work without the access: system_suspend suspends, the health HAL
+# reports, and the battery UI is correct on the running build.
+#
+# Grant, do not dontaudit, if any of these ever turns out to gate a feature --
+# but measure that first. sysfs is a very wide type to open up.
+dontaudit system_suspend sysfs:dir r_dir_perms;
+dontaudit hal_health_default sysfs:file r_file_perms;
+dontaudit system_server sysfs:file r_file_perms;

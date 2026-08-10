@@ -1,0 +1,28 @@
+# MediaTek's sensors multihal, measured on hardware 2026-08-11 (build 34).
+#
+# Without these two rules the service does not merely log noise -- it ABORTS,
+# every five seconds, 75 times in one boot. Its own log names the first one:
+#
+#   [libfs_mgr]ReadFstabFromFile(): failed to access() DSU booted indicator:
+#                                   Permission denied
+#   [libfs_mgr]ReadDefaultFstab(): failed to find device default fstab
+#   ... then abort
+#
+# libfs_mgr checks for the DSU indicator under /sys/firmware/devicetree, and
+# reads the fstab, before the multihal can enumerate its sub-HALs. Denied, it
+# throws, and nothing catches it.
+#
+# The denial counts are what identified this over the other candidates:
+#
+#   5904  mtk_hal_sensors -> sysfs_dt_firmware_android : dir { search }
+#   1476  mtk_hal_sensors -> metadata_file : dir { search }
+#
+# 7,380 records in one boot from a single domain is not a HAL that works and
+# complains; it is a HAL in a crash loop.
+#
+# `search` on a directory only, not read or open on its contents: this is a
+# path-traversal grant so libfs_mgr can stat() what it is looking for, and it
+# is the narrowest thing that makes the check possible. Both target types are
+# upstream, so nothing is declared here.
+allow mtk_hal_sensors sysfs_dt_firmware_android:dir search;
+allow mtk_hal_sensors metadata_file:dir search;

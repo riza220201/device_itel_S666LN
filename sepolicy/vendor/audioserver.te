@@ -1,0 +1,28 @@
+# audioserver reading MediaTek's vendor.* audio properties.
+#
+# 983 denials in one boot, and this one is on the critical path to a booting
+# device rather than being log noise. Measured 2026-08-11 (build 34):
+#
+#   avc: denied { read } scontext=u:r:audioserver:s0
+#        tcontext=u:object_r:vendor_default_prop:s0 tclass=file
+#
+# What it costs: audioserver never finishes publishing AudioPolicyService --
+# its log loops "AudioPolicyService not published, waiting..." while
+# AudioFlinger gets as far as openOutput() -- so system_server blocks in
+#
+#   AudioProductStrategy.native_list_audio_product_strategies (native)
+#   AudioDeviceBroker.initRoutingStrategyIds(AudioDeviceBroker.java:194)
+#
+# until Watchdog kills it, forever. The boot animation never ends.
+#
+# Note the shape of the misdirection here, because it cost time: `init.svc.
+# audioserver` reads `restarting`, which invites the conclusion that audioserver
+# is crashing on its own. It is not -- zygote restarts audioserver in its
+# `onrestart` list, so every system_server death restarts it. The restart is a
+# symptom of the very loop it is causing.
+#
+# vendor_default_prop is the catch-all label for vendor properties with no more
+# specific type, and MediaTek's audio HAL configuration lives there
+# (persist.vendor.audiohal.*, vendor.audiohal.*). Read only: audioserver has no
+# business setting them.
+allow audioserver vendor_default_prop:file r_file_perms;
