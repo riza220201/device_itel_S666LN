@@ -34,3 +34,16 @@ wifi.tethering.interface=ap0
 ro.mediatek.wlan.p2p=1
 ro.mediatek.wlan.wsc=1
 mediatek.wlan.ctia=0
+
+# Retail name for About phone. Without it the framework falls back to
+# manufacturer + " " + MODEL and shows "ITEL itel S666LN", because itel's stock
+# model string already contains the brand.
+#
+# This is a device fact, not a ROM choice, so it belongs here rather than in a
+# build recipe. The value is stock's own: rev 28 product/etc/build.prop:10
+# declares ro.product.product.tran.device.name.default=itel RS4 (the system and
+# vendor copies of that key are both empty).
+#
+# It has to live in a .prop file rather than PRODUCT_*_PROPERTIES because the
+# value contains a space, and entries there are whitespace-separated.
+ro.product.marketname=itel RS4

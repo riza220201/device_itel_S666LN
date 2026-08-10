@@ -24,6 +24,9 @@ PRODUCT_MODEL := itel S666LN
 # already contains the brand, so ro.product.marketname is set in
 # configs/properties/system.prop instead — a value containing a space cannot
 # go through PRODUCT_*_PROPERTIES (entries there are whitespace-separated).
+# (That was true as a plan before it was true as code: until 2026-08-10 this
+# comment described the intent while the property was actually being appended
+# by the build recipe. It is now really in system.prop.)
 
 # Identity presented to the platform. These are the values itel ships; the
 # second field of a build fingerprint is the PRODUCT name, which is why the
