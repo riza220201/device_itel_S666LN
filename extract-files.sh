@@ -71,6 +71,30 @@ function blob_fixup() {
             "${PATCHELF}" --replace-needed "android.hardware.light-V1-ndk_platform.so" \
                 "android.hardware.light-V1-ndk.so" "${2}"
             ;;
+        vendor/bin/hw/vendor.mediatek.hardware.mtkpower@1.0-service)
+            # This binary is the AIDL android.hardware.power IPower/default
+            # provider -- the HAL whose absence boot-looped the device on
+            # 2026-08-10 (PowerManagerService.nativeInit blocked, Watchdog killed
+            # system_server at ~73 s, forever).
+            #
+            # It links android.hardware.power-V2-ndk_platform.so, which exists
+            # nowhere in stock's vendor OR system: stock resolves it from
+            # /apex/com.android.vndk.v31, which this ROM does not ship. Without
+            # the rename it dies in the linker and the boot loop returns.
+            #
+            # The replacement genuinely exists here, which is what makes this
+            # rename safe where the arm.graphics one was not: device.mk requests
+            # android.hardware.power-service-mediatek from
+            # hardware/mediatek/aidl/power-mediatek, and that module pulls in
+            # android.hardware.power-V2-ndk. Confirmed in the built image at
+            # /vendor/lib64/android.hardware.power-V2-ndk.so (55,200 bytes).
+            #
+            # If that PRODUCT_PACKAGES entry is ever dropped, this rename starts
+            # pointing at nothing and the boot loop comes back. The two belong
+            # together.
+            "${PATCHELF}" --replace-needed "android.hardware.power-V2-ndk_platform.so" \
+                "android.hardware.power-V2-ndk.so" "${2}"
+            ;;
         # NOTE: arm.graphics-V1-ndk_platform is deliberately NOT renamed here.
         #
         # The android.hardware.light-V1-ndk rename above IS correct -- that AIDL
