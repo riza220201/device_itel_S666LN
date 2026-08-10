@@ -51,24 +51,46 @@ PRODUCT_PACKAGES += \
 # and it is NOT the same as the vendor's build SDK.
 PRODUCT_SHIPPING_API_LEVEL := 31
 
-# VNDK is deliberately NOT pinned here.
+# VNDK 31. THIS IS LOAD-BEARING; it is not a version-bump preference.
 #
-# It was previously set to 31, which was wrong. Stock's vendor partition says:
+# Stock's vendor partition, both prop blocks, measured from the rev 28 dump:
 #
 #   ro.product.first_api_level      = 31    device launched on Android 12
-#   ro.vendor.build.version.sdk     = 33    vendor was BUILT at Android 13
-#   ro.vndk.version                 = 33
+#   ro.vendor.build.version.sdk     = 31    vendor was BUILT at Android 12
+#   ro.vndk.version                 = 31
 #
-# Three different numbers that are easy to conflate. The vendor blobs in this
-# tree are VNDK 33, which is also the platform VNDK on the Android 13 branch, so
-# no snapshot is needed and PRODUCT_TARGET_VNDK_VERSION should stay unset.
-# Pinning 31 would force the prebuilts/vndk/v31 snapshot under blobs built
-# against 33.
+# (33 is the SYSTEM side — ro.build.version.sdk. An A13 system on an A12 vendor,
+# exactly like every other MT6789 device. Three numbers that are easy to
+# conflate, and conflating them is what caused the bug below.)
 #
-# Note this device is unusual among MT6789 phones: Infinix, Tecno, Xiaomi and
-# Samsung all ship an Android-12 vendor (sdk 31) under a newer system. itel
-# actually rebased theirs to Android 13 — while still carrying the A12-era Mali
-# r32p1 and A12 AIDL soname conventions (see blob_fixup in extract-files.sh).
+# The vendor blobs link A12-era AIDL sonames with the `_platform` suffix that
+# AOSP dropped in Android 13 — android.hardware.power-V2-ndk_platform.so,
+# gnss-V1-ndk_platform.so, memtrack-V1-ndk_platform.so, the three Trustonic
+# keymint ones, vibrator-V2-ndk_platform.so, and more. Around twenty vendor ELFs
+# in rev 28 need one. NONE of those libraries exists in stock's vendor or system
+# partitions: they live inside com.android.vndk.v31.apex, which stock ships in
+# /system_ext/apex/. Pinning 31 is what puts that apex on the device.
+#
+# 🔴 What happens without it, measured on hardware 2026-08-10 (build 24):
+#   /apex/com.android.vndk.v33 is shipped instead, no `_platform` soname
+#   resolves, so vendor.mediatek.hardware.mtkpower@1.0-service -- which IS the
+#   AIDL android.hardware.power IPower/default provider that this device's
+#   VINTF manifest declares -- cannot load. PowerManagerService.nativeInit()
+#   then blocks forever waiting for a HAL the manifest promised:
+#
+#     Watchdog: *** WATCHDOG KILLING SYSTEM PROCESS: Blocked in handler on main
+#       at PowerManagerService.nativeInit(Native Method)
+#       at SystemServer.startBootstrapServices(SystemServer.java:1163)
+#
+#   system_server is killed at ~73 s and restarts forever. It presents as a boot
+#   animation that never ends, with no tombstone and no crash.
+#
+# The earlier version of this comment claimed stock was VNDK 33 and that pinning
+# 31 "would force the prebuilts/vndk/v31 snapshot under blobs built against 33".
+# Both halves were wrong, and they came from measuring the SHIPPED crDroid build
+# (.build/work/shipped/v) instead of the stock dump (.build/work/vendor). See
+# notes/AUDIT-2026-08-10.md.
+PRODUCT_TARGET_VNDK_VERSION := 31
 
 # JamesDSP, replacing AudioFX. OPTIONAL -- see fetch-jamesdsp.sh.
 #
