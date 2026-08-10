@@ -66,26 +66,21 @@ vendor/app/mcRegistry/e97c270ea5c44c58bcd3384a2fa2539e.tabin
 -vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-service
 -vendor/bin/hw/android.hardware.bluetooth@1.1-service-mediatek
 -vendor/bin/hw/android.hardware.boot@1.2-service
--vendor/bin/hw/android.hardware.drm-service.clearkey
 -vendor/bin/hw/android.hardware.drm@1.4-service.widevine
 -vendor/bin/hw/android.hardware.gatekeeper@1.0-service
 -vendor/bin/hw/android.hardware.gnss-service.mediatek
 -vendor/bin/hw/android.hardware.graphics.composer@2.3-service
--vendor/bin/hw/android.hardware.lights-service.transsion
 -vendor/bin/hw/android.hardware.media.c2@1.2-mediatek-64b
 -vendor/bin/hw/android.hardware.neuralnetworks-shim-service-mtk
 -vendor/bin/hw/android.hardware.nfc@1.2-service
 -vendor/bin/hw/android.hardware.secure_element@1.2-service-mediatek
 -vendor/bin/hw/android.hardware.security.keymint-service.trustonic
--vendor/bin/hw/android.hardware.sensors@2.1-service.multihal
 -vendor/bin/hw/android.hardware.thermal@2.0-service.mtk
 -vendor/bin/hw/android.hardware.usb@1.2-service-mediatekv2
--vendor/bin/hw/android.hardware.vibrator-service.transsion
 -vendor/bin/hw/mt6789/android.hardware.graphics.allocator@4.0-service-mediatek.mt6789
 -vendor/bin/hw/mt6789/camerahalserver
 -vendor/bin/hw/mtkfusionrild
 -vendor/bin/hw/tetheroffloadservice
--vendor/bin/hw/vendor.lineage.touch@1.0-service.transsion
 -vendor/bin/hw/vendor.mediatek.hardware.keymaster_attestation@1.1-service
 -vendor/bin/hw/vendor.mediatek.hardware.mms@1.6-service
 -vendor/bin/hw/vendor.mediatek.hardware.nvram@1.1-service
@@ -129,6 +124,12 @@ vendor/app/mcRegistry/e97c270ea5c44c58bcd3384a2fa2539e.tabin
 -vendor/bin/wlan_assistant
 -vendor/bin/wmt_launcher
 -vendor/bin/wmt_loader
+-vendor/bin/hw/vendor.mediatek.hardware.mtkpower@1.0-service
+-vendor/bin/hw/android.hardware.audio.service.mediatek
+-vendor/bin/hw/android.hardware.lights-service.mediatek
+-vendor/bin/hw/android.hardware.vibrator-service.mediatek
+-vendor/bin/hw/android.hardware.sensors@2.0-service.multihal-mediatek
+-vendor/bin/hw/android.hardware.drm@1.4-service.clearkey
 
 # data
 vendor/data/camera/lut/colorEnhance/bg_lut/0.txt
@@ -395,7 +396,6 @@ vendor/etc/audio_param/preset_ringtone.bin
 vendor/etc/audio_param/preset_voip.bin
 vendor/etc/bluetooth_audio_policy_configuration.xml
 vendor/etc/cam3atms_profiles.xml
-vendor/etc/cgroups.json
 vendor/etc/dar_thermal_core/thermal_core_config.json
 vendor/etc/default_volume_tables.xml
 vendor/etc/ecc_list.xml
@@ -426,19 +426,16 @@ vendor/etc/gnss/carrier/agps_profiles_conf2_carrier_Verizon_Wireless.xml
 vendor/etc/init/android.hardware.biometrics.fingerprint@2.1-service.rc
 vendor/etc/init/android.hardware.bluetooth@1.1-service-mediatek.rc
 vendor/etc/init/android.hardware.boot@1.2-service.rc
-vendor/etc/init/android.hardware.drm-service.clearkey.rc
 vendor/etc/init/android.hardware.drm@1.4-service.widevine.rc
 vendor/etc/init/android.hardware.gatekeeper@1.0-service.rc
 vendor/etc/init/android.hardware.gnss-service.mediatek.rc
 vendor/etc/init/android.hardware.graphics.allocator@4.0-service-mediatek.rc
 vendor/etc/init/android.hardware.graphics.composer@2.3-service.rc
-vendor/etc/init/android.hardware.lights-service.transsion.rc
 vendor/etc/init/android.hardware.media.c2@1.2-mediatek.rc
 vendor/etc/init/android.hardware.neuralnetworks-shim-service-mtk.rc
 vendor/etc/init/android.hardware.nfc@1.2-service.rc
 vendor/etc/init/android.hardware.secure_element@1.2-service-mediatek.rc
 vendor/etc/init/android.hardware.security.keymint-service.trustonic.rc
-vendor/etc/init/android.hardware.sensors@2.1-service-multihal.rc
 vendor/etc/init/android.hardware.thermal@2.0-service.mtk.rc
 vendor/etc/init/android.hardware.usb@1.2-service-mediatekv2.rc
 vendor/etc/init/audiocmdservice_atci.rc
@@ -451,7 +448,6 @@ vendor/etc/init/fuelgauged_init.rc
 vendor/etc/init/fuelgauged_nvram_init.rc
 vendor/etc/init/gbe.rc
 vendor/etc/init/gsm0710muxd.rc
-vendor/etc/init/hw/init.transsion.rc
 vendor/etc/init/init.bt_drv.rc
 vendor/etc/init/init.cccifsd.rc
 vendor/etc/init/init.cccimdinit.rc
@@ -495,7 +491,6 @@ vendor/etc/init/trustonic.rc
 vendor/etc/init/v3avpud.rc
 vendor/etc/init/vendor.fpsensor.rc
 vendor/etc/init/vendor.goodix.rc
-vendor/etc/init/vendor.lineage.touch@1.0-service.transsion.rc
 vendor/etc/init/vendor.mediatek.hardware.keymaster_attestation@1.1-service.rc
 vendor/etc/init/vendor.mediatek.hardware.mms@1.6-service.rc
 vendor/etc/init/vendor.mediatek.hardware.nvram@1.1-sevice.rc
@@ -503,28 +498,20 @@ vendor/etc/init/vendor.mediatek.hardware.pq@2.2-service.rc
 vendor/etc/init/vendor.mediatek.hardware.tranHwInfo@1.0-service.rc
 vendor/etc/init/vendor.transsion.hardware.trancam.trancamserver@1.0-service.rc
 vendor/etc/init/vendor.trustonic.tee@1.1-service.rc
-vendor/etc/init/vibrator-transsion.rc
 vendor/etc/init/volte_clientapi_ua.rc
 vendor/etc/init/wlan_assistant.rc
 vendor/etc/media_codecs_google_audio.xml
-vendor/etc/media_codecs_google_video_le.xml
 vendor/etc/mtk_omx_core.cfg
 vendor/etc/mtk_platform_codecs_config.xml
 vendor/etc/nnapi_powerhal.json
 vendor/etc/permissions/android.hardware.audio.low_latency.xml
-vendor/etc/permissions/android.hardware.bluetooth.xml
 vendor/etc/permissions/android.hardware.bluetooth_le.xml
-vendor/etc/permissions/android.hardware.camera.flash-autofocus.xml
-vendor/etc/permissions/android.hardware.camera.front.xml
-vendor/etc/permissions/android.hardware.camera.full.xml
-vendor/etc/permissions/android.hardware.camera.raw.xml
 vendor/etc/permissions/android.hardware.camera.xml
 vendor/etc/permissions/android.hardware.faketouch.xml
 vendor/etc/permissions/android.hardware.fingerprint.xml
 vendor/etc/permissions/android.hardware.keystore.app_attest_key.xml
 vendor/etc/permissions/android.hardware.location.gps.xml
 vendor/etc/permissions/android.hardware.nfc.hce.xml
-vendor/etc/permissions/android.hardware.nfc.hcef.xml
 vendor/etc/permissions/android.hardware.nfc.xml
 vendor/etc/permissions/android.hardware.opengles.aep.xml
 vendor/etc/permissions/android.hardware.se.omapi.uicc.xml
@@ -557,7 +544,6 @@ vendor/etc/permissions/android.software.vulkan.deqp.level.xml
 vendor/etc/permissions/com.nxp.mifare.xml
 vendor/etc/permissions/handheld_core_hardware.xml
 vendor/etc/pnpmgr.db
-vendor/etc/powerhint.json
 vendor/etc/predthermallevel_rf.json
 vendor/etc/r_submix_audio_policy_configuration.xml
 vendor/etc/security/cacerts/01419da9.0
@@ -716,7 +702,6 @@ vendor/etc/thermal/thermal_mtbf.conf
 vendor/etc/thermal/thermal_policy_00.conf
 vendor/etc/thermal/thermal_policy_02.conf
 vendor/etc/thermal/thermal_policy_08.conf
-vendor/etc/thermal_info_config.json
 vendor/etc/tran_camprofiles.xml
 vendor/etc/trancam_filelock.json
 vendor/etc/vendor-apns-conf.xml
@@ -724,7 +709,13 @@ vendor/etc/virtual-spn-conf-by-efgid1.xml
 vendor/etc/virtual-spn-conf-by-efpnn.xml
 vendor/etc/virtual-spn-conf-by-efspn.xml
 vendor/etc/virtual-spn-conf-by-imsi.xml
-vendor/etc/wifi/vendor_hals/vendor_hals.xml
+vendor/etc/init/vendor.mediatek.hardware.mtkpower@1.0-service.rc
+vendor/etc/init/vendor.mediatek.hardware.mtkpower@1.0-init.rc
+vendor/etc/init/android.hardware.audio.service.mediatek.rc
+vendor/etc/init/lights-mtk-default.rc
+vendor/etc/init/vibrator-mtk-default.rc
+vendor/etc/init/android.hardware.sensors@2.0-service.multihal-mediatek.rc
+vendor/etc/init/android.hardware.drm@1.4-service.clearkey.rc
 
 # firmware
 vendor/firmware/BT_FW.cfg
@@ -839,7 +830,6 @@ vendor/firmware/wifi.cfg
 -vendor/lib/AVCSecureVdecCA_510.so
 -vendor/lib/HEVCSecureVdecCA_510.so
 -vendor/lib/VP9SecureVdecCA_510.so
--vendor/lib/android.hardware.bluetooth.audio-impl.so
 vendor/lib/egl/egl.cfg
 -vendor/lib/egl/libGLES_meow.so
 -vendor/lib/egl/libMEOW_data.so
@@ -848,7 +838,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/egl/libMEOW_trace.so
 -vendor/lib/egl/mt6789/libGLES_mali.so
 -vendor/lib/hw/android.hardware.audio.effect@7.0-impl.so
--vendor/lib/hw/android.hardware.audio@7.0-impl.so
 -vendor/lib/hw/android.hardware.bluetooth.audio@2.0-impl.so
 -vendor/lib/hw/android.hardware.bluetooth.audio@2.1-impl.so
 -vendor/lib/hw/android.hardware.bluetooth@1.1-impl-mediatek.so
@@ -1045,10 +1034,8 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libaurisysdemo.so
 -vendor/lib/libavservices_minijail_vendor.so
 -vendor/lib/libbessound_hd_mtk_vendor.so
--vendor/lib/libbinder-v31.so
 -vendor/lib/libblisrc32_vendor.so
 -vendor/lib/libbluetooth_audio_session.so
--vendor/lib/libbluetooth_audio_session_aidl.so
 -vendor/lib/libbluetooth_audio_session_mediatek.so
 -vendor/lib/libbluetooth_hw_test.so
 -vendor/lib/libbluetooth_mtk.so
@@ -1083,7 +1070,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libh264enc_sa.ca7.so
 -vendor/lib/libhdrvideo.so
 -vendor/lib/libhevce_sb.ca7.android.so
--vendor/lib/libhidlbase-v31.so
 -vendor/lib/libhydra.so
 -vendor/lib/libhyperion_hap_ca.so
 -vendor/lib/libicd_decoder.so
@@ -1121,14 +1107,10 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/librgbwlightsensor.so
 -vendor/lib/librt_extamp_intf.so
 -vendor/lib/libsensorndkbridge.so
--vendor/lib/libshim_sensors.so
 -vendor/lib/libspeech_enh_lib.so
 -vendor/lib/libspeechparser_vendor.so
--vendor/lib/libstagefright_foundation-v32.so
 -vendor/lib/libtinycompress.so
 -vendor/lib/libudf.so
--vendor/lib/libutils-v31.so
--vendor/lib/libutils-v32.so
 -vendor/lib/libvcodec_oal.so
 -vendor/lib/libvcodec_utility_plat.mt6789.so
 -vendor/lib/libvcodec_utility_plat.mt6855.so
@@ -1395,7 +1377,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/AVCSecureVdecCA_510.so
 -vendor/lib64/HEVCSecureVdecCA_510.so
 -vendor/lib64/VP9SecureVdecCA_510.so
--vendor/lib64/android.hardware.bluetooth.audio-impl.so
 -vendor/lib64/egl/libGLES_meow.so
 -vendor/lib64/egl/libMEOW_data.so
 -vendor/lib64/egl/libMEOW_gift.so
@@ -1404,7 +1385,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/egl/mt6789/libGLES_mali.so
 -vendor/lib64/hal_libnfc.so
 -vendor/lib64/hw/android.hardware.audio.effect@7.0-impl.so
--vendor/lib64/hw/android.hardware.audio@7.0-impl.so
 -vendor/lib64/hw/android.hardware.bluetooth.audio@2.0-impl.so
 -vendor/lib64/hw/android.hardware.bluetooth.audio@2.1-impl.so
 -vendor/lib64/hw/android.hardware.bluetooth@1.1-impl-mediatek.so
@@ -1632,10 +1612,8 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libaurisysdemo.so
 -vendor/lib64/libavservices_minijail_vendor.so
 -vendor/lib64/libbessound_hd_mtk_vendor.so
--vendor/lib64/libbinder-v31.so
 -vendor/lib64/libblisrc32_vendor.so
 -vendor/lib64/libbluetooth_audio_session.so
--vendor/lib64/libbluetooth_audio_session_aidl.so
 -vendor/lib64/libbluetooth_audio_session_mediatek.so
 -vendor/lib64/libbluetooth_hw_test.so
 -vendor/lib64/libbluetooth_mtk.so
@@ -1710,7 +1688,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libheichal.so
 -vendor/lib64/libhevce_sb.ca7.android.so
 -vendor/lib64/libhfmanager.so
--vendor/lib64/libhidlbase-v31.so
 -vendor/lib64/libhwm.so
 -vendor/lib64/libhydra.so
 -vendor/lib64/libhyperion_hap_ca.so
@@ -1782,7 +1759,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libnxp_extamp_intf.so
 -vendor/lib64/liboemcrypto.so
 -vendor/lib64/libperfctl_vendor.so
--vendor/lib64/libperfmgr.so
 -vendor/lib64/libpixelflinger.so
 -vendor/lib64/libpkm.so
 -vendor/lib64/libpn557_fw.so
@@ -1795,10 +1771,8 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/librpc.so
 -vendor/lib64/librt_extamp_intf.so
 -vendor/lib64/libsensorndkbridge.so
--vendor/lib64/libshim_sensors.so
 -vendor/lib64/libspeech_enh_lib.so
 -vendor/lib64/libspeechparser_vendor.so
--vendor/lib64/libstagefright_foundation-v32.so
 -vendor/lib64/libstorage_otp.so
 -vendor/lib64/libsysenv.so
 -vendor/lib64/libtflite_mtk.so
@@ -1816,8 +1790,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libtrm.so
 -vendor/lib64/libudf.so
 -vendor/lib64/liburee_meta_drmkeyinstall.so
--vendor/lib64/libutils-v31.so
--vendor/lib64/libutils-v32.so
 -vendor/lib64/libvcodec_oal.so
 -vendor/lib64/libvcodecdrv_header_stub.so
 -vendor/lib64/libvendor.goodix.hardware.biometrics.fingerprint@2.1.so
@@ -1826,7 +1798,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libvideofilter_cl_64.so
 -vendor/lib64/libvpu.so
 -vendor/lib64/libvpu5.so
--vendor/lib64/libwifi-hal-mtk.so
 -vendor/lib64/libwo.so
 -vendor/lib64/libwpfa.so
 -vendor/lib64/libwvhidl.so
@@ -2241,7 +2212,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/mt6789/s5kjn1_mipi_raw_IdxMgr.so
 -vendor/lib64/mt6789/s5kjn1_mipi_raw_tuning.so
 -vendor/lib64/mtkcam/mt6789/libmtkcam_streaminfo_plugin-p1stt.so
--vendor/lib64/pixel-power-ext-V1-ndk.so
 -vendor/lib64/s5k2lqsx_mipi_raw_IdxMgr.so
 -vendor/lib64/s5k4h7_mipi_raw_IdxMgr.so
 -vendor/lib64/soundfx/libdynproc.so
@@ -2326,6 +2296,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/vendor.trustonic.tee.tui@1.0.so
 -vendor/lib64/vendor.trustonic.tee@1.0.so
 -vendor/lib64/vendor.trustonic.tee@1.1.so
+-vendor/lib64/android.hardware.power-service-mediatek.so
 
 # odm
 vendor/odm/etc/build.prop
@@ -2334,7 +2305,6 @@ vendor/odm/etc/passwd
 
 
 # usr
-vendor/usr/keylayout/mtk-tpd.kl
 
 # libprotobuf-cpp-{full,lite}-3.9.1 are deliberately NOT here. They look like
 # this same case, but external/protobuf installs them into /vendor transitively
