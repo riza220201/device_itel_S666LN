@@ -119,11 +119,23 @@ function blob_fixup() {
             # device.mk requests their .vendor variants explicitly. Without that
             # this rename would point at nothing -- and this is the HAL behind
             # the Trustonic keybox, i.e. Play Integrity and e-KYC.
-            for i in keymint secureclock sharedsecret; do
-                "${PATCHELF}" --replace-needed \
-                    "android.hardware.security.${i}-V1-ndk_platform.so" \
-                    "android.hardware.security.${i}-V1-ndk.so" "${2}"
-            done
+            # 🔴 Unrolled ON PURPOSE. Do not "tidy" this into a for-loop.
+            #
+            # blob_fixup() is called from inside extract()'s own loop and shares
+            # its scope. extract_utils.sh:305 counts with `for (( i=1; i<COUNT+1;
+            # i++ ))`, so a `for i in ...` here leaves i="sharedsecret", which
+            # the arithmetic evaluates as 0 -- and the entire extraction restarts
+            # from the first blob, forever. Observed: 45,106 log lines, 766
+            # unique, every path emitted exactly 60 times before it was killed.
+            #
+            # Any loop variable added here must be `local`, or named something
+            # extract_utils cannot be using. Not worth the risk for three lines.
+            "${PATCHELF}" --replace-needed "android.hardware.security.keymint-V1-ndk_platform.so" \
+                "android.hardware.security.keymint-V1-ndk.so" "${2}"
+            "${PATCHELF}" --replace-needed "android.hardware.security.secureclock-V1-ndk_platform.so" \
+                "android.hardware.security.secureclock-V1-ndk.so" "${2}"
+            "${PATCHELF}" --replace-needed "android.hardware.security.sharedsecret-V1-ndk_platform.so" \
+                "android.hardware.security.sharedsecret-V1-ndk.so" "${2}"
             ;;
         # NOTE: arm.graphics-V1-ndk_platform is deliberately NOT renamed here.
         #
