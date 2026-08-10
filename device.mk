@@ -514,9 +514,23 @@ PRODUCT_PACKAGES += \
 # libpowerhal do not agree, where stock's own impl (23,936 B) does.
 #
 # So the AIDL impl is taken from the firmware instead, listed in
-# proprietary-files.txt WITHOUT a dash so extract-utils emits a
-# PRODUCT_COPY_FILES rule rather than a prebuilt module. A module would collide
-# with hardware/mediatek's by name; a copy-file has no name to collide with.
+# proprietary-files.txt WITH a dash, i.e. as a cc_prebuilt_library_shared.
+#
+# It took three build failures to land on that, and each one ruled out a real
+# option, so they are worth recording rather than repeating:
+#
+#   dash, before step 36   duplicate module -- hardware/mediatek defines
+#                          android.hardware.power-service-mediatek too
+#                          (base_rules.mk:533)
+#   no dash                "found ELF prebuilt in PRODUCT_COPY_FILES, use
+#                          cc_prebuilt_binary / cc_prebuilt_library_shared
+#                          instead" -- AOSP forbids ELF via copy-files
+#   dash, after step 36    works: the recipe scopes hardware/mediatek's module
+#                          out for this device, freeing the module name
+#
+# The dependency is therefore two-sided and easy to break by accident: this
+# entry needs apply-overlays-v2 step 36, and step 36 exists only for this entry.
+# Remove either alone and the build fails -- loudly, at least.
 #
 # The lesson generalises: a prebuilt service binary and its implementation
 # library are one unit. Swapping half of a matched pair for a source build is
