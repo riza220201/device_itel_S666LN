@@ -90,7 +90,26 @@ PRODUCT_SHIPPING_API_LEVEL := 31
 # Both halves were wrong, and they came from measuring the SHIPPED crDroid build
 # (.build/work/shipped/v) instead of the stock dump (.build/work/vendor). See
 # notes/AUDIT-2026-08-10.md.
-PRODUCT_TARGET_VNDK_VERSION := 31
+#
+# 🔴 AND SO WAS THE FIX. PRODUCT_TARGET_VNDK_VERSION := 31 was committed here
+# and is INERT: `grep -rn PRODUCT_TARGET_VNDK_VERSION build/make/` returns
+# nothing on lineage-20.0. The variable this branch reads is BOARD_VNDK_VERSION
+# (build/make/core/main.mk:225-231), and it is what sets ro.vndk.version. The
+# built image proved it -- ro.vndk.version=33 and no v31 apex, exactly as before
+# the "fix". A variable nobody reads is the vendor_mtk_powerhal_prop trap again:
+# it compiles, changes nothing, and fails no check.
+#
+# Deliberately NOT setting BOARD_VNDK_VERSION := 31 either. It would rebuild
+# every vendor module in the tree against the v31 snapshot -- hardware/mediatek,
+# the source-built power/vibrator/memtrack HALs, wpa_supplicant -- to satisfy
+# one soname in one prebuilt binary. The proportionate fix is a blob_fixup
+# rename in extract-files.sh, which is what this tree already does for
+# android.hardware.light-V1-ndk_platform.so on vendor/bin/factory.
+#
+# What stock actually relies on, for the record: /apex/com.android.vndk.v31,
+# which stock ships in /system_ext/apex/. If a future build ever shows A12 blobs
+# misbehaving against platform VNDK 33 in ways a soname rename cannot explain,
+# that apex -- not this variable -- is the thing to reach for.
 
 # JamesDSP, replacing AudioFX. OPTIONAL -- see fetch-jamesdsp.sh.
 #
