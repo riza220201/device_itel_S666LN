@@ -95,6 +95,36 @@ function blob_fixup() {
             "${PATCHELF}" --replace-needed "android.hardware.power-V2-ndk_platform.so" \
                 "android.hardware.power-V2-ndk.so" "${2}"
             ;;
+        # The rest of the _platform class, found by sweeping the BUILT vendor
+        # image for sonames nothing installs -- not by reading the blob list.
+        # Each replacement below was confirmed PRESENT in /vendor/lib64 of a
+        # completed build before the rename was added here; that check is the
+        # whole difference between this and the arm.graphics mistake.
+        vendor/bin/hw/android.hardware.lights-service.mediatek)
+            # Boot-blocking. LightsService calls waitForDeclaredService() and
+            # blocks system_server's main thread until Watchdog kills it, which
+            # is where the boot loop moved to once the power HAL was fixed.
+            "${PATCHELF}" --replace-needed "android.hardware.light-V1-ndk_platform.so" \
+                "android.hardware.light-V1-ndk.so" "${2}"
+            ;;
+        vendor/bin/hw/android.hardware.gnss-service.mediatek | \
+        vendor/lib64/hw/android.hardware.gnss-impl-mediatek.so)
+            "${PATCHELF}" --replace-needed "android.hardware.gnss-V1-ndk_platform.so" \
+                "android.hardware.gnss-V1-ndk.so" "${2}"
+            ;;
+        vendor/bin/hw/android.hardware.security.keymint-service.trustonic)
+            # One binary serves all three interfaces, so all three sonames move.
+            # keymint-V1-ndk.vendor is already installed as a dependency of
+            # something else; secureclock and sharedsecret are not, which is why
+            # device.mk requests their .vendor variants explicitly. Without that
+            # this rename would point at nothing -- and this is the HAL behind
+            # the Trustonic keybox, i.e. Play Integrity and e-KYC.
+            for i in keymint secureclock sharedsecret; do
+                "${PATCHELF}" --replace-needed \
+                    "android.hardware.security.${i}-V1-ndk_platform.so" \
+                    "android.hardware.security.${i}-V1-ndk.so" "${2}"
+            done
+            ;;
         # NOTE: arm.graphics-V1-ndk_platform is deliberately NOT renamed here.
         #
         # The android.hardware.light-V1-ndk rename above IS correct -- that AIDL

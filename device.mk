@@ -496,6 +496,26 @@ PRODUCT_PACKAGES += \
     android.hardware.power-service-mediatek \
     android.hardware.vibrator-service.mediatek
 
+# AIDL NDK libraries that stock's blobs need under their Android 13 names.
+#
+# extract-files.sh renames the A12 `_platform` sonames on five stock binaries to
+# the names this branch builds. A rename only works if the target is actually
+# installed to /vendor, and soong will not build a .vendor variant just because
+# a cc_prebuilt names it -- prebuilts are invisible to its dependency graph.
+# That is the trap that shipped a vendor partition with 501 unresolved
+# references on 2026-08-05.
+#
+# light/gnss/keymint .vendor variants are already pulled in by other consumers.
+# These two are not, and the Trustonic keymint service needs all three: it
+# registers keymint, secureclock and sharedsecret from one binary, so a missing
+# soname takes out the keybox -- Play Integrity and e-KYC with it.
+#
+# Verified present in /vendor/lib64 of a completed build before the matching
+# rename was added. If either is dropped, the rename dangles silently.
+PRODUCT_PACKAGES += \
+    android.hardware.security.secureclock-V1-ndk.vendor \
+    android.hardware.security.sharedsecret-V1-ndk.vendor
+
 # Audio
 PRODUCT_COPY_FILES += \
     $(call find-copy-subdir-files,*,$(LOCAL_PATH)/configs/audio,$(TARGET_COPY_OUT_VENDOR)/etc)
