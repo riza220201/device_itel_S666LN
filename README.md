@@ -77,9 +77,51 @@ crDroid's `frameworks/base`, the MediaTek Wi-Fi HAL source, and a corrected
 webview linkfile. Each is commented in the file with why it is there and when it
 can be dropped.
 
-Tested against crDroid 13.0. The KMI gate runs inside the build and confirms all
-404 prebuilt vendor modules against the shipped kernel; it is wired to the staged
-vendor files rather than to an image target, because `bacon` never builds one.
+Tested against crDroid 13.0. Two gates run inside the build. The **KMI gate**
+confirms all 404 prebuilt vendor modules against the shipped kernel. The
+**vendor dependency gate** resolves every DT_NEEDED in the built vendor image,
+per ABI, and also checks passthrough impls, dangling symlinks, init services
+having their binaries, and the module load lists matching the kernel package in
+content and order. Both hang off staged files or `bacon` rather than an image
+target, because `bacon` never builds one.
+
+> Both gates have a history worth knowing if you reuse them: each was once
+> attached to a target the build never reached, and reported success while
+> testing nothing. The dependency gate additionally passed *vacuously* even once
+> attached, because build actions get **toybox** (no `find -xtype`) and cannot
+> use `readelf` at all — AOSP's PATH interposer refuses it, and with no readelf
+> every dependency trivially "resolves". It now uses the in-tree `llvm-readelf`
+> and refuses to run without one. If you copy these gates, make them print what
+> they *measured* next to what they *concluded*; that disagreement is the only
+> reason the fault was ever noticed.
+
+### Install path and recovery
+
+**This ROM installs with its own recovery** — `adb sideload` works, verified on
+hardware. That needed one line: the boot-control passthrough impl has to be
+requested for recovery (`android.hardware.boot@1.2-mtkimpl.recovery`), or
+`update_engine_sideload` dies at init with `Error getting bootctrl HIDL module`
+before transferring a byte. It installs to `recovery/root/system/lib64/hw`, not
+`vendor/lib64/hw`, because a recovery binary is not a vendor one and keeps
+`HAL_LIBRARY_PATH_SYSTEM` in its passthrough search path.
+
+**Recovery has a working touchscreen**, which on this device needs two things
+that have nothing to do with the recovery UI:
+
+* Transsion's `adaptive-ts.ko` refuses to initialise the panel when
+  `bootmode==2` (RECOVERY_BOOT). `tools/patch-touch-in-recovery.py` removes
+  RECOVERY from that bitmask in one byte and `--verify`s the result; the patched
+  module lives in the kernel package.
+* The recovery ramdisk needs `/vendor/firmware` — the controller loads its
+  application firmware at probe, and without it stays in its bootloader, so the
+  driver registers a flawless multitouch device that never fires an interrupt.
+  Both panel variants are shipped, because units carry either a focaltech
+  FT8057S or an omnivision TD4160.
+
+Neither works alone, and porting a touch recovery would not have helped: the
+panel is never powered on. Note `vendor_boot` ships in the OTA payload, so any
+ROM without both fixes has a touch-dead recovery, and a hand-flashed fix lasts
+exactly one install.
 
 Boot status, stated plainly rather than optimistically: the tree builds clean and
 reaches `system_server`. First-stage and second-stage module loading, the GPU,
@@ -95,32 +137,62 @@ project instead — `import-kernel.sh` installs it and refuses any kernel that
 fails the KMI check. See the comments in that script; the BORE and NTSYNC patches
 belong to that project and deliberately are not in the GKI fork.
 
-## Vulkan 1.3 (opt-in)
+## Vulkan 1.3
 
-Stock ships Mali **r32p1**, which caps at Vulkan 1.1. This tree ships stock, and
-**r38p1 is an opt-in extra step** — `gpu-driver-r38p1.sh`, run after
-`extract-files.sh`. Nothing in a default build fetches it, and the driver is
-never committed to this repository. With it, verified on hardware:
+Stock ships Mali **r32p1**, which caps at Vulkan 1.1. This device ships
+**r38p1**, and it is no longer opt-in: the driver is committed to
+`vendor_itel_S666LN`, both ABIs, so a default build gets it. Verified on
+hardware:
 
 ```
 GLES  : ARM, Mali-G57 MC2, OpenGL ES 3.2 v1.r38p1
-Vulkan: 1.3.219, driver conformance 1.3.1.0
+Vulkan: 1.3.219, driver conformance 1.3.1.0     (68 -> 94 device extensions)
 ```
 
-MediaTek never shipped an r38p1 for MT6789 in retail firmware — 14 firmware
-images and ~50 vendor trees across seven OEMs were checked, all r32p1 or r54p1.
-It does exist for other MediaTek platforms of the same BSP generation, and those
-are drop-in compatible, because **the Mali userspace driver binds to the BSP
-generation, not to the SoC**. An Android-12-generation build from a different
-MediaTek chip works. An Android-13-generation build does not, even from a much
-closer chip, because it wants `gpudMaliSyncEventLog` from an A13 `libgpud`;
-supplying that library is not sufficient either — SurfaceFlinger then aborts with
-`no suitable EGLConfig found`.
+Sourced from **official Samsung firmware** — Galaxy XCover7 (SM-G556B), a MT6835
+device with the **same Mali-G57 MC2**, extracted from the vendor AP tar. Earlier
+revisions of this file described an opt-in `gpu-driver-r38p1.sh` that fetched a
+community dump; that script is **deleted** and the community binary is gone with
+it.
 
-`gpu-driver-r38p1.sh` fetches and checksum-verifies the driver. Run it **after
-every `extract-files.sh`** — extraction defaults to `CLEAN_VENDOR=true`, wipes the
-vendor directory and silently restores stock r32p1, dropping Vulkan back to 1.1
-with no error.
+```
+lib64  42401544  a457731ea0312e989be984b13b1f03d3b235771eee530cc8aa95c9f4808493c4
+lib    29117468  e9b631d00883eb4a43f5c46b480b84ec547f14b55526dacd6bc55a464b5b2207
+```
+
+⚠ **`extract-files.sh` reverts it.** Extraction runs `CLEAN_VENDOR=true`, wipes
+the vendor directory and reinstalls stock r32p1 — silently, with no error, and
+Vulkan drops back to 1.1. Restore it from the vendor repo afterwards
+(`git checkout -- proprietary/vendor/lib*/egl/mt6789/libGLES_mali.so`) and check
+the result actually says `r38p1-`; the build pipeline does exactly that and
+aborts if it does not.
+
+### Why this driver and not a newer one
+
+MediaTek never shipped an r38p1 for MT6789 in retail firmware — 14 firmware
+images and ~50 vendor trees across seven OEMs, all r32p1 or r54p1. It exists for
+other MediaTek platforms of the same BSP generation, and those are drop-in,
+because **the Mali userspace driver binds to the BSP generation, not to the
+SoC**. An Android-12-generation build from a different MediaTek chip works; an
+Android-13-generation build does not, even from a much closer chip, because it
+wants `gpudMaliSyncEventLog` from an A13 `libgpud` — and supplying that library
+is not sufficient either, SurfaceFlinger then aborts with `no suitable EGLConfig
+found`.
+
+r44p1 and r54p1 are out for a different reason: both hard-link
+`android.hardware.graphics.allocator-V2-ndk.so`, an **AIDL gralloc** service this
+Android-12 vendor stack does not have. That is a property of the driver
+revision, not of any vendor — two unrelated OEMs ship byte-identical r54p1.
+Adopting one is a gralloc-stack transplant across the composer/camera/codec
+boundary, and Android 14+ does not fix it, because the allocator is a *vendor*
+binary.
+
+**After any driver change, wipe the shader caches** — a cache written by r32p1
+and replayed under r38p1 is a RenderThread SIGSEGV:
+
+```
+adb shell 'rm -f /data/user_de/0/*/code_cache/com.android.*.shaders_cache'
+```
 
 ## Notes for anyone reusing this
 
