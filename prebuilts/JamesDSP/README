@@ -1,8 +1,7 @@
 JamesDSP (rootless) -- replaces AudioFX in this ROM.
 
 The APK is NOT committed here. Run ../../fetch-jamesdsp.sh to fetch and verify
-it; that script also writes the Android.bp and privapp-permissions XML next to
-the APK. Until it is run this directory holds only this README, so the tree
+it; that script also writes the Android.bp next to the APK. Until it is run this directory holds only this README, so the tree
 still builds and AudioFX stays in place.
 
 Pinned artifact
@@ -29,14 +28,28 @@ WHAT THIS CHANGES, AND THE HONEST TRADE-OFF
     It is a far more capable DSP than AudioFX in exchange for those. If the
     vendor effect chain matters more than the DSP, keep AudioFX and skip this.
 
-WHY PRIVILEGED, AND WHAT IT COSTS
-    Without android.permission.DUMP the app cannot see audio sessions on its own,
-    so the user must re-accept a MediaProjection capture dialog after EVERY
-    reboot. That reads as a broken feature in a shipped ROM.
+NOT PRIVILEGED, AND WHAT THAT COSTS
+    Without android.permission.DUMP the app cannot see audio sessions on its
+    own, so the user must re-accept a MediaProjection capture dialog after EVERY
+    reboot. The app works; that is the cost.
 
-    The generated XML allowlists exactly one permission, DUMP, for exactly this
-    package. DUMP allows reading system service state (dumpsys). That is a real
-    privilege for a bundled third-party app -- it is FOSS and reproducibly built
-    by F-Droid, which is why it is defensible here, but it IS a decision. To opt
-    out, delete the privapp XML and drop privileged:true from the Android.bp; the
-    app still works with the per-boot dialog.
+    It USED to ship privileged, with a generated privapp-permissions allowlist
+    granting exactly DUMP. 🔴 That combination boot-looped the device, measured
+    on hardware in build 51:
+
+        FATAL EXCEPTION IN SYSTEM PROCESS: main
+        java.lang.IllegalStateException: Signature|privileged permissions not in
+          privapp-permissions allowlist: {me.timschneeberger.rootlessjamesdsp
+          (/product/priv-app/JamesDSP): android.permission.DUMP}
+
+    system_server reached ~238 services -- effectively a complete boot -- then
+    threw and restarted, forever. It had been latent since the app was added on
+    2026-08-05, because every build until then was killed by Watchdog at the
+    audio HAL before PackageManagerService.systemReady() was reached.
+
+    🔴 Why the allowlist was ignored is UNEXPLAINED. It was present at
+    /product/etc/permissions/, 0644, u:object_r:system_file:s0, well-formed,
+    naming exactly that package and permission; SystemConfig logged reading it
+    on every boot; there was no parse warning; and bind-mounting a copy into
+    /system/etc/permissions as well did not help. Do not simply restore
+    privileged:true -- explain that first.
