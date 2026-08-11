@@ -447,6 +447,45 @@ PRODUCT_COPY_FILES += \
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/rootdir/etc/init.recovery.mt6789.rc:$(TARGET_COPY_OUT_RECOVERY)/root/init.recovery.mt6789.rc
 
+# Firmware in the vendor ramdisk. Without this there is no touchscreen and no
+# haptic in recovery, measured on hardware 2026-08-11.
+#
+# These blobs are already in proprietary-files.txt, but that installs them to
+# the vendor PARTITION -- which is not mounted in recovery. The drivers load
+# them at probe through request_firmware(), so the ramdisk needs its own copy or
+# the kernel firmware loader finds nothing:
+#
+#   /vendor/firmware/ and /lib/firmware/   did not exist in the ramdisk at all
+#   [13.7] fts_initupg_work: FTS tran request firmware failed
+#   fts_boot_mode: "tp is in boot mode"    <- controller stuck in its BOOTLOADER
+#   mtk-tpd interrupts: 0                  <- alive on SPI, reporting nothing
+#
+# With the firmware present, probe succeeds at t=2.29s and the panel reports:
+#   [2.23] fts_wait_tp_to_valid: TP Ready, Device ID:0x80
+#   fts_boot_mode: "tp is in fw mode", fw_version 0b, interrupts climbing.
+#
+# 🔴 This is only half the fix. It does nothing without the one-byte patch to
+# adaptive-ts.ko in the kernel package, which removes Transsion's refusal to
+# initialise touch when bootmode==2 (RECOVERY_BOOT). Neither works alone: the
+# gate stops the driver registering, and the missing firmware stops the
+# registered driver reporting. They were found in that order, a flash apart.
+#
+# BOTH panel variants are shipped on purpose. RS4 units carry either a
+# focaltech FT8057S (DPT) or an omnivision TD4160 (LCE) panel -- stock ships a
+# firmware for each and both driver modules are in the load list. Shipping only
+# the one this test device happens to have would leave touch dead in recovery
+# for every user with the other panel, and it is not something they could
+# diagnose. 427 KB total.
+#
+# The source paths are the extracted vendor tree rather than this repo: these
+# are stock blobs, they already come down with extract-files.sh, and copying
+# them into the device tree would duplicate 427 KB of firmware we do not own.
+PRODUCT_COPY_FILES += \
+    vendor/itel/S666LN/proprietary/vendor/firmware/ft8057s_dpt_fw.bin:$(TARGET_COPY_OUT_VENDOR_RAMDISK)/vendor/firmware/ft8057s_dpt_fw.bin \
+    vendor/itel/S666LN/proprietary/vendor/firmware/td4160_lce_fw.img:$(TARGET_COPY_OUT_VENDOR_RAMDISK)/vendor/firmware/td4160_lce_fw.img \
+    vendor/itel/S666LN/proprietary/vendor/firmware/aw8622x_haptic.bin:$(TARGET_COPY_OUT_VENDOR_RAMDISK)/vendor/firmware/aw8622x_haptic.bin \
+    vendor/itel/S666LN/proprietary/vendor/firmware/Conf_MultipleTest.ini:$(TARGET_COPY_OUT_VENDOR_RAMDISK)/vendor/firmware/Conf_MultipleTest.ini
+
 # VINTF. The generated device manifest is missing a thermal entry, so the
 # vendor's android.hardware.thermal@2.0-service.mtk cannot register and init
 # respawns it every ~5s. configs/vintf/manifest.xml adds it back for both
