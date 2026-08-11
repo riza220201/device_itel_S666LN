@@ -123,4 +123,83 @@ $(warning         A config drift will produce a kernel that builds and does not 
 endif
 endif
 
+# ---------------------------------------------------------------------------
+# Vendor dependency gate -- the userspace counterpart of the KMI gate above
+#
+# The KMI gate catches a kernel that builds and cannot boot. This catches a
+# VENDOR PARTITION that builds and cannot link: the 2026-08-05 image compiled,
+# packaged, release-signed and flashed cleanly with 501 unresolved DT_NEEDED
+# references across 144 libraries, and stalled at 46 s waiting for a boot HAL
+# that had died in the linker.
+#
+# 🔴 It is hooked DIFFERENTLY from the KMI gate, and copying that hook here
+# would produce a gate that reports success while testing nothing.
+#
+#   KMI gate       verifies INPUTS (prebuilt .ko vs the kernel's symvers). Those
+#                  exist before anything is staged, so it hangs off
+#                  ALL_DEFAULT_INSTALLED_MODULES as an ORDER-ONLY prerequisite
+#                  -- deliberately running BEFORE our vendor files install.
+#   this gate      verifies the OUTPUT: the staged /vendor tree, complete. Run
+#                  it at the same point and it reads a half-populated directory
+#                  and fails on files that were about to be written.
+#
+# So it has to run after staging and still be inside `bacon`'s graph, and the
+# journal already established that bacon reaches no image target at all
+# (bacon -> OTA -> target-files -> staged files; add_img_to_target_files builds
+# the .img files itself at packaging time). What bacon DOES reach is the
+# target-files zip, and everything staged is a prerequisite of it -- so
+# depending on that zip is what buys "after staging" without naming the
+# thousands of files individually.
+#
+# The zip is nameable this early only because FILE_NAME_TAG is assigned at
+# build/make/core/main.mk:63-67, before the subdir makefiles are included at
+# line 547. The name is built exactly as build/make/core/Makefile:5448-5455
+# builds it, _debug suffix included.
+#
+# Both ways this can break are LOUD, which is the property the KMI gate lacked
+# through two silent "passes":
+#   * wrong zip path  -> make: *** No rule to make target ... needed by
+#                        vendor_deps_verified.stamp
+#   * detached hook   -> impossible. `bacon` is a phony that always exists, so
+#                        the dependency cannot quietly attach to nothing the
+#                        way $(PRODUCT_OUT)/vendor_dlkm.img did.
+#
+# Cost measured against build 41's tree: 35 seconds, 1,972 ELFs.
+# ---------------------------------------------------------------------------
+S666LN_VDEPS_SCRIPT := $(LOCAL_PATH)/tools/vendor-deps-check.sh
+
+ifeq ($(wildcard $(S666LN_VDEPS_SCRIPT)),)
+$(error S666LN: tools/vendor-deps-check.sh is missing. Restore it rather than \
+        dropping this gate: without it a vendor partition whose HALs cannot \
+        link builds, signs and flashes without complaint.)
+endif
+ifeq ($(FILE_NAME_TAG),)
+$(error S666LN: FILE_NAME_TAG is empty, so the target-files path below cannot \
+        be constructed and the vendor dependency gate would not run.)
+endif
+
+S666LN_VDEPS_NAME := $(TARGET_PRODUCT)
+ifeq ($(TARGET_BUILD_TYPE),debug)
+S666LN_VDEPS_NAME := $(S666LN_VDEPS_NAME)_debug
+endif
+S666LN_VDEPS_NAME := $(S666LN_VDEPS_NAME)-target_files-$(FILE_NAME_TAG)
+
+S666LN_VDEPS_TF    := $(PRODUCT_OUT)/obj/PACKAGING/target_files_intermediates/$(S666LN_VDEPS_NAME).zip
+S666LN_VDEPS_STAMP := $(PRODUCT_OUT)/vendor_deps_verified.stamp
+
+# S666LN_VDEPS_SCRIPT is assigned with ':=' above for the same reason as the KMI
+# script path: $(LOCAL_PATH) is recursively expanded, and a bare reference to it
+# inside a recipe resolves at RULE-EXECUTION time to whatever makefile was
+# included last -- in practice build/make/core. Simply-expanded freezes it here.
+$(S666LN_VDEPS_STAMP): $(S666LN_VDEPS_TF) $(S666LN_VDEPS_SCRIPT)
+	@echo "----- Verifying vendor DT_NEEDED resolution, per ABI -----"
+	$(hide) $(S666LN_VDEPS_SCRIPT) $(TARGET_OUT_VENDOR) $(TARGET_OUT)
+	$(hide) mkdir -p $(dir $@) && touch $@
+
+bacon: $(S666LN_VDEPS_STAMP)
+
+# droidcore is deliberately NOT hooked here, unlike the KMI gate. droidcore
+# builds images without building target-files, so hooking it would drag the
+# whole target-files zip into image-only builds to satisfy this stamp.
+
 endif
