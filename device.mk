@@ -362,6 +362,36 @@ PRODUCT_PACKAGES += \
 # blobbed. Contrast libbluetooth_audio_session, whose source module IS in the
 # root namespace and IS displaced by its blob -- it emits zero make modules.
 
+# ...and the same implementation again, for recovery. Without this line
+# `adb sideload` fails in 1.2 seconds having transferred nothing:
+#
+#   [ERROR:boot_control_android.cc(65)] Error getting bootctrl HIDL module.
+#   [ERROR:sideload_main.cc(147)] Error initializing the BootControlInterface.
+#
+# i.e. users cannot install an update. That makes this line the last thing
+# standing between the ROM and an install path we own.
+#
+# There is no hwservicemanager in recovery, so `IBootControl::getService()`
+# falls through to the passthrough manager, which dlopens by scanning its
+# search paths for `android.hardware.boot@1.0-impl*.so`
+# (ServiceManagement.cpp openLibs). update_engine_sideload is a recovery
+# binary, not a vendor one, so __ANDROID_VNDK__ is undefined for it and
+# HAL_LIBRARY_PATH_SYSTEM stays in that path list -- which is why the recovery
+# copy belongs at system/lib64/hw and is still found there.
+#
+# Note what was NOT wrong, because the obvious diagnosis is misleading:
+# `recovery/root/vendor/lib64/hw/` being empty is not the defect, and
+# hardware/mediatek/bootctrl already carries `recovery_available: true`, so no
+# build-tree patch is needed here (contrast step 35 above). soong had even
+# emitted the install rule to
+# recovery/root/system/lib64/hw/android.hardware.boot@1.0-impl-1.2-mtkimpl.so
+# and the make module `...-mtkimpl.recovery` -- but no android_recovery_*
+# variant was ever built, because nothing requested it. Once more, and this
+# time in our favour: the existence of a build rule is not evidence of an
+# installed file.
+PRODUCT_PACKAGES += \
+    android.hardware.boot@1.2-mtkimpl.recovery
+
 
 # Wi-Fi supplicant.
 #
