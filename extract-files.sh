@@ -135,6 +135,46 @@ function blob_fixup() {
             "${PATCHELF}" --replace-needed "android.hardware.power-V2-ndk_platform.so" \
                 "android.hardware.power-V2-ndk.so" "${2}"
             ;;
+        vendor/etc/init/android.hardware.media.c2@1.2-mediatek.rc)
+            # Not a soname fixup -- an init service pointed at a binary this
+            # tree does not install.
+            #
+            # Stock ships TWO c2 binaries and exactly ONE rc, and the rc names
+            # the 32-bit one:
+            #
+            #   bin/hw/android.hardware.media.c2@1.2-mediatek       8,204 B  32-bit
+            #   bin/hw/android.hardware.media.c2@1.2-mediatek-64b  15,616 B  64-bit
+            #   etc/init/...mediatek.rc -> service ... /vendor/bin/hw/...-mediatek
+            #
+            # This tree is 64-bit-only for codec2: proprietary-files.txt carries
+            # the -64b binary and the lib64 halves of libcodec2_mtk_{c2store,
+            # vdec,venc}, and NOT their 32-bit halves. So as extracted, the rc
+            # names a binary that is never installed, while the binary that IS
+            # installed has no rc anywhere -- stock has none for -64b either.
+            # Net effect: no MediaTek C2 service starts at all, while the merged
+            # VINTF manifest still declares
+            #     android.hardware.media.c2@1.2::IComponentStore/default
+            # That is the same declared-but-unimplemented shape that boot-looped
+            # this device on the power HAL, and it is what mediaserver was
+            # retrying once a second in the 2026-08-06 logs.
+            #
+            # Repointing at -64b rather than shipping the 32-bit stack, because
+            # 64-bit is what the tree already committed to: f7c72b1 exists
+            # specifically to put libavservices_minijail.so into lib64 so this
+            # binary could link. The alternative costs three more blobs (~1.9 MB)
+            # to run a service in the ABI we deliberately dropped.
+            #
+            # Label-neutral: no file_contexts entry exists for EITHER binary, in
+            # sepolicy_vndr or here, so both take the same generic label from
+            # their shared directory. Verified before changing the path.
+            sed -i 's|\(/vendor/bin/hw/android\.hardware\.media\.c2@1\.2-mediatek\)$|\1-64b|' "${2}"
+            # Loud, because a sed that silently matches nothing leaves exactly
+            # the defect it was added to fix, and the build would not notice.
+            grep -q 'mediatek-64b$' "${2}" || {
+                echo "!! blob_fixup: c2 rc was not repointed to -64b -- pattern stale" >&2
+                exit 1
+            }
+            ;;
         # The rest of the _platform class, found by sweeping the BUILT vendor
         # image for sonames nothing installs -- not by reading the blob list.
         # Each replacement below was confirmed PRESENT in /vendor/lib64 of a
