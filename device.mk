@@ -308,8 +308,36 @@ PRODUCT_PACKAGES += \
     ese_spi_nxp \
     libhwc2on1adapter \
     libhwc2onfbadapter \
-    libmtkperf_client_vendor \
-    nfc_nci_nxp
+    libmtkperf_client_vendor
+
+# 🔴 nfc_nci_nxp is NOT requested here, deliberately. It used to be, and it
+# broke NFC. Measured on hardware, build 46:
+#
+#   CANNOT LINK EXECUTABLE ".../android.hardware.nfc@1.2-service":
+#     cannot locate symbol "_ZN13DwpEseUpdater11getInstanceEv"
+#
+# The NFC service is a STOCK blob (proprietary-files.txt), and it wants
+# DwpEseUpdater -- NXP's embedded-secure-element updater, which itel's build of
+# the NCI library exports and AOSP's does not:
+#
+#   stock  vendor/lib64/nfc_nci_nxp.so   330,640 B   exports it
+#   source hardware/nxp/nfc/pn8x         209,368 B   exports it 0 times
+#
+# Requesting the source module installed AOSP's build over the same path, so a
+# stock service was paired with a library missing the symbol it needs. Taking
+# stock's library instead makes both halves stock, which is what the service was
+# linked against.
+#
+# Same displacement class as libhapticgenerator, resolved the other way. There,
+# our blob was standing in for a platform module that does the job, so the blob
+# went. Here the platform module cannot do the job, so the request goes. The
+# question is never "blob or source", it is which pair actually matches.
+#
+# Checked before switching, because getting this backwards is how libvibrator
+# broke build 42: stock ships 64-bit only, matching the 64-bit service; every
+# DT_NEEDED of stock's copy resolves in our vendor apart from libc/libm/libdl,
+# which the linker always provides; and nothing else in the tree requests the
+# soong module, so dropping the line leaves no duplicate install rule.
 
 
 # Passthrough HAL implementations.
