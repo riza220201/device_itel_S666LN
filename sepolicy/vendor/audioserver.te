@@ -25,4 +25,27 @@
 # specific type, and MediaTek's audio HAL configuration lives there
 # (persist.vendor.audiohal.*, vendor.audiohal.*). Read only: audioserver has no
 # business setting them.
-allow audioserver vendor_default_prop:file r_file_perms;
+#
+# 🔴 SILENCED, NOT GRANTED -- and the reason matters more than the rule.
+#
+# Two attempts to allow this were both refused by AOSP's own neverallows:
+#
+#   allow ... :file r_file_perms   ->  neverallow domain property_type
+#                                      (file (ioctl lock))
+#                                      private/property.te:100
+#   get_prop(audioserver, ...)     ->  neverallow base_typeattr_528
+#                                      vendor_default_prop (file (... open ...))
+#                                      public/property.te:306
+#
+# The second one is the real answer. audioserver is a CORE domain, and core
+# domains are forbidden from reading vendor_default_prop at all -- that is a
+# deliberate Treble boundary, not a gap in this tree's policy. Stock's
+# audioserver gets exactly the same denial and stock boots.
+#
+# So the 983 records per boot are noise by design, and my reading of them as the
+# cause of AudioPolicyService failing to publish was wrong. A denial can be both
+# real and irrelevant; volume is not evidence of importance. If audioserver
+# genuinely needed one of these properties, the fix would be to give that
+# property its own vendor type that core domains may read -- never to punch
+# through the boundary for the catch-all type.
+dontaudit audioserver vendor_default_prop:file r_file_perms;
