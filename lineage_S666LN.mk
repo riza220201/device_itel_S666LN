@@ -4,6 +4,38 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+# Dalvik heap. 🔴 NOT optional, and its absence is not a tuning question --
+# without it system_server runs out of Java heap and the device never finishes
+# booting. Measured on hardware, build 51:
+#
+#   FATAL EXCEPTION IN SYSTEM PROCESS
+#   java.lang.OutOfMemoryError: Failed to allocate a 392192 byte allocation with
+#     260544 free bytes and 254KB until OOM, target footprint 16777216,
+#     growth limit 16777216
+#     at FileUtils.readTextFile / Parcel.nativeReadString16 / ...
+#
+# 16777216 is 16 MiB: AOSP's fallback when NO dalvik heap configuration is
+# inherited at all. system_server reached ~242 services, exhausted the heap and
+# restarted, forever. `getprop | grep dalvik.vm.heap` on the device returned
+# nothing whatsoever.
+#
+# How it went missing: configs/properties/vendor.prop was generated from stock
+# with `dalvik.vm.heap*` deliberately excluded as "build-system owned". True in
+# principle -- the build system does own them -- but only if a heap makefile is
+# inherited, and this tree inherited none. The exclusion was right and the
+# replacement was never added.
+#
+# phone-xhdpi-6144 rather than 4096: its six values are BYTE-IDENTICAL to what
+# stock's vendor/build.prop declares (start 16m, growth 256m, size 512m,
+# utilization 0.5, minfree 8m, maxfree 32m). The 4096 file differs on three of
+# them (8m/192m/0.6/16m). The name says 6144 MB but the match to stock is what
+# selects it, and this device has ~11.4 GiB of RAM in any case.
+#
+# Verified live before committing: setting these six by hand and restarting the
+# framework took the device from a permanent boot loop to sys.boot_completed=1
+# and the setup wizard.
+$(call inherit-product, frameworks/native/build/phone-xhdpi-6144-dalvik-heap.mk)
+
 # Inherit from those products. Most specific first.
 $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base_telephony.mk)
