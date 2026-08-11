@@ -160,6 +160,45 @@ function blob_fixup() {
             "${PATCHELF}" --replace-needed "android.hardware.power-V2-ndk_platform.so" \
                 "android.hardware.power-V2-ndk.so" "${2}"
             ;;
+        vendor/lib/libeffects.so | vendor/lib64/libeffects.so)
+            # Point stock's effects factory at stock's config parser.
+            #
+            # PROVEN on hardware, build 48: this blob crash-looped the audio HAL
+            # 37 times per boot because it was calling the PLATFORM's
+            # libeffectsconfig, which is AOSP's A13 build:
+            #
+            #   SIGSEGV  fault addr 0x72657a69 ("izer"), 0x7265 ("er")
+            #     __strlen_aarch64 <- strdup
+            #     <- libeffects.so EffectLoadXmlEffectConfig+256
+            #
+            # EffectLoadXmlEffectConfig gets a config struct back from the
+            # parser; the layout moved between A12 and A13, so a string field is
+            # read where a pointer belongs and handed to strdup. Every fault
+            # address is ASCII because it is literally reading the library names
+            # out of audio_effects.xml. Bind-mounting stock's parser on the
+            # running device fixed it outright: HAL restarting -> running,
+            # crashes 10 -> 0, and media.audio_policy finally published.
+            #
+            # Stock's parser is shipped as libeffectsconfig-STOCK.so rather than
+            # under its own name, because the plain name collides:
+            #
+            #   base_rules.mk:338: MODULE.TARGET.SHARED_LIBRARIES.libeffectsconfig
+            #     already defined by frameworks/av/media/libeffects/config
+            #
+            # and dropping libeffectsconfig.vendor from PRODUCT_PACKAGES does NOT
+            # avoid that -- the clash is on the make module NAME, which soong
+            # emits for the platform module regardless of who requests it. Same
+            # collision that broke build 42 on libvibrator, and build 49 here.
+            # Renaming the blob sidesteps it entirely and is the technique this
+            # tree already uses for the v31 libraries.
+            #
+            # Only libeffects.so links libeffectsconfig, both ABIs, and it is
+            # itself a stock blob -- so this rename reaches every consumer. It
+            # has no .gnu.version_r entry for it either (liblog/libc/libdl only),
+            # so no verneed repair is needed here.
+            "${PATCHELF}" --replace-needed "libeffectsconfig.so" \
+                "libeffectsconfig-stock.so" "${2}"
+            ;;
         vendor/etc/init/android.hardware.media.c2@1.2-mediatek.rc)
             # Not a soname fixup -- an init service pointed at a binary this
             # tree does not install.
