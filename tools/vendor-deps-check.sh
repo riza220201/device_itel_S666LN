@@ -254,6 +254,51 @@ printf '%s\n' ld-android.so libdl.so libc.so libm.so libstdc++.so liblog.so \
 
 sort -u "${TMP}/resolvable" -o "${TMP}/resolvable"
 
+# --- sanity floor: refuse to conclude from an implausible resolvable set ----
+#
+# 🔴 Added 2026-08-11 because this check PASSED VACUOUSLY in its first real build.
+#
+# Wired into bacon, it printed:
+#     vendor ELFs scanned : 1974
+#     resolvable libraries: 190
+#     OK: every DT_NEEDED resolves ...
+#
+# and the identical command on the identical tree, run by hand seconds later,
+# printed 1375. With only 190 resolvable libraries and 1974 consumers, "zero
+# unresolved" is arithmetically impossible -- yet nothing objected, because the
+# script only ever asserts on the unresolved COUNT and never on whether it built
+# a believable picture of the device first.
+#
+# The cause is not established. The inputs all pre-date the run (vendor/lib64
+# 09:48 vs stamp 10:09) so it is not a staging race; the leading suspicion is
+# that build actions execute sandboxed (`-u nobody -g nogroup` with restricted
+# bind mounts), which could make parts of the tree unreadable to the action
+# while leaving them perfectly readable to a shell. Recorded as unresolved
+# rather than guessed at.
+#
+# The guard is correct regardless of the cause, and it is this project's oldest
+# rule applied to the gate itself: *an empty variable makes every grep return 0,
+# which reads as a clean pass* -- so print a count and prove the zero is real.
+# A healthy tree measures ~1375 here (1544 vendor/lib64 + 963 vendor/lib +
+# 162 VNDK apex, deduplicated by basename). 800 is comfortably below any
+# legitimate variation and an order of magnitude above the vacuous case.
+RESOLVABLE_N=$(grep -c . "${TMP}/resolvable" 2>/dev/null || echo 0)
+RESOLVABLE_FLOOR=800
+if [ "${RESOLVABLE_N}" -lt "${RESOLVABLE_FLOOR}" ]; then
+    echo "!! REFUSING TO PASS: only ${RESOLVABLE_N} resolvable libraries found" >&2
+    echo "   (floor ${RESOLVABLE_FLOOR}; a correctly staged tree measures ~1375)" >&2
+    echo "   vendor/lib64 .so : $(grep -c . "${TMP}/resolvable64" 2>/dev/null || echo 0)" >&2
+    echo "   vendor/lib   .so : $(grep -c . "${TMP}/resolvable32" 2>/dev/null || echo 0)" >&2
+    echo "   VENDOR_DIR       : ${VENDOR_DIR}" >&2
+    echo "   SYSTEM_DIR       : ${SYSTEM_DIR}" >&2
+    echo "   VNDK_VER         : ${VNDK_VER:-<empty>}" >&2
+    echo "" >&2
+    echo "   This is NOT a clean result. The check cannot see enough of the" >&2
+    echo "   device to decide anything, so every dependency would appear to" >&2
+    echo "   resolve for the wrong reason. Fix the environment, not this floor." >&2
+    exit 2
+fi
+
 # --- every vendor ELF's dependencies --------------------------------------
 # The per-ABI sets are the vendor libraries only; the shared tail (VNDK, LLNDK,
 # public.libraries, linker-provided) was appended to ${TMP}/resolvable after the
