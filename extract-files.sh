@@ -109,6 +109,31 @@ function blob_fixup() {
             "${PATCHELF}" --replace-needed "libhidlbase.so" "libhidlbase-v31.so" "${2}"
             "${PATCHELF}" --replace-needed "libcutils.so"   "libcutils-v31.so"   "${2}"
             "${PATCHELF}" --replace-needed "libbinder.so"   "libbinder-v31.so"   "${2}"
+            # 🔴 patchelf does NOT update .gnu.version_r, and this binary has one.
+            # Measured on hardware 2026-08-11, build 46:
+            #
+            #   CANNOT LINK EXECUTABLE ".../android.hardware.audio.service.mediatek":
+            #     cannot find "libbinder.so" from verneed[0] in DT_NEEDED list
+            #
+            # The loader requires every version-needs entry to name a library that
+            # is also in DT_NEEDED. The rename above removed libbinder.so from
+            # DT_NEEDED and left the verneed entry pointing at it.
+            #
+            # This was LATENT until c2b72d9. While libbinder-v31.so still declared
+            # SONAME=libbinder.so the verneed matched the loaded library by soname
+            # and the loader was satisfied. Patching the SONAMEs was correct --
+            # without it one version served the whole process -- and it is exactly
+            # what exposed this. Two correct changes, one broken binary.
+            #
+            # Of the four renames above only libbinder appears in this file's
+            # verneed, and none of the pq blobs' verneed entries name a library we
+            # rename (they name libc/liblog/libsync/libdl). The tool is a no-op
+            # where there is nothing to do, so it is safe to widen if that changes.
+            "${MY_DIR}/tools/patch-verneed.py" "${2}" "libbinder.so" "libbinder-v31.so"
+            "${MY_DIR}/tools/patch-verneed.py" --verify "${2}" "libbinder.so" || {
+                echo "!! verneed still names libbinder.so -- the audio HAL will not link" >&2
+                exit 1
+            }
             ;;
         vendor/lib64/android.hardware.power-service-mediatek.so | \
         vendor/bin/hw/vendor.mediatek.hardware.mtkpower@1.0-service)
