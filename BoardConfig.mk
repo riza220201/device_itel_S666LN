@@ -357,13 +357,44 @@ BOARD_SUPER_PARTITION_GROUPS := mtk_dynamic_partitions
 # it survived to a flash attempt.
 #
 # Claiming the whole super bought nothing: these six partitions total ~2.05 GB.
-# 8 GiB is a 4x headroom and fits inside every super metadata seen in the field
-# (stock 9,845,899,264 and the other ROM's 9,125,756,928), so the package
-# installs from either starting point with no pre-wipe step.
 #
 # Do NOT "restore" this to the stock 9845899264 to match lpdump. It is not a
 # fidelity value; it is a compatibility ceiling.
-BOARD_MTK_DYNAMIC_PARTITIONS_SIZE := 8589934592
+#
+# 🔴 LOWERED 8 GiB -> 4 GiB, 2026-08-11, measured on hardware. 8 GiB installs
+# through OrangeFox and CANNOT be sideloaded from our own recovery:
+#
+#   [ERROR:dynamic_partition_control_android.cc(916)] The maximum size of all
+#     groups for the target slot (8589934592) has exceeded HALF OF allocatable
+#     space for dynamic partitions 4923473920.
+#
+# The load-bearing words are "HALF OF". update_engine halves the budget when it
+# cannot use Virtual A/B snapshots, because then BOTH slots' partitions must be
+# resident in super at once. In recovery it cannot: update_engine_sideload links
+# the snapshot STUB, which announces itself in the same log --
+#
+#   snapshot_stub.cpp:168  UnmapAllSnapshots should never be called
+#
+# -- and `ro.virtual_ab.enabled` reads empty there. That is how sideload works on
+# this platform, not a misconfiguration to chase.
+#
+# So the ceiling is half of allocatable space in the SMALLEST super geometry
+# seen in the field, not all of it:
+#
+#   stock super       9,846,947,840 allocatable  ->  half  4,923,473,920
+#   other ROM's super 9,125,756,928 allocatable  ->  half  4,562,878,464   <- binding
+#   this value        4,294,967,296                     fits both, 268 MB spare
+#   actual content    ~2.05 GB                          2x headroom remains
+#
+# Why this was invisible until now: OrangeFox carries full snapshot support, so
+# it got the WHOLE allocatable space and 8 GiB passed. Every install this
+# project has ever done went through it. The value was only ever tested against
+# the one recovery that hides the constraint -- and shipping our own recovery is
+# precisely what stops hiding it. Anyone sideloading this ROM without OrangeFox
+# would have hit this, so it is a release blocker, not a local inconvenience.
+#
+# Lower this further only against a measurement; raising it breaks sideload.
+BOARD_MTK_DYNAMIC_PARTITIONS_SIZE := 4294967296
 BOARD_MTK_DYNAMIC_PARTITIONS_PARTITION_LIST := \
     odm_dlkm \
     product \
