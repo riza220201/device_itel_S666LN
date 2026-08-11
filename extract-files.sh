@@ -71,6 +71,45 @@ function blob_fixup() {
             "${PATCHELF}" --replace-needed "android.hardware.light-V1-ndk_platform.so" \
                 "android.hardware.light-V1-ndk.so" "${2}"
             ;;
+        # ---- VNDK 31: blobs that abort against platform VNDK 33 -------------
+        #
+        # Measured on hardware 2026-08-11, both crash-looping every ~5 s from
+        # the first seconds of boot, with NO SELinux denial and NO missing
+        # symbol -- the giveaway that it is an ABI problem and not a packaging
+        # one:
+        #
+        #   pq@2.2-service   'incStrongRequireStrong() ... isn't already owned'
+        #                    (a libutils RefBase assertion: two libutils)
+        #   audio.service    'terminating' (uncaught C++ exception)
+        #
+        # The audio one blocks boot -- AudioPolicyService never publishes and
+        # system_server hangs in native_list_audio_product_strategies.
+        #
+        # 🔴 Renamed PER PROCESS, not per file. libutils/libhidlbase/libcutils
+        # are vndk-SP and get loaded into the same address space as whatever
+        # dlopens them, so a service and its passthrough impl must move
+        # together -- half-renaming a process is how you CREATE the two-libutils
+        # condition this fixes. pq@2.2-service and both ABIs of its
+        # pq@2.15-impl are therefore one group.
+        #
+        # Deliberately NOT renamed: camerahalserver, media.c2@1.2-mediatek-64b
+        # and thermal@2.0-impl. The previous device tree patched all three, so
+        # they will probably need it eventually -- but none of them aborts today
+        # and none blocks boot, and speculative renames are how the arm.graphics
+        # one got in. Add them when they misbehave, with the measurement.
+        vendor/bin/hw/vendor.mediatek.hardware.pq@2.2-service | \
+        vendor/lib/hw/mt6789/vendor.mediatek.hardware.pq@2.15-impl.so | \
+        vendor/lib64/hw/mt6789/vendor.mediatek.hardware.pq@2.15-impl.so)
+            "${PATCHELF}" --replace-needed "libutils.so"    "libutils-v31.so"    "${2}"
+            "${PATCHELF}" --replace-needed "libhidlbase.so" "libhidlbase-v31.so" "${2}"
+            "${PATCHELF}" --replace-needed "libcutils.so"   "libcutils-v31.so"   "${2}" 2>/dev/null || true
+            ;;
+        vendor/bin/hw/android.hardware.audio.service.mediatek)
+            "${PATCHELF}" --replace-needed "libutils.so"    "libutils-v31.so"    "${2}"
+            "${PATCHELF}" --replace-needed "libhidlbase.so" "libhidlbase-v31.so" "${2}"
+            "${PATCHELF}" --replace-needed "libcutils.so"   "libcutils-v31.so"   "${2}"
+            "${PATCHELF}" --replace-needed "libbinder.so"   "libbinder-v31.so"   "${2}"
+            ;;
         vendor/lib64/android.hardware.power-service-mediatek.so | \
         vendor/bin/hw/vendor.mediatek.hardware.mtkpower@1.0-service)
             # This binary is the AIDL android.hardware.power IPower/default

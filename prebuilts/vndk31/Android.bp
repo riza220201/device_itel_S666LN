@@ -1,0 +1,106 @@
+// VNDK 31 libraries for stock's Android-12 vendor blobs.
+//
+// WHY
+//   itel's vendor partition was built against VNDK 31 (ro.vndk.version=31 in
+//   stock's build.prop, both prop blocks). This ROM ships platform VNDK 33, and
+//   some of those blobs do not survive the difference. Measured on hardware
+//   2026-08-11, both crash-looping from the first seconds of boot with no
+//   SELinux denial and no missing symbol:
+//
+//     vendor.mediatek.hardware.pq@2.2-service
+//         'incStrongRequireStrong() ... which isn't already owned'
+//         -- a libutils RefBase assertion, i.e. two incompatible libutils
+//     android.hardware.audio.service.mediatek
+//         'terminating' -- uncaught C++ exception
+//
+//   The audio one blocks boot: AudioPolicyService never publishes, so
+//   system_server hangs in native_list_audio_product_strategies until Watchdog
+//   kills it, forever.
+//
+// WHY NOT BOARD_VNDK_VERSION := 31
+//   Tried, reverted. It fails soong analysis with 967 errors -- prebuilt vendor
+//   libraries implicitly need STATIC image:vendor.31 variants of libunwind and
+//   libclang_rt.builtins, which the snapshot does not carry. See the revert
+//   commit for the detail.
+//
+// PROVENANCE
+//   Copied verbatim from prebuilts/vndk/v31, which is AOSP's own VNDK snapshot
+//   and already in this device's manifest. Apache-2.0, same as the rest of
+//   AOSP. NOT taken from any device tree or ROM build.
+//
+//     lib64  from arm64/arch-arm64-armv8-a/shared/{vndk-sp,vndk-core}/
+//     lib    from arm/arch-arm-armv7-a-neon/shared/{vndk-sp,vndk-core}/
+//
+//   They are committed here rather than referenced in place because a soong
+//   module may only name files inside its own directory. 2.4 MB total.
+//
+// THE RISK, STATED
+//   libutils, libhidlbase and libcutils are vndk-SP: they can be loaded into a
+//   process that already holds the platform copy. Two libutils in one address
+//   space is precisely what produces incStrongRequireStrong -- the symptom
+//   being fixed here. So a consumer and everything loaded into its process must
+//   be renamed TOGETHER, or not at all. blob_fixup in extract-files.sh patches
+//   pq@2.2-service together with both ABIs of its pq@2.15-impl for that reason.
+//
+//   Consequence: do not add a rename for one library of a process without
+//   checking what else that process dlopens.
+
+cc_prebuilt_library_shared {
+    name: "libutils-v31",
+    stem: "libutils-v31",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libutils.so"] },
+        android_arm: { srcs: ["lib/libutils.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libhidlbase-v31",
+    stem: "libhidlbase-v31",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libhidlbase.so"] },
+        android_arm: { srcs: ["lib/libhidlbase.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcutils-v31",
+    stem: "libcutils-v31",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libcutils.so"] },
+        android_arm: { srcs: ["lib/libcutils.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libbinder-v31",
+    stem: "libbinder-v31",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libbinder.so"] },
+        android_arm: { srcs: ["lib/libbinder.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}

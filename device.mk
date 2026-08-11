@@ -545,6 +545,16 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     android.hardware.power-V2-ndk.vendor
 
+# VNDK 31 libraries for the A12 blobs that cannot run against platform VNDK 33.
+# See prebuilts/vndk31/Android.bp for the measurements and the same-process
+# caveat, and blob_fixup in extract-files.sh for which consumers are renamed
+# onto them. Sourced from AOSP's prebuilts/vndk/v31 snapshot.
+PRODUCT_PACKAGES += \
+    libutils-v31 \
+    libhidlbase-v31 \
+    libcutils-v31 \
+    libbinder-v31
+
 # AIDL NDK libraries that stock's blobs need under their Android 13 names.
 #
 # extract-files.sh renames the A12 `_platform` sonames on five stock binaries to
