@@ -34,16 +34,42 @@
 //   They are committed here rather than referenced in place because a soong
 //   module may only name files inside its own directory. 2.4 MB total.
 //
-// THE RISK, STATED
-//   libutils, libhidlbase and libcutils are vndk-SP: they can be loaded into a
-//   process that already holds the platform copy. Two libutils in one address
-//   space is precisely what produces incStrongRequireStrong -- the symptom
-//   being fixed here. So a consumer and everything loaded into its process must
-//   be renamed TOGETHER, or not at all. blob_fixup in extract-files.sh patches
-//   pq@2.2-service together with both ABIs of its pq@2.15-impl for that reason.
+// SONAMES ARE PATCHED, AND THEY MUST BE
+//   Each file here has had its SONAME rewritten to match its filename:
 //
-//   Consequence: do not add a rename for one library of a process without
-//   checking what else that process dlopens.
+//     patchelf --set-soname libutils-v31.so lib64/libutils.so   (etc, both ABIs)
+//
+//   Without that they still declare themselves as plain "libutils.so", and the
+//   first one loaded wins the name for the WHOLE process. Measured on hardware
+//   2026-08-11, build 40, after renaming only the filenames:
+//
+//     CANNOT LINK EXECUTABLE ".../android.hardware.audio.service.mediatek":
+//       cannot locate symbol "_ZN7android8String16C1EOS0_"
+//       referenced by "/vendor/lib64/libaudioclient_aidl_conversion.so"
+//
+//   That symbol is android::String16::String16(String16&&) -- present in v33's
+//   libutils, absent from v31's. libaudioclient_aidl_conversion is built by the
+//   PLATFORM, so it is v33-era and needs the v33 copy; it asked for
+//   "libutils.so" and got v31, because v31 had already been loaded under that
+//   soname by the service binary.
+//
+//   With distinct sonames the two coexist: MTK blobs whose DT_NEEDED says
+//   libutils-v31.so get v31, everything else gets the platform's v33.
+//
+// THE RISK THIS LEAVES
+//   Two libutils in one address space is exactly the condition that produces
+//   incStrongRequireStrong -- the symptom this whole change exists to fix. It is
+//   safe only while no android::RefBase or String16 OBJECT crosses between the
+//   v31 half and the v33 half of a process. That holds for a HIDL service whose
+//   MTK side talks to the platform side over binder (serialised, no shared
+//   objects), and it is why this technique works in OSS-hybrid trees generally.
+//
+//   It does NOT hold if a renamed library passes a refcounted object directly to
+//   an unrenamed one in the same process. So: rename per PROCESS, keep the
+//   binary and its passthrough impl together, and if a new consumer is added,
+//   check what else lives in its address space first. blob_fixup in
+//   extract-files.sh patches pq@2.2-service together with both ABIs of its
+//   pq@2.15-impl for exactly that reason.
 
 cc_prebuilt_library_shared {
     name: "libutils-v31",
