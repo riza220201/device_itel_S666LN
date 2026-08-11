@@ -190,6 +190,44 @@
         <fqname>@1.2::ISecureElement/SIM1</fqname>
         <fqname>@1.2::ISecureElement/SIM2</fqname>
     </hal>
+    <!-- Restored from stock 2026-08-11. Without this the sensors HAL cannot
+         register AT ALL, and aborts every 5s forever:
+
+           mtkSubHal: HIDL mediatek subhal 2.x load sensor module success.
+           hwservicemanager: Cannot find entry
+             android.hardware.sensors@2.0::ISensors/default in either framework
+             or device VINTF manifest
+           Failed to register Sensors HAL instance
+           ... SIGABRT, 'terminating'   x31 in one boot
+
+         Note the sub-HAL loads fine. HIDL simply refuses to register a service
+         VINTF does not declare, so this is an implementation with no
+         declaration: the exact inverse of the media.c2 defect, where VINTF
+         declared a HAL nothing could provide. (No "- -" without a space in an
+         XML comment, incidentally; that is illegal and will not parse.)
+
+         How it went missing: this file is stock's manifest, and stock declares
+         sensors@2.0 here. Our copy had lost it (along with boot@1.0 and
+         composer@2.1, which survive only because fragments declare their newer
+         minor versions @1.2 and @2.3, and HIDL minor versions are backward
+         compatible). Sensors had no such cover: its only other declaration was
+         android.hardware.sensors@2.1-multihal.xml, one of the 16 FINAL12
+         fragments the provenance audit correctly deleted. The cleanup was right
+         and it removed the last thing declaring this HAL.
+
+         We ship stock's own service binary for it,
+         android.hardware.sensors@2.0-service.multihal-mediatek, so @2.0 is the
+         correct version to declare. -->
+    <hal format="hidl">
+        <name>android.hardware.sensors</name>
+        <transport>hwbinder</transport>
+        <version>2.0</version>
+        <interface>
+            <name>ISensors</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@2.0::ISensors/default</fqname>
+    </hal>
     <hal format="hidl">
         <name>android.hardware.soundtrigger</name>
         <transport>hwbinder</transport>
