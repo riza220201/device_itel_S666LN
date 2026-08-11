@@ -265,7 +265,6 @@ PRODUCT_PACKAGES += \
     libcodec2_vndk.vendor \
     libcppbor_external.vendor \
     libdrm.vendor \
-    libeffectsconfig.vendor \
     libflatbuffers-cpp.vendor \
     libhidltransport.vendor \
     libhwbinder.vendor \
