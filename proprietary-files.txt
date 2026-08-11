@@ -1051,6 +1051,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libdecrypt.so
 -vendor/lib/libdre.so
 -vendor/lib/libdynamiclog.so
+-vendor/lib/libdts-eagle-shared.so
 -vendor/lib/libeffects.so
 -vendor/lib/libeffectsconfig.so:vendor/lib/libeffectsconfig-stock.so
 -vendor/lib/libfgauge_gm30.so
@@ -1667,6 +1668,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libdecrypt.so
 -vendor/lib64/libdre.so
 -vendor/lib64/libdynamiclog.so
+-vendor/lib64/libdts-eagle-shared.so
 -vendor/lib64/libeffects.so
 -vendor/lib64/libeffectsconfig.so:vendor/lib64/libeffectsconfig-stock.so
 -vendor/lib64/libfeaturepolicy.so
