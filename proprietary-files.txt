@@ -997,6 +997,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libDefaultFpsActor.so
 -vendor/lib/libFrameRecord.so
 -vendor/lib/libHEVCdec_sa.ca7.android.so
+-vendor/lib/libJpgEncPipe.so
 -vendor/lib/libMcClient.so
 -vendor/lib/libMtkOmxAdpcmDec.so
 -vendor/lib/libMtkOmxAlacDec.so
@@ -1017,6 +1018,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libadpcmdec_mtk.so
 -vendor/lib/libaedv.so
 -vendor/lib/libalsautils.so
+-vendor/lib/libapu_mdw.so
 -vendor/lib/libaudio_param_parser-vnd.so
 -vendor/lib/libaudiocompensationfilter_vendor.so
 -vendor/lib/libaudiocompensationfilterc.so
