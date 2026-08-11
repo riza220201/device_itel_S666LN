@@ -1118,6 +1118,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libvcodec_utility_plat.mt6983.so
 -vendor/lib/libvcodecdrv_header_stub.so
 -vendor/lib/libverno.so
+-vendor/lib/libvibrator.so
 -vendor/lib/libvolte_core_shr.so
 -vendor/lib/libvolte_xdmc_shr.so
 -vendor/lib/libvp8dec_sa.ca7.so
@@ -1795,6 +1796,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libvendor.goodix.hardware.biometrics.fingerprint@2.1.so
 -vendor/lib64/libverno.so
 -vendor/lib64/libviagpsrpc.so
+-vendor/lib64/libvibrator.so
 -vendor/lib64/libvideofilter_cl_64.so
 -vendor/lib64/libvpu.so
 -vendor/lib64/libvpu5.so
