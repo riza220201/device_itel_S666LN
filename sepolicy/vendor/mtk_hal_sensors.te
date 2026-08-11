@@ -42,3 +42,33 @@
 read_fstab(mtk_hal_sensors)
 allow mtk_hal_sensors sysfs_dt_firmware_android:dir search;
 allow mtk_hal_sensors sysfs_dt_firmware_android:file r_file_perms;
+
+# Build 40, the layer after the fstab read succeeded:
+#
+#   mtk_hal_sensors -> nvdata_file : dir { search }    dev=sdc8, /mnt/vendor/nvdata
+#
+# Upstream describes this caller precisely and then stops one directory short.
+# `sepolicy_vndr/basic/non_plat/mtk_hal_sensors.te:69`:
+#
+#   # Purpose: Allow to search /mnt/vendor/nvdata for fstab when using NVM_Init()
+#   allow mtk_hal_sensors mnt_vendor_file:dir search;
+#
+# `/mnt/vendor` is mnt_vendor_file but `/mnt/vendor/nvdata(/.*)?` is nvdata_file
+# (file_contexts:935), so that grant reaches the mount point and nothing inside
+# it. The stated purpose is unreachable with the rule written for it.
+#
+# Granting the read pattern whole rather than the one measured permission, per
+# the lesson above -- `dir search` alone gets us to the next boot and the next
+# denial. Upstream's own reader of this partition is the shape copied here:
+#
+#   allow wlan_assistant nvdata_file:dir  r_dir_perms;
+#   allow wlan_assistant nvdata_file:file r_file_perms;
+#
+# Read-only deliberately. The nvdata writers upstream (nvram_daemon,
+# mtk_hal_nvramagent, rild) take create_dir_perms/create_file_perms; this HAL
+# does not need them, because upstream already routes its calibration WRITES
+# through sensor_data_file and nvcfg_file (both create_file_perms, lines 59-65).
+# nvdata here is a lookup, not a store. If a write denial ever appears, that is
+# new information and belongs measured, not pre-granted.
+allow mtk_hal_sensors nvdata_file:dir r_dir_perms;
+allow mtk_hal_sensors nvdata_file:file r_file_perms;
