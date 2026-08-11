@@ -14,12 +14,37 @@
 # software that is not in this ROM. Only properties with a consumer that
 # actually exists here are kept.
 
-# RIL. mtk-ril.so is the MediaTek RIL implementation the modem blobs expect.
+# RIL. 🔴 Read this before touching either value.
 #
-# NOTE: this is the reason configs/properties/*.prop exist at all. The value
-# below contains a SPACE, and PRODUCT_PROPERTY_OVERRIDES / PRODUCT_PROPERTIES
-# split on whitespace, so a space-bearing value can only be set through a raw
-# .prop file fed to TARGET_SYSTEM_PROP / TARGET_VENDOR_PROP.
+# Stock sets NEITHER of these. It ships exactly one RIL daemon and passes the
+# library on the command line instead:
+#
+#   mtkrild.rc:  service vendor.ril-daemon-mtk
+#                  /vendor/bin/hw/mtkfusionrild -l libmtk-ril.so
+#
+# There is no mtk-ril.so on this device or in stock -- the file is called
+# libmtk-ril.so. So the value below names something that does not exist, and it
+# is read by a daemon stock does not ship: AOSP's `rild`, which arrives via
+# build/make/target/product/telephony_vendor.mk:22 (inherited, so
+# PRODUCT_PACKAGES cannot subtract it) and which in this tree resolves to
+# **Cuttlefish's emulator RIL**, device/google/cuttlefish/guest/hals/rild.
+#
+# 🔴 DO NOT "FIX" THIS TO libmtk-ril.so, AND DO NOT SIMPLY DELETE IT. Measured on
+# hardware: with this value pointing at a missing file, the Cuttlefish rild dies
+# at dlopen every 5 s and never registers anything. That failure is currently the
+# only thing stopping an emulator RIL from claiming IRadio ahead of the real
+# modem. Pointing it at libmtk-ril.so would run two RIL daemons against one
+# modem; deleting it lets Cuttlefish's rild fall back to its own default and
+# register a stub.
+#
+# The real fix is to stop shipping that module at all -- it needs an overrides:
+# on a module we control, or a recipe-side exclusion like apply-overlays step 36
+# does for the power HAL. Until then this line is load-bearing by accident, and
+# the crash-loop is noise in the log rather than a fault.
+#
+# libargs is stock's own argument and is kept: this is also the reason
+# configs/properties/*.prop exist at all, since the value contains a SPACE and
+# PRODUCT_PROPERTY_OVERRIDES splits on whitespace.
 vendor.rild.libpath=mtk-ril.so
 vendor.rild.libargs=-d /dev/ttyC0
 

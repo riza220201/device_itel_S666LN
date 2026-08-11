@@ -275,6 +275,28 @@ ro.vendor.mtk_non_dsda_rsim_support=1
 ro.vendor.mtk_protocol1_rat_config=Lf/Lt/W/G
 ro.vendor.mtk_ps1_rat=Lf/Lt/W/G
 ro.vendor.mtk_ril_mode=c6m_1rild
+# 🔴 Starts the real RIL. Without it there is no SIM at all.
+#
+# mtkrild.rc declares vendor.ril-daemon-mtk as `disabled`, so init never starts
+# it on its own; it waits for one of three triggers, of which this is the only
+# one that applies here:
+#
+#   on property:vendor.ril.mtk=1               -> start vendor.ril-daemon-mtk
+#   on property:ro.vendor.mtk_mipc_support=1   -> (this device is not mipc)
+#   on property:vold.decrypt=trigger_restart_framework  -> FDE only; this device
+#                                                          is FBE, so never fires
+#
+# Stock sets none of them in any build.prop -- something on the stock system
+# side sets vendor.ril.mtk at runtime, and whatever that is, we do not ship it.
+# The result was that mtkfusionrild NEVER STARTED: init.svc.vendor.ril-daemon-mtk
+# was empty, telephony had no radio, and the SIM was undetected.
+#
+# Verified live on hardware before adding this: `setprop vendor.ril.mtk 1` on
+# the booted device started mtkfusionrild immediately and it began talking to
+# the modem --
+#   RIL_Mux: [muxreport] MD1 IOCTL [/dev/ccci_ioctl0, 17152, 2]
+# where before there was no RIL process at all.
+vendor.ril.mtk=1
 ro.vendor.mtk_rild_read_imsi=1
 ro.vendor.mtk_sim_hot_swap_common_slot=1
 ro.vendor.mtk_single_bin_modem_support=1

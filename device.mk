@@ -444,6 +444,34 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     wpa_supplicant
 
+# The Wi-Fi HAL itself. 🔴 Without it there is NO Wi-Fi AT ALL -- measured on
+# hardware, the first build that booted far enough to try:
+#
+#   libc: Unable to set property "ctl.interface_start" to
+#         "android.hardware.wifi@1.0::IWifi/default": error code: 0x20
+#   ... once per second, forever; no wlan0 interface ever appears
+#
+# configs/vintf/manifest.xml declares android.hardware.wifi@1.6::IWifi/default
+# and NOTHING provided it: no service binary in /vendor/bin/hw, no init service.
+# The same declared-but-unimplemented shape as the media.c2 defect. The driver
+# modules were loaded and wpa_supplicant was built -- only the HAL was missing.
+#
+# Built from source rather than taking stock's android.hardware.wifi@1.0-service-
+# lazy blob, for two reasons. It is what BOARD_WLAN_DEVICE := MediaTek already
+# exists for -- soong resolves libwifi-hal to libwifi-hal-mt66xx from
+# hardware/mediatek/wlan, which this tree already syncs and which
+# BOARD_HAS_MTK_HARDWARE already enables. And soong brings the dependency
+# closure with it: stock's lazy blob additionally needs libwifi-hal.so,
+# libwifi-system-iface.so and libnl.so, none of which are on this device.
+#
+# Compile-verified before committing (68 s): installs
+# vendor/bin/hw/android.hardware.wifi@1.0-service plus its own rc declaring
+# IWifi @1.0 through @1.6, and vendor/lib64/libwifi-hal.so (77,272 B, the MTK
+# build). Not runtime-verified -- a new init service cannot be tested live,
+# because init only parses rc files at boot.
+PRODUCT_PACKAGES += \
+    android.hardware.wifi@1.0-service
+
 # Overlays
 DEVICE_PACKAGE_OVERLAYS += $(LOCAL_PATH)/overlay
 
