@@ -53,8 +53,36 @@ if [ ! -d "${VENDOR_DIR}" ]; then
     exit 2
 fi
 
+# readelf. 🔴 A build ACTION cannot use the host's readelf: AOSP sanitises PATH
+# to prebuilts/build-tools/path/linux-x86 plus out/.path, and readelf is in
+# neither, so the interposer refuses it outright:
+#
+#   Disallowed PATH tool "readelf" used
+#   "readelf" is not allowed to be used. See .../Changes.md#PATH_Tools
+#
+# With no readelf there are no DT_NEEDED entries to resolve, so "0 unresolved"
+# is guaranteed -- which is precisely how this gate passed vacuously on its
+# first two builds. Prefer the LLVM readelf that ships IN the tree, which is
+# reachable by absolute path and needs no PATH at all. Same output for -d.
+if [ -z "${READELF:-}" ]; then
+    for _c in "${ANDROID_BUILD_TOP:-.}"/prebuilts/clang/host/linux-x86/clang-latest/bin/llvm-readelf \
+              ./prebuilts/clang/host/linux-x86/clang-latest/bin/llvm-readelf \
+              ../../../prebuilts/clang/host/linux-x86/clang-latest/bin/llvm-readelf; do
+        [ -x "${_c}" ] && { READELF="${_c}"; break; }
+    done
+fi
 READELF="${READELF:-readelf}"
-command -v "${READELF}" >/dev/null 2>&1 || { echo "!! readelf not found" >&2; exit 2; }
+command -v "${READELF}" >/dev/null 2>&1 || [ -x "${READELF}" ] || {
+    echo "!! readelf not found and no in-tree llvm-readelf located." >&2
+    echo "   Set READELF=<path>. Do NOT let this check run without one: with no" >&2
+    echo "   readelf every dependency silently 'resolves' and the gate is a lie." >&2
+    exit 2
+}
+# Prove it actually runs before trusting a single result from it.
+"${READELF}" --version >/dev/null 2>&1 || {
+    echo "!! ${READELF} is present but refuses to run (PATH interposer?)." >&2
+    exit 2
+}
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
@@ -203,12 +231,30 @@ fi
 # -- so IComponentStore never registered, mediaserver retried forever and the
 # boot animation never exited.
 #
-# -xtype f, not -name alone: a dangling symlink still matches '*.so' and would
-# otherwise be counted as a library that resolves.
-find "${VENDOR_DIR}/lib" -maxdepth 3 -name '*.so' -xtype f 2>/dev/null \
-    | xargs -r -n1 basename | sort -u > "${TMP}/resolvable32"
-find "${VENDOR_DIR}/lib64" -maxdepth 3 -name '*.so' -xtype f 2>/dev/null \
-    | xargs -r -n1 basename | sort -u > "${TMP}/resolvable64"
+# A dangling symlink still matches '*.so' and must not count as a library that
+# resolves. That used to be `-xtype f`, which is a GNU findutils extension --
+# and a build ACTION does not get GNU findutils, it gets toybox:
+#
+#   $ prebuilts/build-tools/path/linux-x86/find ... -name '*.so' -xtype f
+#   find: bad arg 'f'
+#
+# toybox errored, the pipeline produced nothing, and the resolvable set silently
+# collapsed to the ~190 entries that came from grep-based sources -- the second
+# half of why this gate passed vacuously in builds 44 and 45. Same toybox-vs-GNU
+# family as the `grep 'a\|b'` alternation trap recorded on 2026-08-11.
+#
+# `[ -f ]` is a bash builtin, follows symlinks, and behaves identically under
+# both. `${p##*/}` replaces basename for the same reason. No external tool is
+# used here beyond find itself, which both implementations support.
+_collect_libs() {   # $1 = dir, $2 = output file
+    : > "$2"
+    [ -d "$1" ] || return 0
+    while IFS= read -r p; do
+        [ -f "$p" ] && printf '%s\n' "${p##*/}"
+    done < <(find "$1" -maxdepth 3 -name '*.so' 2>/dev/null) | sort -u > "$2"
+}
+_collect_libs "${VENDOR_DIR}/lib"   "${TMP}/resolvable32"
+_collect_libs "${VENDOR_DIR}/lib64" "${TMP}/resolvable64"
 # Everything below (VNDK, LLNDK, public.libraries, linker-provided) is added to
 # both: those are delivered per-ABI in matching pairs.
 cat "${TMP}/resolvable32" "${TMP}/resolvable64" | sort -u > "${TMP}/resolvable"
@@ -227,8 +273,10 @@ if [ -d "${SYSTEM_DIR}" ]; then
              "${SYSTEM_DIR}/apex/com.android.vndk.v${VNDK_VER}/lib64" \
              "${SYSTEM_DIR}/lib/vndk-${VNDK_VER}" "${SYSTEM_DIR}/lib64/vndk-${VNDK_VER}" \
              "${SYSTEM_DIR}/lib/vndk-sp-${VNDK_VER}" "${SYSTEM_DIR}/lib64/vndk-sp-${VNDK_VER}"; do
-        [ -d "$d" ] && find "$d" -name '*.so' 2>/dev/null | xargs -r -n1 basename \
-            >> "${TMP}/resolvable"
+        # ${p##*/} rather than basename: see _collect_libs above -- basename is
+        # toybox in a build action and xargs pipelines were the failure path.
+        [ -d "$d" ] && while IFS= read -r p; do printf '%s\n' "${p##*/}"; done \
+            < <(find "$d" -name '*.so' 2>/dev/null) >> "${TMP}/resolvable"
     done
 fi
 
@@ -292,6 +340,28 @@ if [ "${RESOLVABLE_N}" -lt "${RESOLVABLE_FLOOR}" ]; then
     echo "   VENDOR_DIR       : ${VENDOR_DIR}" >&2
     echo "   SYSTEM_DIR       : ${SYSTEM_DIR}" >&2
     echo "   VNDK_VER         : ${VNDK_VER:-<empty>}" >&2
+    # What the check could actually SEE, at the moment it ran. The counts above
+    # say "nothing was found"; these say whether that is because the tree is
+    # absent, empty, or present-but-unreadable -- three different bugs that
+    # otherwise look identical from a zero.
+    echo "   cwd              : $(pwd)" >&2
+    echo "   uid              : $(id -u 2>/dev/null)" >&2
+    echo "   PATH             : ${PATH}" >&2
+    for t in find basename xargs grep sort readelf; do
+        w="$(command -v "$t" 2>/dev/null || echo '<not found>')"
+        probe="$("$t" --version 2>&1 | head -1)"
+        case "$probe" in
+            *"not allowed"*) probe="REFUSED BY PATH INTERPOSER" ;;
+        esac
+        printf '   tool %-9s %s | %s\n' "$t" "$w" "$probe" >&2
+    done
+    for d in "${VENDOR_DIR}" "${VENDOR_DIR}/lib64" "${VENDOR_DIR}/lib64/mt6789" "${SYSTEM_DIR}"; do
+        if [ -d "$d" ]; then
+            echo "   dir ok, $(find "$d" -maxdepth 1 2>/dev/null | grep -c .) entries: $d" >&2
+        else
+            echo "   MISSING: $d" >&2
+        fi
+    done
     echo "" >&2
     echo "   This is NOT a clean result. The check cannot see enough of the" >&2
     echo "   device to decide anything, so every dependency would appear to" >&2
@@ -352,7 +422,7 @@ if [ -n "${STOCK_VENDOR:-}" ] && [ -d "${STOCK_VENDOR}" ]; then
     for abi in lib lib64; do
         [ -d "${STOCK_VENDOR}/${abi}/hw" ] || continue
         while IFS= read -r impl; do
-            base="$(basename "${impl}")"
+            base="${impl##*/}"   # builtin; basename is toybox in a build action
             if [ ! -e "${VENDOR_DIR}/${abi}/hw/${base}" ]; then
                 echo "MISSING IMPL: ${abi}/hw/${base}"
                 IMPL_MISSING=$((IMPL_MISSING + 1))
