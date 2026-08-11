@@ -24,5 +24,21 @@
 # path-traversal grant so libfs_mgr can stat() what it is looking for, and it
 # is the narrowest thing that makes the check possible. Both target types are
 # upstream, so nothing is declared here.
+# 🔴 The first attempt granted only `dir search` on both, which was measured
+# from build 34's denials -- and those were only the denials the HAL reached
+# before dying. Build 38 got one step further and produced the next layer:
+#
+#   371  mtk_hal_sensors -> sysfs_dt_firmware_android : file { read }  name="compatible"
+#    93  mtk_hal_sensors -> gsi_metadata_file         : dir  { search } name="gsi"
+#
+# A denial log shows where execution STOPPED, not everything it will need. Grant
+# the whole access pattern the caller performs, or expect to iterate once per
+# boot -- which is what happened here.
+#
+# read_fstab() is AOSP's macro for exactly this caller (te_macros): it covers
+# metadata_file and gsi_metadata_file_type dir search, gsi_public_metadata_file,
+# and proc_bootconfig/proc_cmdline. It does NOT cover the devicetree node, so
+# that stays explicit.
+read_fstab(mtk_hal_sensors)
 allow mtk_hal_sensors sysfs_dt_firmware_android:dir search;
-allow mtk_hal_sensors metadata_file:dir search;
+allow mtk_hal_sensors sysfs_dt_firmware_android:file r_file_perms;

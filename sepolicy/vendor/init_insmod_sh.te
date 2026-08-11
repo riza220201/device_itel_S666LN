@@ -24,4 +24,24 @@
 #   avc: denied { ioctl } ... ioctlcmd=0x5401 tclass=chr_file
 #
 # once per line. The script never reads the log back, so no read.
-allow init_insmod_sh kmsg_debug_device:chr_file { write ioctl };
+# getattr as well, measured 2026-08-11 (build 38): 160 records per boot of
+#
+#   avc: denied { getattr } for comm="modprobe" path="/dev/kmsg_debug"
+#     tclass=chr_file
+#
+# The shell stats the fd before writing. Harmless when denied, but it is 160
+# lines of noise per boot in the one log this project reads to find real faults.
+allow init_insmod_sh kmsg_debug_device:chr_file { write ioctl getattr };
+
+# modprobe raises its own scheduling priority while loading 350+ modules, and
+# reads /proc/cmdline to pick up module parameters. Both denied cleanly, and
+# module loading works without them -- 350 modules load on build 23b onward --
+# so these are silenced, not granted. sys_nice and setsched on kernel are real
+# privileges and this domain does not need them to do its job.
+#
+#   160  init_insmod_sh -> proc_cmdline    : file    { read }
+#   160  init_insmod_sh -> kernel          : process { setsched }
+#        init_insmod_sh -> self            : capability { sys_nice }
+dontaudit init_insmod_sh proc_cmdline:file r_file_perms;
+dontaudit init_insmod_sh kernel:process setsched;
+dontaudit init_insmod_sh self:capability sys_nice;
