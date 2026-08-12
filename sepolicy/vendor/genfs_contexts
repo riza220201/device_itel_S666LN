@@ -1,2 +1,3 @@
 genfscon sysfs /pnpmgr u:object_r:sysfs_pnpmgr:s0
 genfscon sysfs /devices/platform/charger/tran_aichg_disable_charger u:object_r:sysfs_aichg_file:s0
+genfscon sysfs /devices/platform/odm/odm:tran_battery/tran_cam u:object_r:sysfs_tran_cam_file:s0

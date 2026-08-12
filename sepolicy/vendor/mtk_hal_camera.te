@@ -23,3 +23,9 @@ allow mtk_hal_camera system_data_file:dir search;
 # Type declared in file.te, labelled in file_contexts.
 allow mtk_hal_camera vendor_watermark_data_file:dir create_dir_perms;
 allow mtk_hal_camera vendor_watermark_data_file:file create_file_perms;
+
+# The 3A thread reads the Transsion camera sysfs node at teardown. Read-only:
+# every observed access is a read, and the node is a status/config input, not
+# something the HAL configures. Type in file.te, label in genfs_contexts --
+# all three are needed, since a grant against a type nothing carries is dead.
+allow mtk_hal_camera sysfs_tran_cam_file:file r_file_perms;

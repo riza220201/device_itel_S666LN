@@ -17,6 +17,21 @@ type sysfs_pnpmgr, fs_type, sysfs_type;
 type vendor_gf_data_file, file_type, data_file_type;
 type vendor_watermark_data_file, file_type, data_file_type;
 
+# /sys/devices/platform/odm/odm:tran_battery/tran_cam -- a Transsion camera node
+# the 3A (auto-exposure/AWB) thread opens during camera teardown. itel labels it
+# sysfs_tran_cam_file; device/mediatek/sepolicy_vndr has no such type, so it is
+# generic sysfs here and mtk_hal_camera may not read it.
+#
+# MEASURED on build 62, and the consequence is not a quiet denial:
+#   avc: denied { read } comm="AFthread" name="tran_cam" tcontext=u:object_r:sysfs:s0
+#   ...
+#   Abort message: 'FORTIFY: fscanf: null FILE*'
+#     #03 libcam.hal3a.v3.platform.so  Hal3ARawImp::uninit()
+# The HAL fopen()s the node, SELinux refuses, fopen returns NULL, and the
+# unchecked fscanf(NULL) trips FORTIFY and kills camerahalserver. A denial
+# turning into a process abort three frames later.
+type sysfs_tran_cam_file, fs_type, sysfs_type;
+
 # /sys/devices/platform/charger/tran_aichg_disable_charger — the bypass-charging
 # node. device/mediatek/sepolicy_vndr labels several of its siblings
 # (sysfs_vbus, sysfs_pump_express, sysfs_fs_chg_file, sysfs_batteryinfo,
