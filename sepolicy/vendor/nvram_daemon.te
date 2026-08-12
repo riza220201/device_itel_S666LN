@@ -1,0 +1,25 @@
+# nvram_daemon must be able to set vendor.service.nvram_restore.
+#
+# 🔴 This is the SIM fix. Without it, measured at 6.85 s of every boot on
+# build 54:
+#
+#   avc: denied { set } for property=vendor.service.nvram_restore
+#     scontext=u:r:nvram_daemon:s0
+#     tcontext=u:object_r:vendor_default_prop:s0
+#     tclass=property_service permissive=0
+#
+# nvram_daemon then exits 0 -- "oneshot service took 10.484000 seconds" -- and
+# init reports success, so nothing anywhere says the modem will not start.
+# ccci_mdinit blocks in check_nvram_ready() polling that property twice a second
+# forever, MD1 never boots, /dev/radio stays empty, and the user sees
+# "SIM card missing".
+#
+# device/mediatek/sepolicy_vndr grants exactly this for the sibling property at
+# basic/non_plat/nvram_daemon.te:56 --
+#   set_prop(nvram_daemon, vendor_mtk_service_nvram_init_prop)
+# -- and has nothing at all for nvram_restore, while itel's stock
+# vendor_property_contexts carries both (lines 73 and 74). The type and its
+# label are declared in property.te / property_contexts here; this is the write
+# half. All three have to land together or the property simply changes which
+# way it fails.
+set_prop(nvram_daemon, vendor_mtk_service_nvram_restore_prop)

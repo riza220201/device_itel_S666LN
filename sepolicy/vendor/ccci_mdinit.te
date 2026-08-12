@@ -1,0 +1,21 @@
+# ccci_mdinit must be able to READ vendor.service.nvram_restore.
+#
+# This grant exists because of the relabel, not because of an observed denial,
+# and that is deliberate. Before the fix the property carried the fallback type
+# vendor_default_prop, which ccci_mdinit could already read -- its own log
+# proves it:
+#
+#   I ccci_mdinit: check_nvram_ready(), property_get("vendor.service.nvram_restore") = ,
+#                  read_nvram_ready_retry = 11244
+#
+# Giving the property a type of its own (property.te) fixes the write and would
+# silently take the read away, because property reads are NOT granted broadly on
+# this branch: system/sepolicy/public/domain.te has only a dontaudit at :146 and
+# a write neverallow at :493, no blanket allow. get_prop expands to
+# `allow $1 $2:file { getattr open read map }` and each reader needs it.
+#
+# Without this line the modem would still never boot -- ccci_mdinit would poll a
+# property it can no longer read -- and the symptom would be identical, which is
+# the kind of trade this tree has made before. Granting the read at the same
+# time as the write is what makes the relabel a fix rather than a reshuffle.
+get_prop(ccci_mdinit, vendor_mtk_service_nvram_restore_prop)

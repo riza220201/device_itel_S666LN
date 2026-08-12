@@ -7,3 +7,11 @@ vendor.sys.pnpmgr.                          u:object_r:vendor_pnpmgr_prop:s0
 # through to vendor_default_prop — set_prop on that is neverallowed and fails
 # the build outright.
 vendor.tee.                                 u:object_r:vendor_mtk_trustonic_tee_prop:s0
+
+# The modem's start gate. Exact match, not a prefix: vendor.service.nvram_init
+# is a DIFFERENT property with its own type, already labelled by
+# device/mediatek/sepolicy_vndr, and a `vendor.service.nvram` prefix here would
+# capture it and produce a duplicate/conflicting context. Byte-for-byte what
+# itel's stock vendor_property_contexts:74 says. See property.te for the full
+# chain from this one line to a working SIM.
+vendor.service.nvram_restore                u:object_r:vendor_mtk_service_nvram_restore_prop:s0

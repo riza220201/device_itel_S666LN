@@ -8,6 +8,47 @@ vendor_internal_prop(vendor_cam_param_prop)
 # the avc record only ever named property_socket, never which property.
 vendor_internal_prop(vendor_pnpmgr_prop)
 
+# 🔴 vendor.service.nvram_restore — THE PROPERTY THE SIM DEPENDS ON.
+#
+# Upstream device/mediatek/sepolicy_vndr covers the sibling and forgets this
+# one. On lineage-20.0 it has the complete set for nvram_init:
+#
+#   basic/non_plat/property.te:88        vendor_restricted_prop(vendor_mtk_service_nvram_init_prop)
+#   basic/non_plat/property.te:181       typeattribute ... mtk_core_property_type
+#   basic/non_plat/nvram_daemon.te:56    set_prop(nvram_daemon, ...nvram_init_prop)
+#   basic/non_plat/property_contexts:73  vendor.service.nvram_init -> that type
+#
+# and `grep -r vendor_mtk_service_nvram_restore_prop` over the whole repo
+# returns NOTHING. itel's stock vendor_property_contexts has both, at lines 73
+# and 74. So ours labelled the property vendor_default_prop, and nvram_daemon —
+# a vendor domain — cannot set that. Measured on hardware, build 54, at 6.85 s
+# of every boot:
+#
+#   avc: denied { set } for property=vendor.service.nvram_restore
+#     scontext=u:r:nvram_daemon:s0
+#     tcontext=u:object_r:vendor_default_prop:s0
+#     tclass=property_service permissive=0
+#
+# 🔑 That one denial is why there is no SIM. The chain, every link measured:
+#
+#   nvram_daemon cannot set vendor.service.nvram_restore
+#     -> it exits 0 after 10.5 s ("oneshot service took 10.484000 seconds")
+#     -> ccci_mdinit blocks in check_nvram_ready() polling it, 2/second,
+#        forever (observed at retry 11,244)
+#     -> MD1 never boots: /sys/kernel/ccci/boot reads "md1:0"
+#     -> /dev/radio/ is created but stays EMPTY, so no ptty nodes
+#     -> mtkfusionrild loops on "could not connect to /dev/radio/pttynoti"
+#     -> no IRadio, no `phone` service, "SIM card missing"
+#
+# PROVEN on the device by setting the property by hand while ccci_mdinit was
+# still polling: the poll counter froze, /sys/kernel/ccci/boot went 0 -> 1 -> 4,
+# 27 ptty nodes appeared under /dev/radio, gsm.sim.state went to LOADED and the
+# phone registered to its carrier on LTE, IN_SERVICE, both slots enumerated.
+#
+# Note the failure is completely silent: nvram_daemon exits 0, init reports
+# success, and nothing downstream says "no modem" — it says "no SIM".
+vendor_restricted_prop(vendor_mtk_service_nvram_restore_prop)
+
 # NOTE: nothing is declared here for the power HAL's tunables, on purpose.
 # device/mediatek/sepolicy_vndr on lineage-20.0 already declares
 # vendor_mtk_powerhal_prop and maps `persist.vendor.powerhal.` to it; declaring
