@@ -198,6 +198,37 @@ $(S666LN_VDEPS_STAMP): $(S666LN_VDEPS_TF) $(S666LN_VDEPS_SCRIPT)
 
 bacon: $(S666LN_VDEPS_STAMP)
 
+# 🔴 And the RELEASE path, which is a DIFFERENT target and was not covered.
+#
+# Everything above reasons about `bacon`, because that is what a test build
+# runs. A release does not run bacon at all:
+#
+#   crdroid-build-eng.sh  ->  mka bacon                  (test)
+#   crdroid-build-rc.sh   ->  mka target-files-package   (RELEASE)
+#
+# so this gate did not execute on build 61 or build 62 -- the only two release
+# builds this project has ever produced. Measured, not inferred: zero gate
+# output in either log, and $(PRODUCT_OUT)/vendor_deps_verified.stamp still
+# carried the timestamp of an older eng run while build 62's target-files zip
+# was hours newer. Run by hand against build 62 afterwards it passes
+# (1,996 ELFs, 1,387 resolvable, six checks), so nothing shipped broken -- but
+# it was verified by someone remembering to, which is not a gate.
+#
+# This is the KMI gate's own history, one week later and one path over: on
+# 2026-08-05 that gate was hooked to `droidcore` and `vendor_dlkm.img`, neither
+# of which `bacon` traverses. The lesson recorded then was "hook the staged
+# INPUTS, which every packaging path must produce". This gate cannot do that --
+# it verifies the COMPLETE staged tree, so it must run after staging -- and the
+# alternative, naming every packaging path, is only correct while the list is
+# complete. It is exactly two entries, both in this file, both loud if wrong:
+# a phony that does not exist would make the build fail with "No rule to make
+# target", not pass quietly.
+#
+# target-files-package is real and is what the release path builds:
+#   build/make/core/Makefile:6190  .PHONY: target-files-package
+#   build/make/core/Makefile:6191  target-files-package: $(BUILT_TARGET_FILES_PACKAGE)
+target-files-package: $(S666LN_VDEPS_STAMP)
+
 # droidcore is deliberately NOT hooked here, unlike the KMI gate. droidcore
 # builds images without building target-files, so hooking it would drag the
 # whole target-files zip into image-only builds to satisfy this stamp.
