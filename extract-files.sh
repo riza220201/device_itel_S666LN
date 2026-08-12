@@ -160,6 +160,112 @@ function blob_fixup() {
             "${PATCHELF}" --replace-needed "android.hardware.power-V2-ndk_platform.so" \
                 "android.hardware.power-V2-ndk.so" "${2}"
             ;;
+        vendor/lib64/nfc_nci_nxp.so | vendor/bin/hw/android.hardware.nfc@1.2-service)
+            # Point stock's NFC stack at stock's secure-element library.
+            #
+            # NFC has failed on every build of this tree, four restarts per boot:
+            #
+            #   CANNOT LINK EXECUTABLE "/vendor/bin/hw/android.hardware.nfc@1.2-service":
+            #     cannot locate symbol "_ZN5MutexD1Ev"
+            #     referenced by "/vendor/lib64/nfc_nci_nxp.so"
+            #
+            # Measured rather than guessed. `_ZN5MutexD1Ev` is `Mutex::~Mutex()`
+            # in the GLOBAL namespace -- not android::Mutex, which would mangle
+            # as _ZN7android5MutexD1Ev -- and exactly one stock vendor library
+            # defines it:
+            #
+            #   stock     lib64/ese_spi_nxp.so   131,520 B  sha 0f4ef106  DEFINES it
+            #   installed lib64/ese_spi_nxp.so    95,816 B  sha 80db376c  does NOT
+            #
+            # nfc_nci_nxp.so already lists ese_spi_nxp.so in its DT_NEEDED, so
+            # nothing was missing -- the file present at that path was simply a
+            # different library. device.mk requested `ese_spi_nxp` from source,
+            # and that build does not export the symbol stock's blob needs.
+            #
+            # The fourth instance of one pattern, after libhapticgenerator,
+            # nfc_nci_nxp itself and libeffectsconfig: a stock blob paired with a
+            # platform-built library that does not match it. The question is
+            # never "blob or source", it is WHICH PAIR ACTUALLY MATCHES.
+            #
+            # Shipped renamed because `ese_spi_nxp` is already a module name
+            # (three definitions in the soong export), and dropping it from
+            # PRODUCT_PACKAGES does not undefine it -- the libvibrator/
+            # libeffectsconfig lesson. Both stock consumers are repointed here;
+            # a sweep of every stock vendor ELF found exactly three references to
+            # ese_spi_nxp.so -- this service, nfc_nci_nxp.so, and the library
+            # itself -- so this reaches all of them.
+            "${PATCHELF}" --replace-needed "ese_spi_nxp.so" \
+                "ese_spi_nxp-stock.so" "${2}"
+            ;;
+        vendor/bin/hw/android.hardware.wifi@1.0-service-stock)
+            # Stock's Wi-Fi HAL, and it has to be stock's. PROVEN ON HARDWARE,
+            # build 57: the chip is powered and wlan0/wlan1/p2p0 created by a
+            # write to /dev/wmtWifi, and only stock's libwifi-hal.so does it.
+            #
+            #   strings stock/lib64/libwifi-hal.so | grep -c wmtWifi   ->  1
+            #   strings built/lib64/libwifi-hal.so | grep -c wmtWifi   ->  0
+            #
+            # Bind-mounting stock's library under the platform service on a
+            # running build 57 produced, in one step:
+            #   [WMT-CORE] [AF FUNC ON] ... w:2
+            #   [MTK-WIFI] WIFI_write[I]: WMT turn on WIFI success!
+            #   wlan0 wlan1 p2p0, ClientModeManager ROLE_CLIENT_PRIMARY,
+            #   init.svc.wpa_supplicant=running, scan returns APs on 2.4+5 GHz
+            # and without it, across a whole boot, the ONLY w:2 power-on event
+            # was a manual `echo 1 > /dev/wmtWifi`.
+            #
+            # The platform's libwifi-hal cannot do it and cannot be fixed by
+            # configuration: it is a thin wrapper (driver_tool.cpp, hal_tool.cpp)
+            # whole-static-linking libwifi-hal-mt66xx from hardware/mediatek/wlan,
+            # and that repo contains SIX source files and zero references to
+            # wmtWifi. 77,272 bytes against stock's 201,024.
+            #
+            # 🔴 Ruled out before settling on this, each by measurement:
+            #   * wlan_assistant powering the chip -- its three wmtWifi strings
+            #     are "/dev/wmtWifi", "is not a char device", "was removed, need
+            #     to exit". It MONITORS the node, it never writes it.
+            #   * the supplicant dac_override/dac_read_search denials -- zero of
+            #     them occur in the working run; they were fallout from the HAL
+            #     dying first.
+            #
+            # Both the binary and the library are renamed because `libwifi-hal`
+            # and `android.hardware.wifi@1.0-service-lazy` are BOTH unconditional
+            # kati modules (frameworks/opt/net/wifi/libwifi_hal/Android.mk:139,
+            # hardware/interfaces/wifi/1.6/default/Android.mk:132), so each is
+            # defined on every build whether or not anything requests it. That is
+            # what failed build 55. Renaming the library then makes it unloadable
+            # by the platform service -- its DT_NEEDED still says libwifi-hal.so
+            # and a platform binary cannot be patched from here -- so the stock
+            # binary has to come along. They are a matched A12 pair in any case,
+            # which is the rule this tree learned from libhapticgenerator,
+            # nfc_nci_nxp and libeffectsconfig.
+            "${PATCHELF}" --replace-needed "libwifi-hal.so" \
+                "libwifi-hal-stock.so" "${2}"
+            ;;
+        vendor/etc/init/android.hardware.wifi@1.0-service-stock.rc)
+            # Follow the binary rename into its init script.
+            #
+            # Only the exec PATH changes. The service name (vendor.wifi_hal_legacy)
+            # and all six `interface` lines are left exactly as stock wrote them,
+            # because those are what hwservicemanager matches to lazy-start the
+            # HAL -- renaming them would break the start trigger, which is the
+            # entire point of a lazy service.
+            #
+            # Renamed rather than shipped under its stock name because the
+            # platform module carries
+            #   LOCAL_INIT_RC := android.hardware.wifi@1.0-service-lazy.rc
+            # (hardware/interfaces/wifi/1.6/default/Android.mk:163) and installs
+            # to the same /vendor/etc/init path. base_rules.mk writes that install
+            # rule even for a module nothing requests -- the 2026-08-04 finding --
+            # so the stock name is a second collision waiting to happen.
+            sed -i 's|\(/vendor/bin/hw/android\.hardware\.wifi@1\.0-service\)-lazy$|\1-stock|' "${2}"
+            # Loud, because a sed that silently matches nothing leaves exactly the
+            # defect it was added to fix and the build would not notice.
+            grep -q '/vendor/bin/hw/android\.hardware\.wifi@1\.0-service-stock$' "${2}" || {
+                echo "!! blob_fixup: wifi rc was not repointed to -stock -- pattern stale" >&2
+                exit 1
+            }
+            ;;
         vendor/lib/libeffects.so | vendor/lib64/libeffects.so)
             # Point stock's effects factory at stock's config parser.
             #

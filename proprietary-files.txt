@@ -71,6 +71,7 @@ vendor/app/mcRegistry/e97c270ea5c44c58bcd3384a2fa2539e.tabin
 -vendor/bin/hw/android.hardware.gnss-service.mediatek
 -vendor/bin/hw/android.hardware.graphics.composer@2.3-service
 -vendor/bin/hw/android.hardware.media.c2@1.2-mediatek-64b
+-vendor/bin/hw/android.hardware.wifi@1.0-service-lazy:vendor/bin/hw/android.hardware.wifi@1.0-service-stock
 -vendor/bin/hw/android.hardware.neuralnetworks-shim-service-mtk
 -vendor/bin/hw/android.hardware.nfc@1.2-service
 -vendor/bin/hw/android.hardware.secure_element@1.2-service-mediatek
@@ -431,6 +432,7 @@ vendor/etc/init/android.hardware.gnss-service.mediatek.rc
 vendor/etc/init/android.hardware.graphics.allocator@4.0-service-mediatek.rc
 vendor/etc/init/android.hardware.graphics.composer@2.3-service.rc
 vendor/etc/init/android.hardware.media.c2@1.2-mediatek.rc
+vendor/etc/init/android.hardware.wifi@1.0-service-lazy.rc:vendor/etc/init/android.hardware.wifi@1.0-service-stock.rc
 vendor/etc/init/android.hardware.neuralnetworks-shim-service-mtk.rc
 vendor/etc/init/android.hardware.nfc@1.2-service.rc
 vendor/etc/init/android.hardware.secure_element@1.2-service-mediatek.rc
@@ -1803,6 +1805,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libvideofilter_cl_64.so
 -vendor/lib64/libvpu.so
 -vendor/lib64/libvpu5.so
+-vendor/lib64/libwifi-hal.so:vendor/lib64/libwifi-hal-stock.so
 -vendor/lib64/libwo.so
 -vendor/lib64/libwpfa.so
 -vendor/lib64/libwvhidl.so
@@ -2217,6 +2220,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/mt6789/s5kjn1_mipi_raw_IdxMgr.so
 -vendor/lib64/mt6789/s5kjn1_mipi_raw_tuning.so
 -vendor/lib64/mtkcam/mt6789/libmtkcam_streaminfo_plugin-p1stt.so
+-vendor/lib64/ese_spi_nxp.so:vendor/lib64/ese_spi_nxp-stock.so
 -vendor/lib64/nfc_nci_nxp.so
 -vendor/lib64/s5k2lqsx_mipi_raw_IdxMgr.so
 -vendor/lib64/s5k4h7_mipi_raw_IdxMgr.so

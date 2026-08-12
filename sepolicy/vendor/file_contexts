@@ -2,6 +2,32 @@
 /vendor/bin/pnpmgr                                                              u:object_r:pnpmgr_exec:s0
 /vendor/bin/kmsetkey_ca\.trustonic                                              u:object_r:trustonic_kmsetkey_ca_exec:s0
 
+# Stock's Wi-Fi HAL, shipped under a renamed path.
+#
+# proprietary-files.txt installs stock's android.hardware.wifi@1.0-service-lazy
+# as ...-service-stock, because both it and libwifi-hal are unconditional kati
+# modules and collide otherwise (build 55). Upstream labels the two stock
+# spellings and neither matches ours:
+#
+#   system/sepolicy/vendor/file_contexts:102  ...wifi@1\.0-service
+#   system/sepolicy/vendor/file_contexts:103  ...wifi@1\.0-service-lazy
+#
+# Without this the binary lands as plain vendor_file, init finds no domain
+# transition and refuses to exec it under enforcing -- trading a build failure
+# for a silently missing HAL. BLUEPRINT §9: "a vendor init service needs an
+# exec type".
+#
+# hal_wifi_default_exec is the right type, not a new one: it puts the service in
+# hal_wifi_default, which carries the hal_wifi attribute, and MediaTek's own
+# policy grants that attribute the node this HAL exists to write --
+#   sepolicy_vndr/basic/non_plat/hal_wifi.te:7
+#     allow hal_wifi wmtWifi_device:chr_file w_file_perms;
+#   sepolicy_vndr/basic/non_plat/file_contexts:464
+#     /dev/wmtWifi(/.*)?  u:object_r:wmtWifi_device:s0
+# which is the write that powers the chip and creates wlan0. Verified on
+# lineage-20.0, the branch this tree builds.
+/(vendor|system/vendor)/bin/hw/android\.hardware\.wifi@1\.0-service-stock       u:object_r:hal_wifi_default_exec:s0
+
 # Character devices.
 /dev/tranlog_ctl                                                                u:object_r:tranlog_device:s0
 /dev/ntsync                                                                     u:object_r:ntsync_device:s0

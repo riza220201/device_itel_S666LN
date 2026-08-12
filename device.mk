@@ -304,7 +304,6 @@ PRODUCT_PACKAGES += \
     ese_client \
     libprotobuf-cpp-full.vendor \
     libprotobuf-cpp-lite.vendor \
-    ese_spi_nxp \
     libhwc2on1adapter \
     libhwc2onfbadapter \
     libmtkperf_client_vendor
@@ -492,32 +491,42 @@ PRODUCT_PACKAGES += \
 # closure with it: stock's lazy blob additionally needs libwifi-hal.so,
 # libwifi-system-iface.so and libnl.so, none of which are on this device.
 #
-# ✅ RUNTIME-VERIFIED on hardware, build 54, 2026-08-12. This HAL and this
-# libwifi-hal (77,272 B, the MTK build) scan and connect: 11 APs across 2.4 and
-# 5 GHz, WPA2 association at 802.11ac/390 Mbps, DHCP lease, 8.8.8.8 at 15 ms
-# with 0% loss. The only thing that had to change was the supplicant's init rc
-# (WIFI_HIDL_UNIFIED_SUPPLICANT_SERVICE_RC_ENTRY in BoardConfig.mk).
+# 🔴 The Wi-Fi HAL is STOCK's, not the platform's, and the difference is the
+# whole of Wi-Fi working. proprietary-files.txt ships both halves renamed
+# (...-service-stock, libwifi-hal-stock.so) with blob_fixup repointing them; see
+# extract-files.sh for the collision reasoning.
 #
-# 🔴 Do NOT swap this for stock's android.hardware.wifi@1.0-service-lazy blob.
-# That was tried in 93ff629 and reverted. The premise was a measurement --
-#   strings stock/libwifi-hal.so | grep -c wmtWifi -> 1
-#   strings built/libwifi-hal.so | grep -c wmtWifi -> 0
-# -- read as "only stock's can power the chip". The measurement is real; the
-# inference is false. On hardware this HAL powers the chip fine, and dmesg says
-# so in its own words:
-#   [WMT-CORE][I]wmt_core_dump_func_state:[AF FUNC ON]status(... w:2 ...)
-# fired on an enable attempt that was still failing -- at the SUPPLICANT, not at
-# the chip. The wmtWifi write is not the only path to WMT power-on, and stock's
-# string was never evidence that ours lacks one.
+# On MediaTek the chip is powered and wlan0/wlan1/p2p0 created by a write to
+# /dev/wmtWifi. Only stock's library does that:
 #
-# The swap also cost a build: stock's blob is named for a module
-# hardware/interfaces/wifi/1.6/default/Android.mk:132 already defines in kati,
-# so shipping it collides at make-parse time (build 55) exactly as libvibrator
-# (42) and libeffectsconfig (49/50) did. Requesting the source module has none
-# of that -- BOARD_WLAN_DEVICE := MediaTek resolves libwifi-hal to
-# libwifi-hal-mt66xx from hardware/mediatek/wlan, and soong brings the closure.
+#   strings stock/lib64/libwifi-hal.so | grep -c wmtWifi   ->  1
+#   strings built/lib64/libwifi-hal.so | grep -c wmtWifi   ->  0
+#
+# PROVEN ON HARDWARE, build 57: bind-mounting stock's library under the running
+# platform service produced, in one step, [AF FUNC ON] w:2 + "WMT turn on WIFI
+# success!", wlan0/wlan1/p2p0, ClientModeManager ROLE_CLIENT_PRIMARY,
+# init.svc.wpa_supplicant=running, and a scan returning APs on 2.4 and 5 GHz.
+# Without it, across an entire boot, the only w:2 power-on event was a manual
+# `echo 1 > /dev/wmtWifi`.
+#
+# The platform's libwifi-hal is not fixable by configuration: it is a thin
+# wrapper whole-static-linking libwifi-hal-mt66xx from hardware/mediatek/wlan,
+# and that repo has SIX source files and zero references to wmtWifi.
+#
+# ⚠ HISTORY, so nobody flips this a third time. 93ff629 made exactly this change
+# and I reverted it in 8948509 on the strength of a dmesg line -- [AF FUNC ON]
+# w:2 during a failing enable on build 54 -- read as proof the platform HAL
+# powers the chip. It was not: wlan0 already existed on that boot, so the chip
+# was already on and the line said nothing about who turned it on. A causal
+# claim from a log line without controlling for prior state. The revert was
+# wrong; the supplicant rc it also carried was right and is kept.
+#
+# BOARD_WLAN_DEVICE := MediaTek stays, because frameworks/opt/net/wifi still
+# needs LIB_WIFI_HAL resolved to build libwifi-hal at all -- it is simply no
+# longer the library we ship.
 PRODUCT_PACKAGES += \
-    android.hardware.wifi@1.0-service
+    libwifi-system-iface.vendor \
+    libnl.vendor
 
 # Overlays
 DEVICE_PACKAGE_OVERLAYS += $(LOCAL_PATH)/overlay
