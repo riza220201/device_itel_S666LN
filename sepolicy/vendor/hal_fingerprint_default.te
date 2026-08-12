@@ -3,3 +3,17 @@ allow hal_fingerprint_default tranlog_device:chr_file r_file_perms;
 
 # Enumerates /data/vendor/goodix (its own calibration + template store).
 allow hal_fingerprint_default vendor_data_file:dir r_dir_perms;
+
+# ...and writes inside /data/vendor/goodix/gf_data. The line above only lets it
+# LIST the parent; the store itself was generic vendor_data_file, which a vendor
+# domain may not write, so the HAL was denied at start on build 61:
+#   denied { write } for name="gf_data" tcontext=u:object_r:vendor_data_file:s0
+# The directory is empty on a device that has never enrolled a print. Type
+# declared in file.te, labelled in file_contexts.
+allow hal_fingerprint_default vendor_gf_data_file:dir create_dir_perms;
+allow hal_fingerprint_default vendor_gf_data_file:file create_file_perms;
+
+# Publishes its own Goodix HIDL interface, which stock labels and sepolicy_vndr
+# does not — see hwservice.te for the denial and the caveat that this is not
+# yet proven to be what blocks enrolment.
+add_hwservice(hal_fingerprint_default, goodix_fingerprint_service)

@@ -1,0 +1,28 @@
+# itel labels 26 vendor HIDL interfaces that device/mediatek/sepolicy_vndr does
+# not. Most are for Transsion services this tree deliberately does not ship, and
+# a label for an interface nothing serves is dead weight — so only the ones with
+# a shipped provider AND a measured denial are carried here.
+#
+# The Goodix daemon is the one that qualifies: the fingerprint HAL we ship tries
+# to publish it at start and is refused. All four spellings share one type in
+# stock; only IGoodixFingerprintDaemon was observed being added on build 61, and
+# the siblings are carried with it because they are the same interface family
+# and would fail the same way.
+#
+# Deliberately NOT carried, with reasons, so this is not re-litigated:
+#   ITrancamserver          the provider IS shipped but never starts — its
+#                           binary has no exec type, so init cannot transition
+#                           into it. Labelling the interface would leave the
+#                           camera finding something nothing serves. That needs
+#                           a domain of its own; separate change.
+#   IFpsensorHidlSvc        a probe for a fingerprint vendor this unit does not
+#                           have (no /dev/fpsensor, no /dev/silead_fp).
+#   INxpNfc, INxpNfcLegacy  the finds were denied only while the NFC HAL was
+#                           failing to start. With /dev/pn553 labelled the HAL
+#                           comes up, NFC works, and these stopped appearing —
+#                           they were downstream of the real defect, not a
+#                           defect themselves.
+vendor.goodix.hardware.biometrics.fingerprint::IGoodixFingerprintDaemon          u:object_r:goodix_fingerprint_service:s0
+vendor.goodix.hardware.biometrics.fingerprint::IGoodixFingerprintDaemonExt       u:object_r:goodix_fingerprint_service:s0
+vendor.goodix.hardware.biometrics.fingerprint::IGoodixFingerprintDaemonHbd       u:object_r:goodix_fingerprint_service:s0
+vendor.goodix.hardware.biometrics.fingerprint::IGoodixFingerprintDaemonFido      u:object_r:goodix_fingerprint_service:s0

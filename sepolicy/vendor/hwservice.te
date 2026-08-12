@@ -1,0 +1,23 @@
+# The Goodix fingerprint daemon's own HIDL interface family.
+#
+# itel declares a type for it (goodix_fingerprint_service) and
+# device/mediatek/sepolicy_vndr does not, so on this tree the interface fell
+# through to default_android_hwservice — which a vendor domain may neither add
+# nor find. Measured on build 61, at fingerprint HAL start:
+#
+#   avc: denied { add } for
+#     interface=vendor.goodix.hardware.biometrics.fingerprint::IGoodixFingerprintDaemon
+#     scontext=u:r:hal_fingerprint_default:s0
+#     tcontext=u:object_r:default_android_hwservice:s0 tclass=hwservice_manager
+#
+# i.e. the HAL could not publish its own vendor interface. Note this is separate
+# from the framework-facing android.hardware.biometrics.fingerprint@2.1::
+# IBiometricsFingerprint, which registers fine and is what made the sensor
+# appear in `dumpsys biometric` once config_biometric_sensors was declared.
+#
+# ⚠ UNVERIFIED that this is what blocks enrolment. The write denial on
+# /data/vendor/goodix/gf_data (see file.te) fired in the same second, that
+# directory is empty, and no fingerprint has ever been enrolled on this tree —
+# so the two are candidates, not a proven cause. Enrolment needs a finger on the
+# sensor and cannot be tested over adb. Test it on the build that carries this.
+type goodix_fingerprint_service, hwservice_manager_type;

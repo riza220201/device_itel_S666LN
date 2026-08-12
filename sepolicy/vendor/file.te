@@ -3,6 +3,20 @@
 # fstb_soft_level, fstb_fps_list) once it had a domain of its own.
 type sysfs_pnpmgr, fs_type, sysfs_type;
 
+# /data/vendor/goodix/gf_data — the Goodix fingerprint HAL's own store, and
+# /data/vendor/camera_watermark — the camera HAL's. itel gives each its own type
+# (vendor_gf_data_file, vendor_watermark_data_file); device/mediatek/
+# sepolicy_vndr has neither, so both directories resolve to generic
+# vendor_data_file, which their owning domain may enumerate but not write.
+# Measured on build 61, one denial each at HAL start:
+#   denied { write } name="gf_data"           scontext=hal_fingerprint_default
+#   denied { write } name="camera_watermark"  scontext=mtk_hal_camera
+# Both directories exist on the device and both are EMPTY. Declared here,
+# labelled in file_contexts, granted in the two .te files — all three are
+# needed, since a grant against a type nothing carries is silently dead.
+type vendor_gf_data_file, file_type, data_file_type;
+type vendor_watermark_data_file, file_type, data_file_type;
+
 # /sys/devices/platform/charger/tran_aichg_disable_charger — the bypass-charging
 # node. device/mediatek/sepolicy_vndr labels several of its siblings
 # (sysfs_vbus, sysfs_pump_express, sysfs_fs_chg_file, sysfs_batteryinfo,

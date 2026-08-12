@@ -7,3 +7,19 @@ set_prop(mtk_hal_camera, vendor_cam_param_prop)
 # (~{ getattr search }), so vendor domains may traverse /data while read, write
 # and enumerate stay barred.
 allow mtk_hal_camera system_data_file:dir search;
+
+# ⚠ That grant does NOT cover the denial seen on build 61:
+#   denied { search } name="data" tcontext=u:object_r:system_data_file:s0:c512,c768
+# The target carries MLS categories and mtk_hal_camera sits at s0, so this is a
+# CONSTRAINT failure, not a missing allow, and no allow rule can satisfy it
+# (BLUEPRINT §9). It is left alone deliberately: the fix would be
+# mlstrustedsubject on a vendor camera domain, which is a far larger grant than
+# the traversal is worth, and nothing has been shown to depend on it.
+
+# Writes its watermark store. /data/vendor/camera_watermark had no type of its
+# own here — stock gives it vendor_watermark_data_file — so it resolved to
+# generic vendor_data_file and the HAL was denied at start on build 61:
+#   denied { write } for name="camera_watermark"
+# Type declared in file.te, labelled in file_contexts.
+allow mtk_hal_camera vendor_watermark_data_file:dir create_dir_perms;
+allow mtk_hal_camera vendor_watermark_data_file:file create_file_perms;

@@ -32,6 +32,47 @@
 /dev/tranlog_ctl                                                                u:object_r:tranlog_device:s0
 /dev/ntsync                                                                     u:object_r:ntsync_device:s0
 
+# The NFC controller node. This board is NXP — pn553.ko, init.nxp.nfc.rc — and
+# device/mediatek/sepolicy_vndr labels only the ST variant of this reference
+# design (basic/non_plat/hal_nfc.te:5 grants st21nfc_device, file_contexts
+# labels /dev/st21nfc). So the node this device actually has was left as generic
+# `device`, which no vendor domain may open.
+#
+# MEASURED, and this is the whole of it: the HAL process ran, but
+# android.hardware.nfc@1.2::INfc/default was never REGISTERED (lshal server pid
+# N/A) because it could not open the controller, so `svc nfc enable` was a
+# silent no-op and dumpsys nfc stayed mState=off on every build this tree has
+# produced. NFC has never worked here; the 2026-08-12 note recording it as
+# working measured the HAL not crashing, which is not the same thing.
+#
+# Proven live on build 61 before this line was written — one variable, nothing
+# else touched:
+#   chcon u:object_r:nfc_device:s0 /dev/pn553
+#   setprop ctl.restart vendor.nfc_hal_service
+#     -> INfc/default registered, `svc nfc enable` -> mState=on
+#
+# nfc_device needs no new type or grant: it is AOSP core
+# (system/sepolicy/public/device.te:32) and hal_nfc — the attribute
+# hal_nfc_default carries — already has it at
+# system/sepolicy/public/hal_nfc.te:13:
+#   allow hal_nfc nfc_device:chr_file rw_file_perms;
+# Both verified on lineage-20.0, the branch this tree builds.
+/dev/pn553                                                                      u:object_r:nfc_device:s0
+
+# Modem IPC tty. Stock labels this gsm0710muxd_device
+# (sepolicy_vndr/basic/non_plat/device.te:131 declares the type, and this tree
+# already carries five other nodes under it); ours left it generic `device`.
+# Inert today — vendor.gsm0710muxd is `disabled` with no trigger in our tree or
+# in stock's, so nothing opens it, and the SIM works without it. Carried because
+# the node exists on this hardware and the label is what stock gives it.
+/dev/ttyCMIPC5                                                                  u:object_r:gsm0710muxd_device:s0
+
+# Vendor data stores that stock gives their own types and sepolicy_vndr does
+# not know about at all, so they resolve to generic vendor_data_file and the
+# HAL that owns each one cannot write it. Both were denied on build 61.
+/data/vendor/goodix/gf_data(/.*)?                                               u:object_r:vendor_gf_data_file:s0
+/data/vendor/camera_watermark(/.*)?                                             u:object_r:vendor_watermark_data_file:s0
+
 # Block devices, ALWAYS through /dev/block/by-name — never a partition number.
 # On this hardware sdc62 is tee_b and tranfs is sdc64; a tree that hardcodes the
 # number ends up granting init read/relabel on the TEE partition instead, and
