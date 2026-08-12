@@ -444,39 +444,52 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     wpa_supplicant
 
-# The Wi-Fi HAL. 🔴 STOCK's, not the platform's -- and that distinction is the
-# whole fix. Without a Wi-Fi HAL at all there is no Wi-Fi (VINTF declared
-# IWifi and nothing provided it); with the PLATFORM's there is still no Wi-Fi,
-# for a subtler reason measured on hardware in build 54:
+# The Wi-Fi HAL itself. 🔴 Without it there is NO Wi-Fi AT ALL -- measured on
+# hardware, the first build that booted far enough to try:
 #
-#   android.hardware.wifi@1.0-service: Could not read interface state for
-#     wlan0 (No such device)
-#   android.hardware.wifi@1.0-service: Failed to start legacy HAL: UNKNOWN
-#   HalDevMgr: executeChipReconfiguration: configureChip error: 9 (unknown)
-#   WifiVendorHal: Failed to create STA iface
+#   libc: Unable to set property "ctl.interface_start" to
+#         "android.hardware.wifi@1.0::IWifi/default": error code: 0x20
+#   ... once per second, forever; no wlan0 interface ever appears
 #
-# On MediaTek the chip is powered and wlan0 created by writing to /dev/wmtWifi.
-# Stock's libwifi-hal.so does that; the platform's libwifi-hal-mt66xx does not:
+# configs/vintf/manifest.xml declares android.hardware.wifi@1.6::IWifi/default
+# and NOTHING provided it: no service binary in /vendor/bin/hw, no init service.
+# The same declared-but-unimplemented shape as the media.c2 defect. The driver
+# modules were loaded and wpa_supplicant was built -- only the HAL was missing.
 #
-#   strings stock/lib64/libwifi-hal.so  | grep -c wmtWifi   ->  1  (/dev/wmtWifi)
-#   strings built/lib64/libwifi-hal.so  | grep -c wmtWifi   ->  0
+# Built from source rather than taking stock's android.hardware.wifi@1.0-service-
+# lazy blob, for two reasons. It is what BOARD_WLAN_DEVICE := MediaTek already
+# exists for -- soong resolves libwifi-hal to libwifi-hal-mt66xx from
+# hardware/mediatek/wlan, which this tree already syncs and which
+# BOARD_HAS_MTK_HARDWARE already enables. And soong brings the dependency
+# closure with it: stock's lazy blob additionally needs libwifi-hal.so,
+# libwifi-system-iface.so and libnl.so, none of which are on this device.
 #
-# So the platform HAL waits for an interface that nothing ever creates. Proven
-# on the device: `echo 1 > /dev/wmtWifi` immediately produced wlan0, wlan1 and
-# p2p0 ("[MTK-WIFI] WMT turn on WIFI success!") with wlan0 carrying a real MAC.
-# The driver, firmware and configs were never the problem.
+# ✅ RUNTIME-VERIFIED on hardware, build 54, 2026-08-12. This HAL and this
+# libwifi-hal (77,272 B, the MTK build) scan and connect: 11 APs across 2.4 and
+# 5 GHz, WPA2 association at 802.11ac/390 Mbps, DHCP lease, 8.8.8.8 at 15 ms
+# with 0% loss. The only thing that had to change was the supplicant's init rc
+# (WIFI_HIDL_UNIFIED_SUPPLICANT_SERVICE_RC_ENTRY in BoardConfig.mk).
 #
-# My earlier reasoning for the platform build -- "soong brings the dependency
-# closure, stock's blob needs three libraries we lack" -- was true and beside
-# the point. The closure is easy to satisfy (libwifi-system-iface.vendor and
-# libnl.vendor below); powering the chip is not something we can add.
+# 🔴 Do NOT swap this for stock's android.hardware.wifi@1.0-service-lazy blob.
+# That was tried in 93ff629 and reverted. The premise was a measurement --
+#   strings stock/libwifi-hal.so | grep -c wmtWifi -> 1
+#   strings built/libwifi-hal.so | grep -c wmtWifi -> 0
+# -- read as "only stock's can power the chip". The measurement is real; the
+# inference is false. On hardware this HAL powers the chip fine, and dmesg says
+# so in its own words:
+#   [WMT-CORE][I]wmt_core_dump_func_state:[AF FUNC ON]status(... w:2 ...)
+# fired on an enable attempt that was still failing -- at the SUPPLICANT, not at
+# the chip. The wmtWifi write is not the only path to WMT power-on, and stock's
+# string was never evidence that ours lacks one.
 #
-# libwifi-hal.so ships RENAMED to libwifi-hal-stock.so, with blob_fixup
-# repointing the lazy service at it, so it cannot collide with the platform's
-# module of the same name -- the collision that failed builds 42, 49 and 50.
+# The swap also cost a build: stock's blob is named for a module
+# hardware/interfaces/wifi/1.6/default/Android.mk:132 already defines in kati,
+# so shipping it collides at make-parse time (build 55) exactly as libvibrator
+# (42) and libeffectsconfig (49/50) did. Requesting the source module has none
+# of that -- BOARD_WLAN_DEVICE := MediaTek resolves libwifi-hal to
+# libwifi-hal-mt66xx from hardware/mediatek/wlan, and soong brings the closure.
 PRODUCT_PACKAGES += \
-    libwifi-system-iface.vendor \
-    libnl.vendor
+    android.hardware.wifi@1.0-service
 
 # Overlays
 DEVICE_PACKAGE_OVERLAYS += $(LOCAL_PATH)/overlay

@@ -524,5 +524,39 @@ WPA_SUPPLICANT_VERSION := VER_0_8_X
 BOARD_WPA_SUPPLICANT_DRIVER := NL80211
 BOARD_HOSTAPD_DRIVER := NL80211
 
+# 🔴 THIS LINE IS WHY WI-FI WORKS. Without it wpa_supplicant is built and
+# installed but has NO INIT SERVICE, so nothing can ever start it.
+#
+# external/wpa_supplicant_8/wpa_supplicant/Android.mk:1828 gates the daemon's
+# own rc on it, and nothing else in the whole tree sets it:
+#
+#   ifeq ($(WIFI_HIDL_UNIFIED_SUPPLICANT_SERVICE_RC_ENTRY), true)
+#   LOCAL_INIT_RC=aidl/android.hardware.wifi.supplicant-service.rc
+#   endif
+#
+# Measured on hardware, build 54, before this line existed:
+#
+#   /vendor/bin/hw/wpa_supplicant            present, 3,098,984 B
+#   /vendor/etc/init/*supplicant*            ABSENT  (93 files, none matching)
+#   /dev/socket/wpa_wlan0                    ABSENT  (init never made the socket)
+#   getprop init.svc.wpa_supplicant          empty
+#   cmd wifi set-wifi-enabled enabled     -> "Wifi is disabled"
+#   E WifiThreadRunner: at WifiNative.startAndWaitForSupplicantConnection:555
+#                       at WifiNative.startSupplicant:579
+#
+# PROVEN live, single variable, demonstrated BOTH ways on the running device:
+# starting the daemon by hand with the exact arguments this rc uses made
+# ISupplicant/default register, Wi-Fi enable, ClientModeManager come up as
+# ROLE_CLIENT_PRIMARY on wlan0, scan 11 APs across 2.4 and 5 GHz, associate to
+# a WPA2 AP (802.11ac, 390 Mbps), take a DHCP lease and ping 8.8.8.8 at 15 ms
+# with 0% loss. Killing the daemon put it straight back to "Wifi is disabled";
+# restarting it restored everything.
+#
+# Note the AIDL half was already correct and needs no flag here:
+# WPA_SUPPLICANT_USE_AIDL defaults on, so the daemon links
+# android.hardware.wifi.supplicant-V1-ndk.so and the module ships its own
+# VINTF fragment. Only the rc was gated, and only by this variable.
+WIFI_HIDL_UNIFIED_SUPPLICANT_SERVICE_RC_ENTRY := true
+
 # Inherit the proprietary blob makefiles
 include vendor/itel/S666LN/BoardConfigVendor.mk

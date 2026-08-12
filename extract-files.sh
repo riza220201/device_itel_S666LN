@@ -160,24 +160,6 @@ function blob_fixup() {
             "${PATCHELF}" --replace-needed "android.hardware.power-V2-ndk_platform.so" \
                 "android.hardware.power-V2-ndk.so" "${2}"
             ;;
-        vendor/bin/hw/android.hardware.wifi@1.0-service-lazy)
-            # Point stock's Wi-Fi HAL at stock's libwifi-hal, shipped renamed.
-            #
-            # The platform builds a module also called libwifi-hal (from
-            # hardware/mediatek/wlan, selected by BOARD_WLAN_DEVICE), so shipping
-            # stock's under its own name collides on the make module name -- the
-            # failure that killed builds 42, 49 and 50. proprietary-files.txt
-            # therefore installs it as libwifi-hal-stock.so and this repoints the
-            # consumer.
-            #
-            # It has to be STOCK's: on MediaTek the chip is powered and wlan0
-            # created by writing /dev/wmtWifi, stock's libwifi-hal.so does that
-            # and the platform's does not (`strings | grep -c wmtWifi` -> 1 vs 0).
-            # Without it the HAL waits forever for an interface nothing creates:
-            #   "Could not read interface state for wlan0 (No such device)"
-            "${PATCHELF}" --replace-needed "libwifi-hal.so" \
-                "libwifi-hal-stock.so" "${2}"
-            ;;
         vendor/lib/libeffects.so | vendor/lib64/libeffects.so)
             # Point stock's effects factory at stock's config parser.
             #
