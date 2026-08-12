@@ -524,6 +524,13 @@ WPA_SUPPLICANT_VERSION := VER_0_8_X
 BOARD_WPA_SUPPLICANT_DRIVER := NL80211
 BOARD_HOSTAPD_DRIVER := NL80211
 
+# Without this the hotspot daemon is not merely unrequested, it is UNDEFINED:
+# external/wpa_supplicant_8/hostapd/Android.mk:15 wraps the whole file in
+# `ifeq ($(WPA_BUILD_HOSTAPD),true)`, so PRODUCT_PACKAGES += hostapd cannot
+# reach it and BOARD_HOSTAPD_DRIVER above was inert. Measured on build 54: no
+# hostapd binary anywhere, no rc, while our VINTF declares AIDL IHostapd/default.
+WPA_BUILD_HOSTAPD := true
+
 # 🔴 THIS LINE IS WHY WI-FI WORKS. Without it wpa_supplicant is built and
 # installed but has NO INIT SERVICE, so nothing can ever start it.
 #

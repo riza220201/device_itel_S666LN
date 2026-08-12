@@ -444,6 +444,34 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     wpa_supplicant
 
+# hostapd -- the Wi-Fi hotspot / SoftAP daemon.
+#
+# 🔴 Declaration without implementation, the same defect as media.c2, sensors
+# and the Wi-Fi HAL. configs/vintf/manifest/android.hardware.wifi.hostapd.xml
+# declares format="aidl" IHostapd/default, and NOTHING provided it. Measured on
+# build 54:
+#
+#   /vendor/bin/hw/hostapd        does not exist
+#   /system/bin/hostapd           does not exist
+#   /vendor/etc/init/*hostapd*    does not exist
+#   WPA_BUILD_HOSTAPD             set nowhere in this tree
+#
+# external/wpa_supplicant_8/hostapd/Android.mk:15 wraps the ENTIRE file in
+# `ifeq ($(WPA_BUILD_HOSTAPD),true)`, so without that variable the module is
+# never defined and PRODUCT_PACKAGES cannot request it. With it, the module
+# carries LOCAL_INIT_RC := hostapd.android.rc (line 1202, ungated) and its own
+# AIDL fragment, so unlike wpa_supplicant there is no second variable to set.
+# BOARD_HOSTAPD_DRIVER := NL80211 was already present and was doing nothing.
+#
+# ⚠ Verified ABSENT on hardware, not verified PRESENT -- there was no binary to
+# start by hand the way wpa_supplicant was tested, so this one rests on the
+# build. Confirm on the next flash: `ls /vendor/bin/hw/hostapd`, then turn the
+# hotspot on. Found while triaging the 46 stock vendor init services missing
+# from the build (see notes/RESUME.md item 2); `hostapd` and `wpa_supplicant`
+# were both on that list and both were real.
+PRODUCT_PACKAGES += \
+    hostapd
+
 # The Wi-Fi HAL itself. 🔴 Without it there is NO Wi-Fi AT ALL -- measured on
 # hardware, the first build that booted far enough to try:
 #
