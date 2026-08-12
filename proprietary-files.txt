@@ -1040,6 +1040,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libbluetooth_audio_session.so
 -vendor/lib/libbluetooth_audio_session_mediatek.so
 -vendor/lib/libbluetooth_hw_test.so
+-vendor/lib/libbt-vendor.so
 -vendor/lib/libbluetooth_mtk.so
 -vendor/lib/libbluetooth_mtk_pure.so
 -vendor/lib/libbluetooth_relayer.so
@@ -1621,6 +1622,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libbluetooth_audio_session.so
 -vendor/lib64/libbluetooth_audio_session_mediatek.so
 -vendor/lib64/libbluetooth_hw_test.so
+-vendor/lib64/libbt-vendor.so
 -vendor/lib64/libbluetooth_mtk.so
 -vendor/lib64/libbluetooth_mtk_pure.so
 -vendor/lib64/libbluetooth_relayer.so

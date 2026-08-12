@@ -41,4 +41,34 @@
          Deliberately no config_defaultRefreshRate — leaving it unset lets the
          framework drop to 60 on static content instead of pinning a floor. -->
     <integer name="config_defaultPeakRefreshRate">120</integer>
+
+    <!-- FINGERPRINT SENSOR DECLARATION.
+         Without this there is no fingerprint option in Settings at all, even
+         though the HAL is running and registered. Measured on build 59:
+
+           lshal      biometrics.fingerprint@2.1::IBiometricsFingerprint/default
+                      registered, pid 1062
+           ps         ...fingerprint@2.1-service   running
+           pm list features                        android.hardware.fingerprint
+           dumpsys biometric                       Sensors: ID(1008) modality 8
+
+         Modality 8 is FACE. So the framework had registered a face sensor and
+         no fingerprint one, and Settings hides the enrolment UI when there is
+         no fingerprint sensor. The HAL was up the whole time and nothing ever
+         asked it anything.
+
+         AOSP ships this array EMPTY, with the example commented out in
+         frameworks/base/core/res/res/values/config.xml, so every device is
+         expected to declare its own. Stock's framework RRO does NOT carry it,
+         because stock is Transsion own framework-res which sets it natively,
+         and an RRO contains only OVERRIDES of AOSP values. That is why it never
+         appeared in the 90 override decode.
+
+         Format is sensorId:modality:strength. 2 is TYPE_FINGERPRINT and
+         15 is BIOMETRIC_STRONG (0x000F). This device has a rear capacitive
+         sensor served by the HIDL 2.1 HAL, which is the plain 0:2:15 case, with
+         no UDFPS properties needed. -->
+    <string-array name="config_biometric_sensors" translatable="false">
+        <item>0:2:15</item>
+    </string-array>
 </resources>
