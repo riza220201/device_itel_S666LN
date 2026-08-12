@@ -524,9 +524,32 @@ PRODUCT_PACKAGES += \
 # BOARD_WLAN_DEVICE := MediaTek stays, because frameworks/opt/net/wifi still
 # needs LIB_WIFI_HAL resolved to build libwifi-hal at all -- it is simply no
 # longer the library we ship.
+#
+# The dependency closure. Stock's binary links libnl and libwifi-system-iface,
+# which exist only on /system and which a vendor process cannot link, plus the
+# six HIDL interface libraries android.hardware.wifi@1.0..1.5.
+#
+# 🔴 Those six were installed for free while device.mk still requested the
+# PLATFORM service -- soong pulled them in as its dependencies. Dropping that
+# request took them with it, and build 58 died at the gate:
+#
+#   UNRESOLVED (missing library <- consumer), by number of consumers:
+#         1 android.hardware.wifi@1.5.so
+#         1 android.hardware.wifi@1.4.so   ... through @1.0
+#
+# Caught by tools/vendor-deps-check.sh at 99%, before a flash. Exactly the
+# transitive-closure miss that failed build 50 on libdts-eagle-shared, and the
+# reason that gate exists: a prebuilt binary's dependencies are invisible to
+# soong, so removing an unrelated source module can silently strip them.
 PRODUCT_PACKAGES += \
     libwifi-system-iface.vendor \
-    libnl.vendor
+    libnl.vendor \
+    android.hardware.wifi@1.0.vendor \
+    android.hardware.wifi@1.1.vendor \
+    android.hardware.wifi@1.2.vendor \
+    android.hardware.wifi@1.3.vendor \
+    android.hardware.wifi@1.4.vendor \
+    android.hardware.wifi@1.5.vendor
 
 # Overlays
 DEVICE_PACKAGE_OVERLAYS += $(LOCAL_PATH)/overlay
