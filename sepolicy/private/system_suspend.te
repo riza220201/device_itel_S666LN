@@ -29,3 +29,24 @@ dontaudit system_suspend sysfs_batteryinfo:file r_file_perms;
 # which is exactly what the README in this directory warns about. Check whether
 # a type is public before writing a rule against it in vendor policy.
 dontaudit system_suspend sysfs:dir r_dir_perms;
+
+# And the CROSS of the two above, which neither covers: sysfs_batteryinfo at
+# class `dir`. Measured on build 61 (`-user`), 40 records in one boot:
+#
+#   avc: denied { read } for comm="binder:493_3" name="wakeup20"
+#        scontext=u:r:system_suspend:s0
+#        tcontext=u:object_r:sysfs_batteryinfo:s0 tclass=dir
+#
+# Same wakeup-source enumeration as the rule above, on the nodes that happen to
+# carry the batteryinfo label rather than generic sysfs. The first rule names
+# the right type at the wrong class, the second the right class on the wrong
+# type, so a reader would reasonably believe this was already handled.
+#
+# Silenced, not granted, for the reason at the top of this file: an allow of
+# sysfs_batteryinfo from coredomain is neverallowed and fails the build.
+#
+# Worth the line rather than tolerating the noise: 40 records per boot is the
+# largest single contributor to this build's denial log, and buffer spam is
+# what hid the nvram_restore denial -- the one that cost the SIM -- for a
+# session and a half.
+dontaudit system_suspend sysfs_batteryinfo:dir r_dir_perms;
