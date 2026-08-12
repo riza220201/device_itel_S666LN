@@ -577,6 +577,41 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/rootdir/etc/fstab.mt6789:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.mt6789 \
     $(LOCAL_PATH)/rootdir/etc/fstab.mt6789:$(TARGET_COPY_OUT_VENDOR_RAMDISK)/first_stage_ramdisk/fstab.mt6789
 
+# The swap fstab, which is what actually CREATES the zram device. Byte-identical
+# to stock: "/dev/block/zram0 none swap defaults zramsize=55%".
+#
+# Without it this device runs with NO SWAP AT ALL, measured on build 61:
+# /proc/swaps empty, /sys/block/zram0/disksize = 0. And the tree was already
+# shipping the half of stock's configuration that TUNES zram --
+# init.mt6789.rc:204-207 sets comp_algorithm lz4, page-cluster 0 and
+# swappiness 100 -- on a device that never existed. The same "took some, left
+# the rest" shape as the VINTF fragments, the dalvik heap and the audio effect
+# libraries.
+#
+# init fires it already; nothing else is needed. Both gating properties come
+# from our own vendor.prop and match stock, so this is deterministic on every
+# install rather than a property of this one unit:
+#   init.mt6789.rc:1180  on property:persist.vendor.swapfile_enable=true \
+#                           && property:ro.vendor.memfusion2_2.support=false
+#                            swapon_all /vendor/etc/fstab.enableswap
+#   vendor.prop          persist.vendor.swapfile_enable = true
+#                        ro.vendor.memfusion2_2.support = false
+#
+# Proven on hardware before shipping: bringing zram up by hand exactly as this
+# fstab specifies (disksize, mkswap, swapon) succeeded and /proc/swaps showed
+# the device, so the kernel side works and only the config was missing. The
+# module is present in the kernel package and /sys/module/memfusion exists.
+#
+# 🔴 Stock's OTHER swap fstab is deliberately NOT shipped:
+# /vendor/etc/memfusion2/fstab.enableswap asks for a 3 GB swapfile at
+# /data/swapfile.db, which is Transsion's Memory Fusion feature -- the file is
+# created and managed by a vendor service this tree does not ship, so shipping
+# the fstab alone would swapon a file nothing creates. init.project.rc's
+# `on boot swapon_all` for it is inert for the same reason and is left alone;
+# it produced no log line at all on build 61, so it costs nothing.
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/rootdir/etc/fstab.enableswap:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.enableswap
+
 # Recovery. This is what makes `adb sideload` enumerate.
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/rootdir/etc/init.recovery.mt6789.rc:$(TARGET_COPY_OUT_RECOVERY)/root/init.recovery.mt6789.rc
