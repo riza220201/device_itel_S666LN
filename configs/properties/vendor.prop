@@ -62,8 +62,9 @@
 # module compiles against and fails with 967 soong errors.
 #
 # ✅ It is not needed. What fixes the camera is the v31 libraries being FOUND
-# first, and both linker namespaces search /vendor/${LIB}/vndk-sp ahead of the
-# apex. device.mk installs the complete 134-library set there. The configuration
+# first, and the [vendor] namespace searches /vendor/${LIB}/vndk ahead of the
+# apex. device.mk installs the complete 134-library set there, which puts every
+# VENDOR process on v31 while system processes stay on v33. The configuration
 # proven on hardware ran with ro.vndk.version=33 throughout.
 
 # ---------------------------------------------------------------------------

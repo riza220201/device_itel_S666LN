@@ -207,16 +207,33 @@ PRODUCT_SHIPPING_API_LEVEL := 31
 #                              += /vendor/${LIB}/vndk-sp   <- and here too
 #                              += /apex/com.android.vndk.v33/${LIB}
 #
-# 🔴 The COMPLETE set must be in vndk-sp, never split across vndk-sp and vndk:
-# the [system] section does not search vndk/ at all, so a split gives
-# SurfaceFlinger v31 SP libraries with v33 core ones and kills the gralloc
-# mapper. That cost three boots before it was measured.
+# 🔴 They go in vndk/, NOT vndk-sp/, and that is deliberate on two counts.
+#
+# (a) soong already owns a rule for vendor/lib{,64}/vndk-sp/libutils.so --
+#     system/linkerconfig/testmodules/vndkext/libutils_vendor, a TEST module --
+#     so PRODUCT_COPY_FILES there is a duplicate make rule and a parse-time
+#     error. vendor/lib{,64}/vndk has ZERO soong rules, both ABIs.
+#
+# (b) it gives each namespace ONE coherent set instead of a mixture. The
+#     [vendor] section searches vndk-sp then vndk then the apex, so vendor
+#     processes get all-v31; the [system] section never searches vndk/ at all,
+#     so system processes stay all-v33, exactly as they are today. Measured on
+#     hardware: camerahalserver maps 139 libraries out of /vendor/lib64/vndk/,
+#     SurfaceFlinger maps 0 of them.
+#
+#     The journal's warning about splitting was about SP libs in vndk-sp and
+#     core libs in vndk -- an incoherent MIX inside one process, which killed
+#     the gralloc mapper. A complete set in one directory is the opposite.
+#
+# The whole set must stay together for the same reason: never put part of it in
+# vndk-sp and part in vndk.
 #
 # Sourced in place from AOSP's own snapshot -- 134 libraries per ABI, verified
 # to be exactly the set inside stock's com.android.vndk.v31.apex (134 vs 134,
-# zero difference either way). Labelled vndk_sp_file automatically by
-# plat_file_contexts's /(vendor|system/vendor)/lib(64)?/vndk-sp(/.*)? rule,
-# which is what lets a SYSTEM process load them in-process.
+# zero difference either way). vendor/lib*/vndk has no file_contexts rule so
+# these take vendor_file from the directory, which is correct: only vendor
+# processes ever search that path. (vndk_sp_file exists for the vndk-sp case,
+# where a SYSTEM process loads them in-process -- not what happens here.)
 VNDK31_64 := prebuilts/vndk/v31/arm64/arch-arm64-armv8-a/shared
 VNDK31_32 := prebuilts/vndk/v31/arm/arch-arm-armv7-a-neon/shared
 
@@ -226,12 +243,12 @@ VNDK31_32 := prebuilts/vndk/v31/arm/arch-arm-armv7-a-neon/shared
 PRODUCT_COPY_FILES += \
     $(foreach f,$(filter-out %/android.hidl.memory@1.0-impl.so,\
                     $(wildcard $(VNDK31_64)/vndk-sp/*.so) $(wildcard $(VNDK31_64)/vndk-core/*.so)),\
-        $(f):$(TARGET_COPY_OUT_VENDOR)/lib64/vndk-sp/$(notdir $(f))) \
+        $(f):$(TARGET_COPY_OUT_VENDOR)/lib64/vndk/$(notdir $(f))) \
     $(foreach f,$(filter-out %/android.hidl.memory@1.0-impl.so,\
                     $(wildcard $(VNDK31_32)/vndk-sp/*.so) $(wildcard $(VNDK31_32)/vndk-core/*.so)),\
-        $(f):$(TARGET_COPY_OUT_VENDOR)/lib/vndk-sp/$(notdir $(f))) \
-    $(VNDK31_64)/vndk-sp/android.hidl.memory@1.0-impl.so:$(TARGET_COPY_OUT_VENDOR)/lib64/vndk-sp/hw/android.hidl.memory@1.0-impl.so \
-    $(VNDK31_32)/vndk-sp/android.hidl.memory@1.0-impl.so:$(TARGET_COPY_OUT_VENDOR)/lib/vndk-sp/hw/android.hidl.memory@1.0-impl.so
+        $(f):$(TARGET_COPY_OUT_VENDOR)/lib/vndk/$(notdir $(f))) \
+    $(VNDK31_64)/vndk-sp/android.hidl.memory@1.0-impl.so:$(TARGET_COPY_OUT_VENDOR)/lib64/vndk/hw/android.hidl.memory@1.0-impl.so \
+    $(VNDK31_32)/vndk-sp/android.hidl.memory@1.0-impl.so:$(TARGET_COPY_OUT_VENDOR)/lib/vndk/hw/android.hidl.memory@1.0-impl.so
 
 # JamesDSP, replacing AudioFX. OPTIONAL -- see fetch-jamesdsp.sh.
 #
