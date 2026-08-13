@@ -165,8 +165,73 @@ PRODUCT_SHIPPING_API_LEVEL := 31
 #
 # A 33 there means the section ordering above has changed and the camera fix is
 # not in the build, however green everything else looks.
-PRODUCT_PACKAGES += \
-    com.android.vndk.v31.apex
+# The v31 libraries go into /vendor/lib*/vndk-sp, NOT into an apex.
+#
+# 🔴 The apex route is CLOSED on this branch, and build 65 is how that was
+# learned. Shipping com.android.vndk.v31.apex works (it builds and stages to
+# /system_ext/apex, byte for byte where stock puts it), but nothing would ever
+# load out of it: the vendor namespace only searches an apex named by
+# ro.vndk.version, and that property cannot be set to 31 here.
+#
+#   build/make/core/main.mk:224-230
+#     ifdef BOARD_VNDK_VERSION
+#       ifeq ($(BOARD_VNDK_VERSION),current)
+#         ADDITIONAL_VENDOR_PROPERTIES := ro.vndk.version=$(PLATFORM_VNDK_VERSION)
+#       else
+#         ADDITIONAL_VENDOR_PROPERTIES := ro.vndk.version=$(BOARD_VNDK_VERSION)
+#
+#   build/make/core/config.mk:735   BOARD_VNDK_VERSION := current   (the default)
+#
+# So the build always emits ro.vndk.version=33, and declaring 31 in vendor.prop
+# as well is not "first writer wins" -- post_process_props REFUSES it:
+#
+#     error: found duplicate sysprop assignments:
+#     ro.vndk.version=31
+#     ro.vndk.version=33
+#
+# The only lever is BOARD_VNDK_VERSION := 31, which changes what every vendor
+# module COMPILES against and fails with 967 soong errors (see
+# prebuilts/vndk31/Android.bp).
+#
+# ✅ None of that is needed, because ro.vndk.version=31 was never what fixed the
+# camera. The configuration PROVEN on hardware 2026-08-13 ran with
+# ro.vndk.version=33 and the v33 apex still installed -- the v31 libraries were
+# found because BOTH namespaces search /vendor/${LIB}/vndk-sp first, measured on
+# the device:
+#
+#   [vendor]  vndk.search.paths = /odm/${LIB}/vndk-sp
+#                              += /vendor/${LIB}/vndk-sp   <- these win
+#                              += /vendor/${LIB}/vndk
+#                              += /apex/com.android.vndk.v33/${LIB}
+#   [system]  vndk.search.paths = /odm/${LIB}/vndk-sp
+#                              += /vendor/${LIB}/vndk-sp   <- and here too
+#                              += /apex/com.android.vndk.v33/${LIB}
+#
+# 🔴 The COMPLETE set must be in vndk-sp, never split across vndk-sp and vndk:
+# the [system] section does not search vndk/ at all, so a split gives
+# SurfaceFlinger v31 SP libraries with v33 core ones and kills the gralloc
+# mapper. That cost three boots before it was measured.
+#
+# Sourced in place from AOSP's own snapshot -- 134 libraries per ABI, verified
+# to be exactly the set inside stock's com.android.vndk.v31.apex (134 vs 134,
+# zero difference either way). Labelled vndk_sp_file automatically by
+# plat_file_contexts's /(vendor|system/vendor)/lib(64)?/vndk-sp(/.*)? rule,
+# which is what lets a SYSTEM process load them in-process.
+VNDK31_64 := prebuilts/vndk/v31/arm64/arch-arm64-armv8-a/shared
+VNDK31_32 := prebuilts/vndk/v31/arm/arch-arm-armv7-a-neon/shared
+
+# android.hidl.memory@1.0-impl.so is the one passthrough impl in the set and
+# lives under hw/ inside the apex; it is placed there rather than flat so the
+# layout matches what was validated.
+PRODUCT_COPY_FILES += \
+    $(foreach f,$(filter-out %/android.hidl.memory@1.0-impl.so,\
+                    $(wildcard $(VNDK31_64)/vndk-sp/*.so) $(wildcard $(VNDK31_64)/vndk-core/*.so)),\
+        $(f):$(TARGET_COPY_OUT_VENDOR)/lib64/vndk-sp/$(notdir $(f))) \
+    $(foreach f,$(filter-out %/android.hidl.memory@1.0-impl.so,\
+                    $(wildcard $(VNDK31_32)/vndk-sp/*.so) $(wildcard $(VNDK31_32)/vndk-core/*.so)),\
+        $(f):$(TARGET_COPY_OUT_VENDOR)/lib/vndk-sp/$(notdir $(f))) \
+    $(VNDK31_64)/vndk-sp/android.hidl.memory@1.0-impl.so:$(TARGET_COPY_OUT_VENDOR)/lib64/vndk-sp/hw/android.hidl.memory@1.0-impl.so \
+    $(VNDK31_32)/vndk-sp/android.hidl.memory@1.0-impl.so:$(TARGET_COPY_OUT_VENDOR)/lib/vndk-sp/hw/android.hidl.memory@1.0-impl.so
 
 # JamesDSP, replacing AudioFX. OPTIONAL -- see fetch-jamesdsp.sh.
 #
