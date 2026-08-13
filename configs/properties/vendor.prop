@@ -23,14 +23,69 @@
 #   * identity (ro.product.*, ro.*.build.*, fingerprints, dates) — a ROM
 #     decision, set by the build recipe, not by the device tree.
 #   * anything the build system owns from BoardConfig/device.mk:
-#     ro.zygote, ro.vndk.version, ro.board.platform, ro.product.first_api_level,
+#     ro.zygote, ro.board.platform, ro.product.first_api_level,
 #     ro.board.first_api_level, ro.virtual_ab.*, ro.boot.dynamic_partitions,
 #     ro.crypto.volume.filenames_mode, ro.control_privapp_permissions,
 #     ro.bionic.*, dalvik.vm.heap*/isa*.
+#     ⚠ ro.vndk.version was on that list until 2026-08-13 and is now the ONE
+#       DELIBERATE EXCEPTION to it — see the section immediately below. It is
+#       set here precisely BECAUSE the build system owns it and emits the wrong
+#       value for this vendor partition, and this file is the only section of
+#       the generated build.prop that lands BEFORE the build system's own.
+#       Do not "tidy" it away.
 #   * persist.sys.usb.config — stock sets "none"; the build variant decides
 #     here. See the note at the top of device.mk.
 #   * ro.hwui.use_vulkan, which stock sets to the empty string.
 #
+
+# ---------------------------------------------------------------------------
+# VNDK. THE ONE PROPERTY HERE THAT THE BUILD SYSTEM ALSO SETS.
+#
+# This vendor partition is Android 12 (ro.vendor.build.version.sdk=31), running
+# under an Android 13 system. Stock resolves that mismatch the way Treble
+# intends: it sets ro.vndk.version=31 and ships com.android.vndk.v31.apex on
+# /system_ext, so its A12 blobs link bare sonames and get the A12 ABI they were
+# compiled against. That is why stock's vendor contains ZERO -v3?.so files.
+#
+# Ours declared 33 and shipped only the v33 apex, so every A12 blob silently got
+# an ABI it was not built for. RefBase's object layout moved between A12 and
+# A13, which is the camera crash exactly:
+#
+#   Abort: 'incStrongRequireStrong() called on 0x... which isn't already owned'
+#     #03 /apex/com.android.vndk.v33/lib64/libutils.so  RefBase::incStrong...
+#     #05 /vendor/lib64/mt6789/libmtkcam_device3_app.so AppStreamMgr::...
+#
+# PROVEN on hardware 2026-08-13: with the v31 set in the vendor namespace those
+# aborts go from 4+ per camera open to 0, and the camera reaches
+# CameraState{type=OPEN} for the first time on this tree.
+#
+# device.mk's `PRODUCT_PACKAGES += com.android.vndk.v31.apex` ships the apex;
+# THIS LINE is what points the vendor namespace at it. Both are required — the
+# apex without the property is dead weight, and the property without the apex
+# names a namespace that does not exist.
+#
+# 🔴 NOT PRODUCT_EXTRA_VNDK_VERSIONS. On lineage-20.0 that variable is inert:
+# main.mk's auto-included-modules has no VNDK_VERSIONS line and soong's
+# ExtraVndkVersions() has zero callers. See the long note in device.mk.
+#
+# 🔴 It must be set HERE, not in PRODUCT_VENDOR_PROPERTIES. The generated
+# /vendor/build.prop is assembled in labelled sections and ro.* is write-once,
+# so the first declaration wins. Measured on build 63:
+#
+#     line  31   from TARGET_VENDOR_PROP (this file)
+#     line 709   from ADDITIONAL_VENDOR_PROPERTIES -> ro.vndk.version=33
+#     line 727   from PRODUCT_VENDOR_PROPERTIES
+#
+# The build system will keep emitting 33 at 709. This file is the only section
+# ahead of it. A PRODUCT_VENDOR_PROPERTIES entry would land at 727 and lose
+# silently. BOARD_VNDK_VERSION := 31 would set it correctly and is not usable:
+# it also changes what every vendor module COMPILES against (967 soong errors).
+#
+# ⚠ So the built file declares this key twice, with different values — the same
+# shape as stock's own ro.sf.lcd_density 480/320 documented above. Intended,
+# and resolved by ordering. Verify it rather than assuming it, on every build
+# that touches VNDK:  getprop ro.vndk.version -> 31
+ro.vndk.version=31
 
 # ---------------------------------------------------------------------------
 # Screen density. RESOLVED BY HAND, NOT INHERITED.

@@ -104,36 +104,54 @@ function blob_fixup() {
             "${PATCHELF}" --replace-needed "libhidlbase.so" "libhidlbase-v31.so" "${2}"
             "${PATCHELF}" --replace-needed "libcutils.so"   "libcutils-v31.so"   "${2}" 2>/dev/null || true
             ;;
-        vendor/bin/hw/android.hardware.audio.service.mediatek)
-            "${PATCHELF}" --replace-needed "libutils.so"    "libutils-v31.so"    "${2}"
-            "${PATCHELF}" --replace-needed "libhidlbase.so" "libhidlbase-v31.so" "${2}"
-            "${PATCHELF}" --replace-needed "libcutils.so"   "libcutils-v31.so"   "${2}"
-            "${PATCHELF}" --replace-needed "libbinder.so"   "libbinder-v31.so"   "${2}"
-            # 🔴 patchelf does NOT update .gnu.version_r, and this binary has one.
-            # Measured on hardware 2026-08-11, build 46:
+        vendor/bin/hw/android.hardware.audio.service.mediatek | \
+        vendor/lib/hw/android.hardware.audio@6.0-impl-mediatek.so | \
+        vendor/lib64/hw/android.hardware.audio@6.0-impl-mediatek.so | \
+        vendor/lib/hw/android.hardware.audio@7.0-impl-mediatek.so | \
+        vendor/lib64/hw/android.hardware.audio@7.0-impl-mediatek.so)
+            # Drop ONE vestigial dependency, and the whole A12/A13 audio cascade
+            # goes with it. PROVEN LIVE 2026-08-13 on a KSU overlay, whole boot:
+            # init.svc.vendor.audio-hal running, media.audio_policy found.
             #
-            #   CANNOT LINK EXECUTABLE ".../android.hardware.audio.service.mediatek":
-            #     cannot find "libbinder.so" from verneed[0] in DT_NEEDED list
+            # libaudiofoundation.so is loaded by these three and NEVER USED:
             #
-            # The loader requires every version-needs entry to name a library that
-            # is also in DT_NEEDED. The rename above removed libbinder.so from
-            # DT_NEEDED and left the verneed entry pointing at it.
+            #   symbols the service needs from it        0
+            #   symbols either impl needs from it        0
+            #   anything else in /vendor linking it      nothing
             #
-            # This was LATENT until c2b72d9. While libbinder-v31.so still declared
-            # SONAME=libbinder.so the verneed matched the loaded library by soname
-            # and the loader was satisfied. Patching the SONAMEs was correct --
-            # without it one version served the whole process -- and it is exactly
-            # what exposed this. Two correct changes, one broken binary.
+            # and it references _ZTVN7android5media11AudioDeviceE, a symbol that
+            # exists NOWHERE in the entire stock firmware -- not vendor, system,
+            # system_ext, product, nor stock's own com.android.vndk.v31.apex. So
+            # on stock this path is never taken; our dependency CHAIN differs
+            # from stock's, not merely our libraries.
             #
-            # Of the four renames above only libbinder appears in this file's
-            # verneed, and none of the pq blobs' verneed entries name a library we
-            # rename (they name libc/liblog/libsync/libdl). The tool is a no-op
-            # where there is nothing to do, so it is safe to widen if that changes.
-            "${MY_DIR}/tools/patch-verneed.py" "${2}" "libbinder.so" "libbinder-v31.so"
-            "${MY_DIR}/tools/patch-verneed.py" --verify "${2}" "libbinder.so" || {
-                echo "!! verneed still names libbinder.so -- the audio HAL will not link" >&2
-                exit 1
-            }
+            # Renaming that string to liblog.so -- shorter, already loaded, and
+            # zero symbols taken from it -- prunes SEVEN libraries out of the
+            # process's runtime set, measured by closure:
+            #
+            #   libaudioclient_aidl_conversion.so   <-- the one that killed
+            #   audioclient-types-aidl-cpp.so           build 46
+            #   audio_common-aidl-cpp.so
+            #   framework-permission-aidl-cpp.so
+            #   shared-file-region-aidl-cpp.so
+            #   libshmemcompat.so   libshmemutil.so
+            #
+            # That is why NONE of stock's AOSP audio interface libraries has to
+            # be shipped: the A13 copies this tree builds are never reached.
+            # Validated by omission -- the overlay carried no interface libs and
+            # the stack came up clean.
+            #
+            # 🔴 The four -v31 renames that used to be here are GONE, along with
+            # their patch-verneed repair. They were the per-blob workaround for
+            # platform VNDK 33; device.mk now ships the v31 apex and vendor.prop
+            # points ro.vndk.version at it, so these blobs get the A12 ABI they
+            # were built against by NAMESPACE, with no renaming anywhere. That is
+            # what stock does, and it is why stock's vendor contains zero
+            # -v3?.so files.
+            #
+            # No verneed repair is needed for this rename: checked on all five
+            # files, none names libaudiofoundation in .gnu.version_r.
+            "${PATCHELF}" --replace-needed "libaudiofoundation.so" "liblog.so" "${2}"
             ;;
         vendor/lib64/android.hardware.power-service-mediatek.so | \
         vendor/bin/hw/vendor.mediatek.hardware.mtkpower@1.0-service)

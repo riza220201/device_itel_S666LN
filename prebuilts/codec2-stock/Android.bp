@@ -1,0 +1,206 @@
+// Stock (Android 12) codec2 libraries for the MediaTek C2 HAL.
+//
+// WHY
+//   device.mk now ships com.android.vndk.v31 and vendor.prop points
+//   ro.vndk.version at it, so the vendor namespace is A12. The MTK codec2 HAL
+//   is a stock A12 blob and needs A12 partners. With the platform's A13 copies
+//   in place it crash-loops every 5 s, measured live on a KSU overlay
+//   2026-08-13:
+//
+//     CANNOT LINK EXECUTABLE "/vendor/bin/hw/android.hardware.media.c2@1.2-mediatek-64b":
+//       cannot locate symbol "_ZN7android8hardware7details5checkEbPKc"
+//       referenced by "/vendor/lib64/libstagefright_bufferpool@2.0.1.so"
+//
+//   hardware::details::check exists in VNDK 33 and not in 31 -- one of the ten
+//   v33-only references the 2026-08-12 risk analysis predicted, arriving exactly
+//   where it said it would.
+//
+// WHY ALL ELEVEN, when only eight are needed at runtime
+//   Held back one at a time on the device: libcodec2_hidl_plugin,
+//   libcodec2_soft_common, libsfplugin_ccodec_utils and libhwbinder are NOT
+//   required for the HAL to link and run. But every one of the first three links
+//   libcodec2_vndk.so, so leaving them as platform .vendor modules drags the A13
+//   libcodec2_vndk back into /vendor and collides with the prebuilt here at the
+//   file level. The web has to be A12 as a unit. libhwbinder is excluded: it is
+//   shared with seven unrelated vendor processes, nothing in this set installs
+//   over it, and holding it back was proven harmless.
+//
+//   The reverse was proven too -- swapping libcodec2_vndk alone, keeping A13
+//   libcodec2_hidl, fails with
+//     cannot locate symbol "_ZN15_C2FenceFactory18CreateNativeHandleERK7C2Fence"
+//   which is this tree's own "which pair matches" rule: they move as a generation.
+//
+// WHY name/stem RATHER THAN A FILE RENAME
+//   Each of these collides with an AOSP soong module of the same name, and that
+//   collision is unconditional -- dropping the .vendor entry from PRODUCT_PACKAGES
+//   does not undefine the module (the libvibrator / libeffectsconfig lesson).
+//   A unique `name` with `stem` set to the stock soname keeps the INSTALLED
+//   filename correct, so every consumer resolves normally and NOT ONE patchelf
+//   rename is needed. The alternative -- renaming the files -- would have meant
+//   ~25 renames across this set's 18 internal dependency edges, which is the
+//   shape that failed builds 42, 49, 50 and 55.
+//
+// PROVENANCE
+//   Copied byte-for-byte from .build/work/vendor -- the CRC-verified rev 28
+//   super.img extraction, the only legitimate source (notes/AUDIT-2026-08-10.md).
+//   Verified identical at copy time and checked by tools/provenance-check.sh.
+//   64-bit only: this tree is 64-bit for codec2, see the c2 rc note in
+//   extract-files.sh.
+//
+// VERIFIED LIVE 2026-08-13, whole boot on a KSU overlay: 0 link failures,
+// 256 services, IComponentStore served, and a video recorded through the
+// hardware encoder (c2.mtk.avc.encoder).
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.media.c2@1.0-stock",
+    stem: "android.hardware.media.c2@1.0",
+    owner: "itel",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.media.c2@1.0.so"] },
+    },
+    compile_multilib: "64",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.media.c2@1.1-stock",
+    stem: "android.hardware.media.c2@1.1",
+    owner: "itel",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.media.c2@1.1.so"] },
+    },
+    compile_multilib: "64",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.media.c2@1.2-stock",
+    stem: "android.hardware.media.c2@1.2",
+    owner: "itel",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.media.c2@1.2.so"] },
+    },
+    compile_multilib: "64",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcodec2_hidl@1.0-stock",
+    stem: "libcodec2_hidl@1.0",
+    owner: "itel",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libcodec2_hidl@1.0.so"] },
+    },
+    compile_multilib: "64",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcodec2_hidl@1.1-stock",
+    stem: "libcodec2_hidl@1.1",
+    owner: "itel",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libcodec2_hidl@1.1.so"] },
+    },
+    compile_multilib: "64",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcodec2_hidl@1.2-stock",
+    stem: "libcodec2_hidl@1.2",
+    owner: "itel",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libcodec2_hidl@1.2.so"] },
+    },
+    compile_multilib: "64",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcodec2_hidl_plugin-stock",
+    stem: "libcodec2_hidl_plugin",
+    owner: "itel",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libcodec2_hidl_plugin.so"] },
+    },
+    compile_multilib: "64",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcodec2_vndk-stock",
+    stem: "libcodec2_vndk",
+    owner: "itel",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libcodec2_vndk.so"] },
+    },
+    compile_multilib: "64",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcodec2_soft_common-stock",
+    stem: "libcodec2_soft_common",
+    owner: "itel",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libcodec2_soft_common.so"] },
+    },
+    compile_multilib: "64",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libsfplugin_ccodec_utils-stock",
+    stem: "libsfplugin_ccodec_utils",
+    owner: "itel",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libsfplugin_ccodec_utils.so"] },
+    },
+    compile_multilib: "64",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libstagefright_bufferpool@2.0.1-stock",
+    stem: "libstagefright_bufferpool@2.0.1",
+    owner: "itel",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libstagefright_bufferpool@2.0.1.so"] },
+    },
+    compile_multilib: "64",
+    check_elf_files: false,
+    prefer: false,
+}

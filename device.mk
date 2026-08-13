@@ -99,17 +99,74 @@ PRODUCT_SHIPPING_API_LEVEL := 31
 # the "fix". A variable nobody reads is the vendor_mtk_powerhal_prop trap again:
 # it compiles, changes nothing, and fails no check.
 #
-# Deliberately NOT setting BOARD_VNDK_VERSION := 31 either. It would rebuild
-# every vendor module in the tree against the v31 snapshot -- hardware/mediatek,
-# the source-built power/vibrator/memtrack HALs, wpa_supplicant -- to satisfy
-# one soname in one prebuilt binary. The proportionate fix is a blob_fixup
-# rename in extract-files.sh, which is what this tree already does for
-# android.hardware.light-V1-ndk_platform.so on vendor/bin/factory.
+# Deliberately NOT setting BOARD_VNDK_VERSION := 31 either, even though it is
+# the by-the-book way to set the property. It also controls what every vendor
+# module in the tree is COMPILED against -- hardware/mediatek, the source-built
+# power/vibrator/memtrack HALs, wpa_supplicant -- and fails with 967 soong
+# errors. What is SHIPPED and what is COMPILED against are different questions.
 #
-# What stock actually relies on, for the record: /apex/com.android.vndk.v31,
-# which stock ships in /system_ext/apex/. If a future build ever shows A12 blobs
-# misbehaving against platform VNDK 33 in ways a soname rename cannot explain,
-# that apex -- not this variable -- is the thing to reach for.
+# ✅ THE MECHANISM THAT WORKS, and it is two variables in two files.
+# Proven on hardware 2026-08-13: with the v31 set in the vendor namespace,
+# camerahalserver's incStrongRequireStrong aborts go 4+ per open -> 0 and the
+# camera reaches CameraState{type=OPEN}, which has never happened on this tree.
+#
+#   1. PRODUCT_PACKAGES += com.android.vndk.v31.apex  (below)  SHIPS the apex.
+#      It installs to /system_ext/apex/com.android.vndk.v31.apex -- byte for
+#      byte the location stock uses. Purely additive: it changes nothing about
+#      what is COMPILED, which is why it is safe where BOARD_VNDK_VERSION is not.
+#
+#      🔴 It is NOT `PRODUCT_EXTRA_VNDK_VERSIONS := 31`, and that variable is
+#      NOT set by this tree. On lineage-20.0 it is INERT -- verified on the
+#      build tree itself, not on a newer branch:
+#
+#        build/make/core/main.mk  define auto-included-modules
+#            $(if $(BOARD_VNDK_VERSION),vndk_package) ...   <- no VNDK_VERSIONS
+#        build/soong  android.deviceConfig.ExtraVndkVersions()  ZERO callers
+#
+#      All it does here is board_config.mk's check_vndk_version existence test.
+#      The auto-included-modules line that WOULD ship the apex exists only on
+#      A15/A16-era trees. Setting it and expecting an apex is the
+#      PRODUCT_TARGET_VNDK_VERSION trap for the second time, three paragraphs
+#      below where that trap is documented. Caught before build 64 only because
+#      the check was re-run against the real branch.
+#
+#      The right module name matters too: `com.android.vndk.v31` is a PHONY
+#      package that pulls the individual .vendor.31 libraries;
+#      `com.android.vndk.v31.apex` is the one carrying LOCAL_MODULE_PATH
+#      .../system_ext/apex and LOCAL_UNINSTALLABLE_MODULE := false. The current
+#      VNDK ships as `com.android.vndk.current.apex`, same suffix -- that is the
+#      control.
+#
+#   2. ro.vndk.version=31 in configs/properties/vendor.prop  POINTS the vendor
+#      namespace at it. linkerconfig reads that property. Without it the apex
+#      ships and nothing ever loads out of it.
+#
+# 🔴 Why (2) is in vendor.prop and NOT in PRODUCT_VENDOR_PROPERTIES, which is
+# the obvious home for it. The generated /vendor/build.prop is assembled from
+# labelled sections, measured on build 63's own copy:
+#
+#     line  31   from TARGET_VENDOR_PROP (configs/properties/vendor.prop)
+#     line 709   from variable ADDITIONAL_VENDOR_PROPERTIES -> ro.vndk.version=33
+#     line 727   from variable PRODUCT_VENDOR_PROPERTIES
+#
+# ro.* is write-once, so the FIRST declaration wins. The build system emits 33
+# into ADDITIONAL_VENDOR_PROPERTIES and will keep doing so; a
+# PRODUCT_VENDOR_PROPERTIES entry lands AFTER it and would silently lose.
+# TARGET_VENDOR_PROP is the only section that precedes it. So the file declares
+# the key twice with conflicting values -- the same shape as stock's own
+# ro.sf.lcd_density 480/320 -- and here that is intended, resolved by ordering.
+#
+# ⚠ ASSERT IT, DO NOT TRUST IT. The failure mode of this entire family is a
+# variable nobody reads: PRODUCT_TARGET_VNDK_VERSION compiled, changed nothing,
+# and failed no check. After any build that touches this, confirm BOTH:
+#
+#     getprop ro.vndk.version           -> 31
+#     ls -d /apex/com.android.vndk.v31  -> exists
+#
+# A 33 there means the section ordering above has changed and the camera fix is
+# not in the build, however green everything else looks.
+PRODUCT_PACKAGES += \
+    com.android.vndk.v31.apex
 
 # JamesDSP, replacing AudioFX. OPTIONAL -- see fetch-jamesdsp.sh.
 #
@@ -213,9 +270,6 @@ PRODUCT_PACKAGES += \
     android.hardware.graphics.composer@2.3.vendor \
     android.hardware.light-V1-ndk.vendor \
     android.hardware.light@2.0.vendor \
-    android.hardware.media.c2@1.0.vendor \
-    android.hardware.media.c2@1.1.vendor \
-    android.hardware.media.c2@1.2.vendor \
     android.hardware.nfc@1.0.vendor \
     android.hardware.nfc@1.1.vendor \
     android.hardware.nfc@1.2.vendor \
@@ -258,11 +312,6 @@ PRODUCT_PACKAGES += \
     libaudiofoundation.vendor \
     libavservices_minijail.vendor \
     libchrome.vendor \
-    libcodec2_hidl@1.0.vendor \
-    libcodec2_hidl@1.1.vendor \
-    libcodec2_hidl@1.2.vendor \
-    libcodec2_soft_common.vendor \
-    libcodec2_vndk.vendor \
     libcppbor_external.vendor \
     libdrm.vendor \
     libflatbuffers-cpp.vendor \
@@ -272,7 +321,6 @@ PRODUCT_PACKAGES += \
     libmemunreachable.vendor \
     libpcap.vendor \
     libruy.vendor \
-    libsfplugin_ccodec_utils.vendor \
     libtextclassifier_hash.vendor \
     libvibratorutils.vendor \
     vendor.lineage.touch@1.0.vendor \
@@ -792,6 +840,38 @@ PRODUCT_PACKAGES += \
     libhidlbase-v31 \
     libcutils-v31 \
     libbinder-v31
+
+# Stock's Android-12 codec2 libraries, for the stock MediaTek C2 HAL.
+#
+# With the vendor namespace on VNDK 31, the platform's Android-13 copies of
+# these crash-loop the C2 service every 5 s -- measured live 2026-08-13, and
+# predicted by the 2026-08-12 v33-only-symbol analysis:
+#
+#   CANNOT LINK ... cannot locate symbol "_ZN7android8hardware7details5checkEbPKc"
+#     referenced by "/vendor/lib64/libstagefright_bufferpool@2.0.1.so"
+#
+# The nine `.vendor` entries that used to install the A13 copies were REMOVED
+# from the block above; leaving any of them would reinstall an A13 library over
+# one of these, because all three of soft_common, ccodec_utils and hidl_plugin
+# link libcodec2_vndk.so. See prebuilts/codec2-stock/Android.bp for why the set
+# is exactly these eleven, why libhwbinder is excluded, and why `stem` is used
+# instead of renaming the files.
+#
+# ⚠ Each name here must stay in step with prebuilts/codec2-stock/Android.bp.
+# A wrong name fails loudly (soong cannot resolve it), which is the good
+# direction for this class of mistake.
+PRODUCT_PACKAGES += \
+    android.hardware.media.c2@1.0-stock \
+    android.hardware.media.c2@1.1-stock \
+    android.hardware.media.c2@1.2-stock \
+    libcodec2_hidl@1.0-stock \
+    libcodec2_hidl@1.1-stock \
+    libcodec2_hidl@1.2-stock \
+    libcodec2_hidl_plugin-stock \
+    libcodec2_vndk-stock \
+    libcodec2_soft_common-stock \
+    libsfplugin_ccodec_utils-stock \
+    libstagefright_bufferpool@2.0.1-stock
 
 # AIDL NDK libraries that stock's blobs need under their Android 13 names.
 #
