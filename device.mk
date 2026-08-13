@@ -228,27 +228,166 @@ PRODUCT_SHIPPING_API_LEVEL := 31
 # The whole set must stay together for the same reason: never put part of it in
 # vndk-sp and part in vndk.
 #
-# Sourced in place from AOSP's own snapshot -- 134 libraries per ABI, verified
-# to be exactly the set inside stock's com.android.vndk.v31.apex (134 vs 134,
-# zero difference either way). vendor/lib*/vndk has no file_contexts rule so
-# these take vendor_file from the directory, which is correct: only vendor
-# processes ever search that path. (vndk_sp_file exists for the vndk-sp case,
-# where a SYSTEM process loads them in-process -- not what happens here.)
-VNDK31_64 := prebuilts/vndk/v31/arm64/arch-arm64-armv8-a/shared
-VNDK31_32 := prebuilts/vndk/v31/arm/arch-arm-armv7-a-neon/shared
-
-# android.hidl.memory@1.0-impl.so is the one passthrough impl in the set and
-# lives under hw/ inside the apex; it is placed there rather than flat so the
-# layout matches what was validated.
-PRODUCT_COPY_FILES += \
-    $(foreach f,$(filter-out %/android.hidl.memory@1.0-impl.so,\
-                    $(wildcard $(VNDK31_64)/vndk-sp/*.so) $(wildcard $(VNDK31_64)/vndk-core/*.so)),\
-        $(f):$(TARGET_COPY_OUT_VENDOR)/lib64/vndk/$(notdir $(f))) \
-    $(foreach f,$(filter-out %/android.hidl.memory@1.0-impl.so,\
-                    $(wildcard $(VNDK31_32)/vndk-sp/*.so) $(wildcard $(VNDK31_32)/vndk-core/*.so)),\
-        $(f):$(TARGET_COPY_OUT_VENDOR)/lib/vndk/$(notdir $(f))) \
-    $(VNDK31_64)/vndk-sp/android.hidl.memory@1.0-impl.so:$(TARGET_COPY_OUT_VENDOR)/lib64/vndk/hw/android.hidl.memory@1.0-impl.so \
-    $(VNDK31_32)/vndk-sp/android.hidl.memory@1.0-impl.so:$(TARGET_COPY_OUT_VENDOR)/lib/vndk/hw/android.hidl.memory@1.0-impl.so
+# (c) PRODUCT_COPY_FILES cannot carry them at all -- the build rejects ELF
+#     prebuilts there ("use cc_prebuilt_binary / cc_prebuilt_library_shared
+#     instead"), and BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES is deliberately
+#     NOT set: it disables that check for the entire product.
+#
+# So they are 137 cc_prebuilt_library_shared modules in
+# prebuilts/vndk31-snapshot/ -- 131 carrying both ABIs plus the six per-arch
+# libclang_rt sanitizer runtimes, whose filenames differ by architecture. Each is
+# named <lib>-vndk31 with `stem` set back to the real soname, because the
+# platform defines most of these names itself.
+#
+# vendor/lib*/vndk has no file_contexts rule, so these take vendor_file from the
+# directory -- correct here, because only vendor processes ever search that path.
+# (vndk_sp_file exists for the vndk-sp case, where a SYSTEM process loads them
+# in-process, which is not what happens here.)
+#
+# ⚠ Provenance detail worth keeping: these are AOSP's snapshot, and 3 of the 134
+# per ABI (libexpat, libgui, libstagefright_omx) are NOT byte-identical to the
+# copies inside stock's own com.android.vndk.v31.apex -- itel built theirs from a
+# different AOSP checkout. Both are VNDK 31 and ABI-frozen, and the hardware
+# validation was re-run with THESE files rather than the apex ones, so what is
+# shipped is what was tested.
+PRODUCT_PACKAGES += \
+    android.hardware.audio.common@2.0-vndk31 \
+    android.hardware.authsecret-V1-ndk_platform-vndk31 \
+    android.hardware.automotive.occupant_awareness-V1-ndk_platform-vndk31 \
+    android.hardware.common-V2-ndk_platform-vndk31 \
+    android.hardware.common.fmq-V1-ndk_platform-vndk31 \
+    android.hardware.configstore-utils-vndk31 \
+    android.hardware.configstore@1.0-vndk31 \
+    android.hardware.configstore@1.1-vndk31 \
+    android.hardware.confirmationui-support-lib-vndk31 \
+    android.hardware.gnss-V1-ndk_platform-vndk31 \
+    android.hardware.graphics.allocator@2.0-vndk31 \
+    android.hardware.graphics.allocator@3.0-vndk31 \
+    android.hardware.graphics.allocator@4.0-vndk31 \
+    android.hardware.graphics.bufferqueue@1.0-vndk31 \
+    android.hardware.graphics.bufferqueue@2.0-vndk31 \
+    android.hardware.graphics.common-V2-ndk_platform-vndk31 \
+    android.hardware.graphics.common@1.0-vndk31 \
+    android.hardware.graphics.common@1.1-vndk31 \
+    android.hardware.graphics.common@1.2-vndk31 \
+    android.hardware.graphics.mapper@2.0-vndk31 \
+    android.hardware.graphics.mapper@2.1-vndk31 \
+    android.hardware.graphics.mapper@3.0-vndk31 \
+    android.hardware.graphics.mapper@4.0-vndk31 \
+    android.hardware.health.storage-V1-ndk_platform-vndk31 \
+    android.hardware.identity-V3-ndk_platform-vndk31 \
+    android.hardware.keymaster-V3-ndk_platform-vndk31 \
+    android.hardware.light-V1-ndk_platform-vndk31 \
+    android.hardware.media.bufferpool@2.0-vndk31 \
+    android.hardware.media.omx@1.0-vndk31 \
+    android.hardware.media@1.0-vndk31 \
+    android.hardware.memtrack-V1-ndk_platform-vndk31 \
+    android.hardware.memtrack@1.0-vndk31 \
+    android.hardware.oemlock-V1-ndk_platform-vndk31 \
+    android.hardware.power-V2-ndk_platform-vndk31 \
+    android.hardware.power.stats-V1-ndk_platform-vndk31 \
+    android.hardware.rebootescrow-V1-ndk_platform-vndk31 \
+    android.hardware.renderscript@1.0-vndk31 \
+    android.hardware.security.keymint-V1-ndk_platform-vndk31 \
+    android.hardware.security.secureclock-V1-ndk_platform-vndk31 \
+    android.hardware.security.sharedsecret-V1-ndk_platform-vndk31 \
+    android.hardware.soundtrigger@2.0-core-vndk31 \
+    android.hardware.soundtrigger@2.0-vndk31 \
+    android.hardware.vibrator-V2-ndk_platform-vndk31 \
+    android.hardware.weaver-V1-ndk_platform-vndk31 \
+    android.hidl.memory.token@1.0-vndk31 \
+    android.hidl.memory@1.0-impl-vndk31 \
+    android.hidl.memory@1.0-vndk31 \
+    android.hidl.safe_union@1.0-vndk31 \
+    android.hidl.token@1.0-utils-vndk31 \
+    android.hidl.token@1.0-vndk31 \
+    android.system.keystore2-V1-ndk_platform-vndk31 \
+    android.system.suspend@1.0-vndk31 \
+    libRSCpuRef-vndk31 \
+    libRSDriver-vndk31 \
+    libRS_internal-vndk31 \
+    libaudioroute-vndk31 \
+    libaudioutils-vndk31 \
+    libbacktrace-vndk31 \
+    libbase-vndk31 \
+    libbcinfo-vndk31 \
+    libbinder-vndk31 \
+    libblas-vndk31 \
+    libbufferqueueconverter-vndk31 \
+    libc++-vndk31 \
+    libcamera_metadata-vndk31 \
+    libcap-vndk31 \
+    libcn-cbor-vndk31 \
+    libcodec2-vndk31 \
+    libcompiler_rt-vndk31 \
+    libcrypto-vndk31 \
+    libcrypto_utils-vndk31 \
+    libcurl-vndk31 \
+    libcutils-vndk31 \
+    libdiskconfig-vndk31 \
+    libdmabufheap-vndk31 \
+    libdumpstateutil-vndk31 \
+    libevent-vndk31 \
+    libexif-vndk31 \
+    libexpat-vndk31 \
+    libfmq-vndk31 \
+    libgatekeeper-vndk31 \
+    libgralloctypes-vndk31 \
+    libgui-vndk31 \
+    libhardware-vndk31 \
+    libhardware_legacy-vndk31 \
+    libhidlallocatorutils-vndk31 \
+    libhidlbase-vndk31 \
+    libhidlmemory-vndk31 \
+    libion-vndk31 \
+    libjpeg-vndk31 \
+    libjsoncpp-vndk31 \
+    libldacBT_abr-vndk31 \
+    libldacBT_enc-vndk31 \
+    liblz4-vndk31 \
+    liblzma-vndk31 \
+    libmedia_helper-vndk31 \
+    libmedia_omx-vndk31 \
+    libmemtrack-vndk31 \
+    libminijail-vndk31 \
+    libmkbootimg_abi_check-vndk31 \
+    libnetutils-vndk31 \
+    libnl-vndk31 \
+    libpcre2-vndk31 \
+    libpiex-vndk31 \
+    libpng-vndk31 \
+    libpower-vndk31 \
+    libprocessgroup-vndk31 \
+    libprocinfo-vndk31 \
+    libradio_metadata-vndk31 \
+    libspeexresampler-vndk31 \
+    libsqlite-vndk31 \
+    libssl-vndk31 \
+    libstagefright_bufferpool@2.0-vndk31 \
+    libstagefright_bufferqueue_helper-vndk31 \
+    libstagefright_foundation-vndk31 \
+    libstagefright_omx-vndk31 \
+    libstagefright_omx_utils-vndk31 \
+    libstagefright_xmlparser-vndk31 \
+    libsysutils-vndk31 \
+    libtinyalsa-vndk31 \
+    libtinyxml2-vndk31 \
+    libui-vndk31 \
+    libunwindstack-vndk31 \
+    libusbhost-vndk31 \
+    libutils-vndk31 \
+    libutilscallstack-vndk31 \
+    libwifi-system-iface-vndk31 \
+    libxml2-vndk31 \
+    libyuv-vndk31 \
+    libz-vndk31 \
+    libziparchive-vndk31 \
+    libclang_rt.scudo-aarch64-android-vndk31 \
+    libclang_rt.scudo_minimal-aarch64-android-vndk31 \
+    libclang_rt.ubsan_standalone-aarch64-android-vndk31 \
+    libclang_rt.scudo-arm-android-vndk31 \
+    libclang_rt.scudo_minimal-arm-android-vndk31 \
+    libclang_rt.ubsan_standalone-arm-android-vndk31
 
 # JamesDSP, replacing AudioFX. OPTIONAL -- see fetch-jamesdsp.sh.
 #

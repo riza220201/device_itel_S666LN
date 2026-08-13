@@ -1,0 +1,2237 @@
+// VNDK 31 snapshot, installed into /vendor/lib{,64}/vndk for the A12 blobs.
+//
+// WHY
+//   This vendor partition was built against VNDK 31 and its blobs abort against
+//   platform VNDK 33 -- RefBase's object layout moved between A12 and A13, which
+//   is the camera crash (incStrongRequireStrong, 4+ per open). Stock resolves it
+//   with ro.vndk.version=31 plus com.android.vndk.v31.apex; this tree cannot set
+//   that property (config.mk forces BOARD_VNDK_VERSION=current, main.mk emits
+//   ro.vndk.version unconditionally, and post_process_props rejects a duplicate),
+//   so the libraries are placed where the vendor namespace already looks.
+//
+// WHY vendor/lib*/vndk AND NOT vndk-sp
+//   The [vendor] section searches vndk-sp, then vndk, then the apex. The [system]
+//   section searches vndk-sp then the apex and never reads vndk/ at all. Putting
+//   the COMPLETE set in vndk/ therefore gives every vendor process all-v31 and
+//   leaves system processes all-v33 -- one coherent generation each, instead of
+//   the mixture that killed the gralloc mapper when SP and core libs were split.
+//   Measured on hardware: camerahalserver maps 139 of these, SurfaceFlinger 0.
+//   vndk-sp is also unusable: soong already owns a rule for
+//   vendor/lib{,64}/vndk-sp/libutils.so (a linkerconfig TEST module), and a
+//   second rule for the same install path is a parse-time error.
+//
+// WHY MODULES AND NOT PRODUCT_COPY_FILES
+//   The build rejects ELF prebuilts in PRODUCT_COPY_FILES outright:
+//     "found ELF prebuilt in PRODUCT_COPY_FILES, use cc_prebuilt_binary /
+//      cc_prebuilt_library_shared instead."
+//   BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES would silence that, and is not
+//   used here: it disables the check for the whole product, and this tree does
+//   not turn gates off to make a change fit.
+//
+// WHY THE FILES ARE COMMITTED HERE
+//   Same reason prebuilts/vndk31/Android.bp gives: a soong module may only name
+//   files inside its own directory, so they cannot be referenced in place from
+//   prebuilts/vndk/v31. 40 MB, Apache-2.0, copied verbatim from AOSP's own
+//   snapshot -- lib64 from arm64/arch-arm64-armv8-a/shared/{vndk-sp,vndk-core},
+//   lib from arm64/arch-arm-armv8-a/shared/{...}. NOT from any device tree or
+//   ROM build.
+//
+//   🔴 The 32-bit set comes from arm64/arch-arm-armv8-a, NOT arm/arch-arm-armv7-a-neon.
+//   This device is arm64-primary with an arm secondary, and the two directories
+//   hold different builds: 130 of 134 differ between them.
+//
+// NAMES
+//   Each module is <lib>-vndk31 with `stem` set back to the real soname, because
+//   the platform defines most of these names itself. The install path is free
+//   (soong has zero rules under vendor/lib*/vndk), so nothing collides.
+//
+// VALIDATED on hardware 2026-08-13 with these exact files: camera opens,
+// previews, captures JPEG and records H.264 through the MTK encoder; c2, audio,
+// SIM, Wi-Fi unaffected; 256 services against a 256 baseline; 0 tombstones.
+
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.audio.common@2.0-vndk31",
+    stem: "android.hardware.audio.common@2.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.audio.common@2.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.audio.common@2.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.authsecret-V1-ndk_platform-vndk31",
+    stem: "android.hardware.authsecret-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.authsecret-V1-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.authsecret-V1-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.automotive.occupant_awareness-V1-ndk_platform-vndk31",
+    stem: "android.hardware.automotive.occupant_awareness-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.automotive.occupant_awareness-V1-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.automotive.occupant_awareness-V1-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.common-V2-ndk_platform-vndk31",
+    stem: "android.hardware.common-V2-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.common-V2-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.common-V2-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.common.fmq-V1-ndk_platform-vndk31",
+    stem: "android.hardware.common.fmq-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.common.fmq-V1-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.common.fmq-V1-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.configstore-utils-vndk31",
+    stem: "android.hardware.configstore-utils",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.configstore-utils.so"] },
+        android_arm: { srcs: ["lib/android.hardware.configstore-utils.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.configstore@1.0-vndk31",
+    stem: "android.hardware.configstore@1.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.configstore@1.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.configstore@1.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.configstore@1.1-vndk31",
+    stem: "android.hardware.configstore@1.1",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.configstore@1.1.so"] },
+        android_arm: { srcs: ["lib/android.hardware.configstore@1.1.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.confirmationui-support-lib-vndk31",
+    stem: "android.hardware.confirmationui-support-lib",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.confirmationui-support-lib.so"] },
+        android_arm: { srcs: ["lib/android.hardware.confirmationui-support-lib.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.gnss-V1-ndk_platform-vndk31",
+    stem: "android.hardware.gnss-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.gnss-V1-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.gnss-V1-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.graphics.allocator@2.0-vndk31",
+    stem: "android.hardware.graphics.allocator@2.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.graphics.allocator@2.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.graphics.allocator@2.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.graphics.allocator@3.0-vndk31",
+    stem: "android.hardware.graphics.allocator@3.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.graphics.allocator@3.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.graphics.allocator@3.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.graphics.allocator@4.0-vndk31",
+    stem: "android.hardware.graphics.allocator@4.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.graphics.allocator@4.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.graphics.allocator@4.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.graphics.bufferqueue@1.0-vndk31",
+    stem: "android.hardware.graphics.bufferqueue@1.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.graphics.bufferqueue@1.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.graphics.bufferqueue@1.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.graphics.bufferqueue@2.0-vndk31",
+    stem: "android.hardware.graphics.bufferqueue@2.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.graphics.bufferqueue@2.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.graphics.bufferqueue@2.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.graphics.common-V2-ndk_platform-vndk31",
+    stem: "android.hardware.graphics.common-V2-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.graphics.common-V2-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.graphics.common-V2-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.graphics.common@1.0-vndk31",
+    stem: "android.hardware.graphics.common@1.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.graphics.common@1.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.graphics.common@1.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.graphics.common@1.1-vndk31",
+    stem: "android.hardware.graphics.common@1.1",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.graphics.common@1.1.so"] },
+        android_arm: { srcs: ["lib/android.hardware.graphics.common@1.1.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.graphics.common@1.2-vndk31",
+    stem: "android.hardware.graphics.common@1.2",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.graphics.common@1.2.so"] },
+        android_arm: { srcs: ["lib/android.hardware.graphics.common@1.2.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.graphics.mapper@2.0-vndk31",
+    stem: "android.hardware.graphics.mapper@2.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.graphics.mapper@2.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.graphics.mapper@2.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.graphics.mapper@2.1-vndk31",
+    stem: "android.hardware.graphics.mapper@2.1",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.graphics.mapper@2.1.so"] },
+        android_arm: { srcs: ["lib/android.hardware.graphics.mapper@2.1.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.graphics.mapper@3.0-vndk31",
+    stem: "android.hardware.graphics.mapper@3.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.graphics.mapper@3.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.graphics.mapper@3.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.graphics.mapper@4.0-vndk31",
+    stem: "android.hardware.graphics.mapper@4.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.graphics.mapper@4.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.graphics.mapper@4.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.health.storage-V1-ndk_platform-vndk31",
+    stem: "android.hardware.health.storage-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.health.storage-V1-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.health.storage-V1-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.identity-V3-ndk_platform-vndk31",
+    stem: "android.hardware.identity-V3-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.identity-V3-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.identity-V3-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.keymaster-V3-ndk_platform-vndk31",
+    stem: "android.hardware.keymaster-V3-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.keymaster-V3-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.keymaster-V3-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.light-V1-ndk_platform-vndk31",
+    stem: "android.hardware.light-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.light-V1-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.light-V1-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.media.bufferpool@2.0-vndk31",
+    stem: "android.hardware.media.bufferpool@2.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.media.bufferpool@2.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.media.bufferpool@2.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.media.omx@1.0-vndk31",
+    stem: "android.hardware.media.omx@1.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.media.omx@1.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.media.omx@1.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.media@1.0-vndk31",
+    stem: "android.hardware.media@1.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.media@1.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.media@1.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.memtrack-V1-ndk_platform-vndk31",
+    stem: "android.hardware.memtrack-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.memtrack-V1-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.memtrack-V1-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.memtrack@1.0-vndk31",
+    stem: "android.hardware.memtrack@1.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.memtrack@1.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.memtrack@1.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.oemlock-V1-ndk_platform-vndk31",
+    stem: "android.hardware.oemlock-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.oemlock-V1-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.oemlock-V1-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.power-V2-ndk_platform-vndk31",
+    stem: "android.hardware.power-V2-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.power-V2-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.power-V2-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.power.stats-V1-ndk_platform-vndk31",
+    stem: "android.hardware.power.stats-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.power.stats-V1-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.power.stats-V1-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.rebootescrow-V1-ndk_platform-vndk31",
+    stem: "android.hardware.rebootescrow-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.rebootescrow-V1-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.rebootescrow-V1-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.renderscript@1.0-vndk31",
+    stem: "android.hardware.renderscript@1.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.renderscript@1.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.renderscript@1.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.security.keymint-V1-ndk_platform-vndk31",
+    stem: "android.hardware.security.keymint-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.security.keymint-V1-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.security.keymint-V1-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.security.secureclock-V1-ndk_platform-vndk31",
+    stem: "android.hardware.security.secureclock-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.security.secureclock-V1-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.security.secureclock-V1-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.security.sharedsecret-V1-ndk_platform-vndk31",
+    stem: "android.hardware.security.sharedsecret-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.security.sharedsecret-V1-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.security.sharedsecret-V1-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.soundtrigger@2.0-core-vndk31",
+    stem: "android.hardware.soundtrigger@2.0-core",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.soundtrigger@2.0-core.so"] },
+        android_arm: { srcs: ["lib/android.hardware.soundtrigger@2.0-core.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.soundtrigger@2.0-vndk31",
+    stem: "android.hardware.soundtrigger@2.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.soundtrigger@2.0.so"] },
+        android_arm: { srcs: ["lib/android.hardware.soundtrigger@2.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.vibrator-V2-ndk_platform-vndk31",
+    stem: "android.hardware.vibrator-V2-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.vibrator-V2-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.vibrator-V2-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.weaver-V1-ndk_platform-vndk31",
+    stem: "android.hardware.weaver-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hardware.weaver-V1-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.hardware.weaver-V1-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hidl.memory.token@1.0-vndk31",
+    stem: "android.hidl.memory.token@1.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hidl.memory.token@1.0.so"] },
+        android_arm: { srcs: ["lib/android.hidl.memory.token@1.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hidl.memory@1.0-impl-vndk31",
+    stem: "android.hidl.memory@1.0-impl",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk/hw",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hidl.memory@1.0-impl.so"] },
+        android_arm: { srcs: ["lib/android.hidl.memory@1.0-impl.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hidl.memory@1.0-vndk31",
+    stem: "android.hidl.memory@1.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hidl.memory@1.0.so"] },
+        android_arm: { srcs: ["lib/android.hidl.memory@1.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hidl.safe_union@1.0-vndk31",
+    stem: "android.hidl.safe_union@1.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hidl.safe_union@1.0.so"] },
+        android_arm: { srcs: ["lib/android.hidl.safe_union@1.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hidl.token@1.0-utils-vndk31",
+    stem: "android.hidl.token@1.0-utils",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hidl.token@1.0-utils.so"] },
+        android_arm: { srcs: ["lib/android.hidl.token@1.0-utils.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hidl.token@1.0-vndk31",
+    stem: "android.hidl.token@1.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.hidl.token@1.0.so"] },
+        android_arm: { srcs: ["lib/android.hidl.token@1.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.system.keystore2-V1-ndk_platform-vndk31",
+    stem: "android.system.keystore2-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.system.keystore2-V1-ndk_platform.so"] },
+        android_arm: { srcs: ["lib/android.system.keystore2-V1-ndk_platform.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.system.suspend@1.0-vndk31",
+    stem: "android.system.suspend@1.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/android.system.suspend@1.0.so"] },
+        android_arm: { srcs: ["lib/android.system.suspend@1.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libRSCpuRef-vndk31",
+    stem: "libRSCpuRef",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libRSCpuRef.so"] },
+        android_arm: { srcs: ["lib/libRSCpuRef.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libRSDriver-vndk31",
+    stem: "libRSDriver",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libRSDriver.so"] },
+        android_arm: { srcs: ["lib/libRSDriver.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libRS_internal-vndk31",
+    stem: "libRS_internal",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libRS_internal.so"] },
+        android_arm: { srcs: ["lib/libRS_internal.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libaudioroute-vndk31",
+    stem: "libaudioroute",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libaudioroute.so"] },
+        android_arm: { srcs: ["lib/libaudioroute.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libaudioutils-vndk31",
+    stem: "libaudioutils",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libaudioutils.so"] },
+        android_arm: { srcs: ["lib/libaudioutils.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libbacktrace-vndk31",
+    stem: "libbacktrace",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libbacktrace.so"] },
+        android_arm: { srcs: ["lib/libbacktrace.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libbase-vndk31",
+    stem: "libbase",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libbase.so"] },
+        android_arm: { srcs: ["lib/libbase.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libbcinfo-vndk31",
+    stem: "libbcinfo",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libbcinfo.so"] },
+        android_arm: { srcs: ["lib/libbcinfo.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libbinder-vndk31",
+    stem: "libbinder",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libbinder.so"] },
+        android_arm: { srcs: ["lib/libbinder.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libblas-vndk31",
+    stem: "libblas",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libblas.so"] },
+        android_arm: { srcs: ["lib/libblas.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libbufferqueueconverter-vndk31",
+    stem: "libbufferqueueconverter",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libbufferqueueconverter.so"] },
+        android_arm: { srcs: ["lib/libbufferqueueconverter.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libc++-vndk31",
+    stem: "libc++",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libc++.so"] },
+        android_arm: { srcs: ["lib/libc++.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcamera_metadata-vndk31",
+    stem: "libcamera_metadata",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libcamera_metadata.so"] },
+        android_arm: { srcs: ["lib/libcamera_metadata.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcap-vndk31",
+    stem: "libcap",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libcap.so"] },
+        android_arm: { srcs: ["lib/libcap.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcn-cbor-vndk31",
+    stem: "libcn-cbor",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libcn-cbor.so"] },
+        android_arm: { srcs: ["lib/libcn-cbor.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcodec2-vndk31",
+    stem: "libcodec2",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libcodec2.so"] },
+        android_arm: { srcs: ["lib/libcodec2.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcompiler_rt-vndk31",
+    stem: "libcompiler_rt",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libcompiler_rt.so"] },
+        android_arm: { srcs: ["lib/libcompiler_rt.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcrypto-vndk31",
+    stem: "libcrypto",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libcrypto.so"] },
+        android_arm: { srcs: ["lib/libcrypto.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcrypto_utils-vndk31",
+    stem: "libcrypto_utils",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libcrypto_utils.so"] },
+        android_arm: { srcs: ["lib/libcrypto_utils.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcurl-vndk31",
+    stem: "libcurl",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libcurl.so"] },
+        android_arm: { srcs: ["lib/libcurl.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libcutils-vndk31",
+    stem: "libcutils",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libcutils.so"] },
+        android_arm: { srcs: ["lib/libcutils.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libdiskconfig-vndk31",
+    stem: "libdiskconfig",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libdiskconfig.so"] },
+        android_arm: { srcs: ["lib/libdiskconfig.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libdmabufheap-vndk31",
+    stem: "libdmabufheap",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libdmabufheap.so"] },
+        android_arm: { srcs: ["lib/libdmabufheap.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libdumpstateutil-vndk31",
+    stem: "libdumpstateutil",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libdumpstateutil.so"] },
+        android_arm: { srcs: ["lib/libdumpstateutil.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libevent-vndk31",
+    stem: "libevent",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libevent.so"] },
+        android_arm: { srcs: ["lib/libevent.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libexif-vndk31",
+    stem: "libexif",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libexif.so"] },
+        android_arm: { srcs: ["lib/libexif.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libexpat-vndk31",
+    stem: "libexpat",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libexpat.so"] },
+        android_arm: { srcs: ["lib/libexpat.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libfmq-vndk31",
+    stem: "libfmq",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libfmq.so"] },
+        android_arm: { srcs: ["lib/libfmq.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libgatekeeper-vndk31",
+    stem: "libgatekeeper",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libgatekeeper.so"] },
+        android_arm: { srcs: ["lib/libgatekeeper.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libgralloctypes-vndk31",
+    stem: "libgralloctypes",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libgralloctypes.so"] },
+        android_arm: { srcs: ["lib/libgralloctypes.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libgui-vndk31",
+    stem: "libgui",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libgui.so"] },
+        android_arm: { srcs: ["lib/libgui.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libhardware-vndk31",
+    stem: "libhardware",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libhardware.so"] },
+        android_arm: { srcs: ["lib/libhardware.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libhardware_legacy-vndk31",
+    stem: "libhardware_legacy",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libhardware_legacy.so"] },
+        android_arm: { srcs: ["lib/libhardware_legacy.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libhidlallocatorutils-vndk31",
+    stem: "libhidlallocatorutils",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libhidlallocatorutils.so"] },
+        android_arm: { srcs: ["lib/libhidlallocatorutils.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libhidlbase-vndk31",
+    stem: "libhidlbase",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libhidlbase.so"] },
+        android_arm: { srcs: ["lib/libhidlbase.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libhidlmemory-vndk31",
+    stem: "libhidlmemory",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libhidlmemory.so"] },
+        android_arm: { srcs: ["lib/libhidlmemory.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libion-vndk31",
+    stem: "libion",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libion.so"] },
+        android_arm: { srcs: ["lib/libion.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libjpeg-vndk31",
+    stem: "libjpeg",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libjpeg.so"] },
+        android_arm: { srcs: ["lib/libjpeg.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libjsoncpp-vndk31",
+    stem: "libjsoncpp",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libjsoncpp.so"] },
+        android_arm: { srcs: ["lib/libjsoncpp.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libldacBT_abr-vndk31",
+    stem: "libldacBT_abr",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libldacBT_abr.so"] },
+        android_arm: { srcs: ["lib/libldacBT_abr.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libldacBT_enc-vndk31",
+    stem: "libldacBT_enc",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libldacBT_enc.so"] },
+        android_arm: { srcs: ["lib/libldacBT_enc.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "liblz4-vndk31",
+    stem: "liblz4",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/liblz4.so"] },
+        android_arm: { srcs: ["lib/liblz4.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "liblzma-vndk31",
+    stem: "liblzma",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/liblzma.so"] },
+        android_arm: { srcs: ["lib/liblzma.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libmedia_helper-vndk31",
+    stem: "libmedia_helper",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libmedia_helper.so"] },
+        android_arm: { srcs: ["lib/libmedia_helper.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libmedia_omx-vndk31",
+    stem: "libmedia_omx",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libmedia_omx.so"] },
+        android_arm: { srcs: ["lib/libmedia_omx.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libmemtrack-vndk31",
+    stem: "libmemtrack",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libmemtrack.so"] },
+        android_arm: { srcs: ["lib/libmemtrack.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libminijail-vndk31",
+    stem: "libminijail",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libminijail.so"] },
+        android_arm: { srcs: ["lib/libminijail.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libmkbootimg_abi_check-vndk31",
+    stem: "libmkbootimg_abi_check",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libmkbootimg_abi_check.so"] },
+        android_arm: { srcs: ["lib/libmkbootimg_abi_check.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libnetutils-vndk31",
+    stem: "libnetutils",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libnetutils.so"] },
+        android_arm: { srcs: ["lib/libnetutils.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libnl-vndk31",
+    stem: "libnl",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libnl.so"] },
+        android_arm: { srcs: ["lib/libnl.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libpcre2-vndk31",
+    stem: "libpcre2",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libpcre2.so"] },
+        android_arm: { srcs: ["lib/libpcre2.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libpiex-vndk31",
+    stem: "libpiex",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libpiex.so"] },
+        android_arm: { srcs: ["lib/libpiex.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libpng-vndk31",
+    stem: "libpng",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libpng.so"] },
+        android_arm: { srcs: ["lib/libpng.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libpower-vndk31",
+    stem: "libpower",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libpower.so"] },
+        android_arm: { srcs: ["lib/libpower.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libprocessgroup-vndk31",
+    stem: "libprocessgroup",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libprocessgroup.so"] },
+        android_arm: { srcs: ["lib/libprocessgroup.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libprocinfo-vndk31",
+    stem: "libprocinfo",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libprocinfo.so"] },
+        android_arm: { srcs: ["lib/libprocinfo.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libradio_metadata-vndk31",
+    stem: "libradio_metadata",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libradio_metadata.so"] },
+        android_arm: { srcs: ["lib/libradio_metadata.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libspeexresampler-vndk31",
+    stem: "libspeexresampler",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libspeexresampler.so"] },
+        android_arm: { srcs: ["lib/libspeexresampler.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libsqlite-vndk31",
+    stem: "libsqlite",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libsqlite.so"] },
+        android_arm: { srcs: ["lib/libsqlite.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libssl-vndk31",
+    stem: "libssl",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libssl.so"] },
+        android_arm: { srcs: ["lib/libssl.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libstagefright_bufferpool@2.0-vndk31",
+    stem: "libstagefright_bufferpool@2.0",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libstagefright_bufferpool@2.0.so"] },
+        android_arm: { srcs: ["lib/libstagefright_bufferpool@2.0.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libstagefright_bufferqueue_helper-vndk31",
+    stem: "libstagefright_bufferqueue_helper",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libstagefright_bufferqueue_helper.so"] },
+        android_arm: { srcs: ["lib/libstagefright_bufferqueue_helper.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libstagefright_foundation-vndk31",
+    stem: "libstagefright_foundation",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libstagefright_foundation.so"] },
+        android_arm: { srcs: ["lib/libstagefright_foundation.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libstagefright_omx-vndk31",
+    stem: "libstagefright_omx",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libstagefright_omx.so"] },
+        android_arm: { srcs: ["lib/libstagefright_omx.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libstagefright_omx_utils-vndk31",
+    stem: "libstagefright_omx_utils",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libstagefright_omx_utils.so"] },
+        android_arm: { srcs: ["lib/libstagefright_omx_utils.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libstagefright_xmlparser-vndk31",
+    stem: "libstagefright_xmlparser",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libstagefright_xmlparser.so"] },
+        android_arm: { srcs: ["lib/libstagefright_xmlparser.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libsysutils-vndk31",
+    stem: "libsysutils",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libsysutils.so"] },
+        android_arm: { srcs: ["lib/libsysutils.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libtinyalsa-vndk31",
+    stem: "libtinyalsa",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libtinyalsa.so"] },
+        android_arm: { srcs: ["lib/libtinyalsa.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libtinyxml2-vndk31",
+    stem: "libtinyxml2",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libtinyxml2.so"] },
+        android_arm: { srcs: ["lib/libtinyxml2.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libui-vndk31",
+    stem: "libui",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libui.so"] },
+        android_arm: { srcs: ["lib/libui.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libunwindstack-vndk31",
+    stem: "libunwindstack",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libunwindstack.so"] },
+        android_arm: { srcs: ["lib/libunwindstack.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libusbhost-vndk31",
+    stem: "libusbhost",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libusbhost.so"] },
+        android_arm: { srcs: ["lib/libusbhost.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libutils-vndk31",
+    stem: "libutils",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libutils.so"] },
+        android_arm: { srcs: ["lib/libutils.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libutilscallstack-vndk31",
+    stem: "libutilscallstack",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libutilscallstack.so"] },
+        android_arm: { srcs: ["lib/libutilscallstack.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libwifi-system-iface-vndk31",
+    stem: "libwifi-system-iface",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libwifi-system-iface.so"] },
+        android_arm: { srcs: ["lib/libwifi-system-iface.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libxml2-vndk31",
+    stem: "libxml2",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libxml2.so"] },
+        android_arm: { srcs: ["lib/libxml2.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libyuv-vndk31",
+    stem: "libyuv",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libyuv.so"] },
+        android_arm: { srcs: ["lib/libyuv.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libz-vndk31",
+    stem: "libz",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libz.so"] },
+        android_arm: { srcs: ["lib/libz.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libziparchive-vndk31",
+    stem: "libziparchive",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libziparchive.so"] },
+        android_arm: { srcs: ["lib/libziparchive.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libclang_rt.scudo-aarch64-android-vndk31",
+    stem: "libclang_rt.scudo-aarch64-android",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libclang_rt.scudo-aarch64-android.so"] },
+    },
+    compile_multilib: "64",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libclang_rt.scudo_minimal-aarch64-android-vndk31",
+    stem: "libclang_rt.scudo_minimal-aarch64-android",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libclang_rt.scudo_minimal-aarch64-android.so"] },
+    },
+    compile_multilib: "64",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libclang_rt.ubsan_standalone-aarch64-android-vndk31",
+    stem: "libclang_rt.ubsan_standalone-aarch64-android",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm64: { srcs: ["lib64/libclang_rt.ubsan_standalone-aarch64-android.so"] },
+    },
+    compile_multilib: "64",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libclang_rt.scudo-arm-android-vndk31",
+    stem: "libclang_rt.scudo-arm-android",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm: { srcs: ["lib/libclang_rt.scudo-arm-android.so"] },
+    },
+    compile_multilib: "32",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libclang_rt.scudo_minimal-arm-android-vndk31",
+    stem: "libclang_rt.scudo_minimal-arm-android",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm: { srcs: ["lib/libclang_rt.scudo_minimal-arm-android.so"] },
+    },
+    compile_multilib: "32",
+    check_elf_files: false,
+    prefer: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libclang_rt.ubsan_standalone-arm-android-vndk31",
+    stem: "libclang_rt.ubsan_standalone-arm-android",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    relative_install_path: "vndk",
+    target: {
+        android_arm: { srcs: ["lib/libclang_rt.ubsan_standalone-arm-android.so"] },
+    },
+    compile_multilib: "32",
+    check_elf_files: false,
+    prefer: false,
+}
