@@ -32,6 +32,25 @@ type vendor_watermark_data_file, file_type, data_file_type;
 # turning into a process abort three frames later.
 type sysfs_tran_cam_file, fs_type, sysfs_type;
 
+# /sys/devices/virtual/torch/torch/torch_level and
+# /sys/devices/virtual/sub_torch/sub_torch/sub_torch_level — the flash LED
+# brightness controls for the main and sub cameras. Exactly the tran_cam defect
+# above, and found the same way: unlabelled here, so the 3A thread's fopen()
+# returns NULL and the unchecked fscanf(NULL) trips FORTIFY inside
+# Hal3ARawImp::uninit(), killing camerahalserver three frames from the denial.
+# Both surfaced only once the v31 namespace let the camera get far enough to
+# reach teardown.
+#
+# Verified 2026-08-13, against stock rev 28 and against this unit:
+#   stock vendor_sepolicy.cil   declares sysfs_torch_file / sysfs_sub_torch_file
+#                               and genfscons exactly these two paths
+#   live device                 both nodes exist, both generic u:object_r:sysfs:s0
+#   wide_torch                  does NOT exist on this unit, so no label is
+#                               written for it — a label matching nothing is
+#                               dead weight (BLUEPRINT §9)
+type sysfs_torch_file, fs_type, sysfs_type;
+type sysfs_sub_torch_file, fs_type, sysfs_type;
+
 # /sys/devices/platform/charger/tran_aichg_disable_charger — the bypass-charging
 # node. device/mediatek/sepolicy_vndr labels several of its siblings
 # (sysfs_vbus, sysfs_pump_express, sysfs_fs_chg_file, sysfs_batteryinfo,
