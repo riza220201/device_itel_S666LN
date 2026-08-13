@@ -270,6 +270,9 @@ PRODUCT_PACKAGES += \
     android.hardware.graphics.composer@2.3.vendor \
     android.hardware.light-V1-ndk.vendor \
     android.hardware.light@2.0.vendor \
+    android.hardware.media.c2@1.0.vendor \
+    android.hardware.media.c2@1.1.vendor \
+    android.hardware.media.c2@1.2.vendor \
     android.hardware.nfc@1.0.vendor \
     android.hardware.nfc@1.1.vendor \
     android.hardware.nfc@1.2.vendor \
@@ -312,6 +315,11 @@ PRODUCT_PACKAGES += \
     libaudiofoundation.vendor \
     libavservices_minijail.vendor \
     libchrome.vendor \
+    libcodec2_hidl@1.0.vendor \
+    libcodec2_hidl@1.1.vendor \
+    libcodec2_hidl@1.2.vendor \
+    libcodec2_soft_common.vendor \
+    libcodec2_vndk.vendor \
     libcppbor_external.vendor \
     libdrm.vendor \
     libflatbuffers-cpp.vendor \
@@ -321,6 +329,7 @@ PRODUCT_PACKAGES += \
     libmemunreachable.vendor \
     libpcap.vendor \
     libruy.vendor \
+    libsfplugin_ccodec_utils.vendor \
     libtextclassifier_hash.vendor \
     libvibratorutils.vendor \
     vendor.lineage.touch@1.0.vendor \
@@ -840,38 +849,6 @@ PRODUCT_PACKAGES += \
     libhidlbase-v31 \
     libcutils-v31 \
     libbinder-v31
-
-# Stock's Android-12 codec2 libraries, for the stock MediaTek C2 HAL.
-#
-# With the vendor namespace on VNDK 31, the platform's Android-13 copies of
-# these crash-loop the C2 service every 5 s -- measured live 2026-08-13, and
-# predicted by the 2026-08-12 v33-only-symbol analysis:
-#
-#   CANNOT LINK ... cannot locate symbol "_ZN7android8hardware7details5checkEbPKc"
-#     referenced by "/vendor/lib64/libstagefright_bufferpool@2.0.1.so"
-#
-# The nine `.vendor` entries that used to install the A13 copies were REMOVED
-# from the block above; leaving any of them would reinstall an A13 library over
-# one of these, because all three of soft_common, ccodec_utils and hidl_plugin
-# link libcodec2_vndk.so. See prebuilts/codec2-stock/Android.bp for why the set
-# is exactly these eleven, why libhwbinder is excluded, and why `stem` is used
-# instead of renaming the files.
-#
-# ⚠ Each name here must stay in step with prebuilts/codec2-stock/Android.bp.
-# A wrong name fails loudly (soong cannot resolve it), which is the good
-# direction for this class of mistake.
-PRODUCT_PACKAGES += \
-    android.hardware.media.c2@1.0-stock \
-    android.hardware.media.c2@1.1-stock \
-    android.hardware.media.c2@1.2-stock \
-    libcodec2_hidl@1.0-stock \
-    libcodec2_hidl@1.1-stock \
-    libcodec2_hidl@1.2-stock \
-    libcodec2_hidl_plugin-stock \
-    libcodec2_vndk-stock \
-    libcodec2_soft_common-stock \
-    libsfplugin_ccodec_utils-stock \
-    libstagefright_bufferpool@2.0.1-stock
 
 # AIDL NDK libraries that stock's blobs need under their Android 13 names.
 #

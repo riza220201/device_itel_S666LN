@@ -68,32 +68,8 @@ while IFS= read -r line; do
     fi
 done < "$LIST"
 
-# Blobs committed INTO the device tree, which the loop above cannot see because
-# they are not in proprietary-files.txt. prebuilts/codec2-stock/ holds stock's
-# A12 codec2 set: those libraries collide with AOSP soong module names, so they
-# ship as hand-written blueprints with a unique `name` and a `stem`, which is a
-# path around the blob list -- and therefore a path around this gate. Byte
-# equality is the check, not mere existence: these are committed copies, so a
-# stale or edited one would otherwise never be noticed.
-prebuilt_bad=0 prebuilt_n=0
-PREBUILT_DIR="$HERE/prebuilts/codec2-stock/lib64"
-if [ -d "$PREBUILT_DIR" ]; then
-    for f in "$PREBUILT_DIR"/*.so; do
-        [ -e "$f" ] || continue
-        prebuilt_n=$((prebuilt_n + 1))
-        if ! cmp -s "$f" "$STOCK/lib64/$(basename "$f")"; then
-            [ "$prebuilt_bad" -eq 0 ] && echo "COMMITTED PREBUILT DIFFERS FROM STOCK REV 28:"
-            echo "    prebuilts/codec2-stock/lib64/$(basename "$f")"
-            prebuilt_bad=$((prebuilt_bad + 1))
-        fi
-    done
-    # An empty directory would pass every check above. Say so instead.
-    [ "$prebuilt_n" -gt 0 ] || { echo "$PREBUILT_DIR exists but holds no .so" >&2; exit 2; }
-fi
-
 echo
 echo "entries checked : $total"
-echo "committed blobs : $prebuilt_n  (prebuilts/codec2-stock)"
 echo "stock dump      : $STOCK"
 if [ "$missing" -ne 0 ]; then
     echo "NOT IN STOCK    : $missing"
@@ -104,13 +80,4 @@ if [ "$missing" -ne 0 ]; then
     exit 1
 fi
 echo "NOT IN STOCK    : 0"
-if [ "$prebuilt_bad" -ne 0 ]; then
-    echo "PREBUILTS BAD   : $prebuilt_bad"
-    echo
-    echo "A committed prebuilt is not byte-identical to the stock dump. Either it"
-    echo "was edited in place, or it came from somewhere other than rev 28. Both"
-    echo "are the failure this gate exists for -- re-copy it from \$STOCK."
-    exit 1
-fi
-echo "PREBUILTS BAD   : 0"
 echo "PASS - every blob is traceable to itel rev 28."

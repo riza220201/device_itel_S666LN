@@ -65,6 +65,56 @@ fi
 # proprietary-files.txt folds with SYMLINK= and which therefore need no fixup of
 # their own. Both replacements were confirmed to exist as soong modules on the
 # Android 13 branch: `arm.graphics-V1-ndk`, `android.hardware.light-V1-ndk`.
+# Stock's Android-12 codec2 set, shipped alongside the platform's Android-13 one.
+#
+# WHY THEY ARE RENAMED AT ALL. With the vendor namespace on VNDK 31 the MTK C2
+# HAL needs A12 partners: the platform's copies crash-loop it every 5 s on
+# `hardware::details::check`, a v33-only symbol. But these are AOSP libraries and
+# soong builds VENDOR VARIANTS of them whether or not the product asks -- with
+# all nine `.vendor` entries removed from device.mk, `mediaswcodec` and
+# `libmedia_codecserviceregistrant` still pull them in. So a prebuilt installing
+# to the same /vendor path is a duplicate make rule:
+#
+#   installs-lineage_S666LN.mk: error: overriding commands for target
+#     `.../vendor/lib64/android.hardware.media.c2@1.0.so'
+#
+# That failed build 64. A unique soong `name` with a `stem` does NOT fix it --
+# `stem` avoids the module-NAME clash, which is the one the journal documents,
+# and leaves the install PATH identical. Distinct filenames are the only route,
+# and it is the pattern this tree already uses four times (libeffectsconfig-stock,
+# libwifi-hal-stock, ese_spi_nxp-stock, the wifi service).
+#
+# The eleven move as one generation. Proven both directions on hardware:
+# stock libcodec2_vndk with the platform's libcodec2_hidl fails on
+# `_C2FenceFactory::CreateNativeHandle`, and holding back
+# libcodec2_hidl_plugin / soft_common / ccodec_utils works at runtime but each
+# links libcodec2_vndk.so, so leaving them platform-built defeats the swap.
+C2_STOCK_LIBS="android.hardware.media.c2@1.0 android.hardware.media.c2@1.1 \
+android.hardware.media.c2@1.2 libcodec2_hidl@1.0 libcodec2_hidl@1.1 \
+libcodec2_hidl@1.2 libcodec2_hidl_plugin libcodec2_vndk libcodec2_soft_common \
+libsfplugin_ccodec_utils libstagefright_bufferpool@2.0.1"
+
+# Repoint every reference to the renamed set, then prove none survived.
+#
+# 🔴 `local` is MANDATORY on the loop variable. blob_fixup() is called from
+# inside extract()'s own loop and shares its scope; extract_utils.sh:305 counts
+# with `for (( i=1; i<COUNT+1; i++ ))`, so a bare loop variable there restarts
+# the whole extraction forever -- observed once already, 45,106 log lines.
+# patchelf --replace-needed is a silent no-op (exit 0) when the dependency is
+# absent, so this needs no error suppression and real failures stay visible.
+function c2_stock_repoint() {
+    local target="${1}" lib
+    for lib in ${C2_STOCK_LIBS}; do
+        "${PATCHELF}" --replace-needed "${lib}.so" "${lib}-stock.so" "${target}"
+    done
+    for lib in ${C2_STOCK_LIBS}; do
+        if "${PATCHELF}" --print-needed "${target}" | grep -qx "${lib}.so"; then
+            echo "!! blob_fixup: ${target} still needs ${lib}.so after repointing" >&2
+            exit 1
+        fi
+    done
+}
+
 function blob_fixup() {
     case "${1}" in
         vendor/bin/factory)
@@ -362,6 +412,44 @@ function blob_fixup() {
                 echo "!! blob_fixup: c2 rc was not repointed to -64b -- pattern stale" >&2
                 exit 1
             }
+            ;;
+        # ---- the renamed A12 codec2 set ------------------------------------
+        # SONAME is patched as well as DT_NEEDED, and it is not optional: the
+        # platform's A13 copy keeps the canonical name and stays installed, so
+        # if both ever land in one process the first loaded wins the name for
+        # all of it. That is the defect prebuilts/vndk31/Android.bp documents.
+        # The soname comes from the destination filename, so it cannot drift
+        # from proprietary-files.txt's rename.
+        vendor/lib64/android.hardware.media.c2@1.0-stock.so | \
+        vendor/lib64/android.hardware.media.c2@1.1-stock.so | \
+        vendor/lib64/android.hardware.media.c2@1.2-stock.so | \
+        vendor/lib64/libcodec2_hidl@1.0-stock.so | \
+        vendor/lib64/libcodec2_hidl@1.1-stock.so | \
+        vendor/lib64/libcodec2_hidl@1.2-stock.so | \
+        vendor/lib64/libcodec2_hidl_plugin-stock.so | \
+        vendor/lib64/libcodec2_vndk-stock.so | \
+        vendor/lib64/libcodec2_soft_common-stock.so | \
+        vendor/lib64/libsfplugin_ccodec_utils-stock.so | \
+        vendor/lib64/libstagefright_bufferpool@2.0.1-stock.so)
+            "${PATCHELF}" --set-soname "$(basename "${2}")" "${2}"
+            c2_stock_repoint "${2}"
+            ;;
+        # ---- the MTK blobs that consume them --------------------------------
+        # Every /vendor consumer of libcodec2_vndk.so, enumerated on hardware
+        # rather than guessed. The C2 service binary is the important one; the
+        # rest are the MTK component libraries it dlopens.
+        vendor/bin/hw/android.hardware.media.c2@1.2-mediatek-64b | \
+        vendor/lib64/libcodec2_mtk_c2store.so | \
+        vendor/lib64/libcodec2_mtk_vdec.so | \
+        vendor/lib64/libcodec2_mtk_venc.so | \
+        vendor/lib64/libcodec2_soft_mtk_alacdec.so | \
+        vendor/lib64/libcodec2_soft_mtk_apedec.so | \
+        vendor/lib64/libcodec2_soft_mtk_imaadpcmdec.so | \
+        vendor/lib64/libcodec2_soft_mtk_mp3dec.so | \
+        vendor/lib64/libcodec2_soft_mtk_msadpcmdec.so | \
+        vendor/lib64/libcodec2_vpp_qt_plugin.so | \
+        vendor/lib64/libcodec2_vpp_rs_plugin.so)
+            c2_stock_repoint "${2}"
             ;;
         # The rest of the _platform class, found by sweeping the BUILT vendor
         # image for sonames nothing installs -- not by reading the blob list.
