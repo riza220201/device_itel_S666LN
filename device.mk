@@ -42,9 +42,19 @@ PRODUCT_PACKAGES += \
 # devices shipping at API <= 29 — and this device sets shipping API 31. But
 # the Android-12 vendor blobs still open /dev/vndbinder, and with no context
 # manager present /vendor/bin/pnpmgr retried roughly once a second forever.
+#
+# 🔴 The DAEMON is now stock's, in proprietary-files.txt. Built at A13 it holds
+#     bin/vndservicemanager   UND _ZTVN7android2os14ConnectionInfoE
+# i.e. a vtable v33's libbinder defines and v31's does not, so under a v31 vendor
+# namespace it does not start -- and then nothing answers /dev/vndbinder and the
+# exact pnpmgr retry loop this block exists to prevent comes back. Found by
+# tools/v31-delta-check.py, which classifies it as reachable because
+# vendor/etc/init/vndservicemanager.rc starts it by path.
+#
+# `vndservice` (the CLI) stays a source build: it is a separate process, it holds
+# no v33-only reference, and nothing loads it into the daemon's address space.
 PRODUCT_PACKAGES += \
-    vndservice \
-    vndservicemanager
+    vndservice
 
 # Launch API level. Stock declares ro.product.first_api_level=31, i.e. the device
 # shipped originally on Android 12. This is what Treble/VSR requirements gate on,
@@ -641,9 +651,41 @@ PRODUCT_PACKAGES += \
 # Android.bp does export session/. Shipping the impl as a blob also keeps it
 # ABI-matched to the session library it is actually loaded against.
 PRODUCT_PACKAGES += \
-    android.hardware.audio.effect@6.0-impl \
-    android.hardware.boot@1.2-mtkimpl \
     android.hardware.renderscript@1.0-impl
+
+# 🔴 android.hardware.boot@1.2-mtkimpl and android.hardware.audio.effect@6.0-impl
+# were BOTH requested here and are both gone, because building them at A13 is
+# what hung build 67 at the boot logo.
+#
+#   vendor/lib64/hw/android.hardware.boot@1.0-impl-1.2-mtkimpl.so
+#       UND _ZN7android4base8TokenizeE...   = android::base::Tokenize, v33-only
+#
+# Under a v31 vendor namespace libbase comes from the v31 set and does not export
+# it, so the impl fails to dlopen, IBootControl never registers, init's control
+# queue saturates and the device sits on the logo with the kernel healthy
+# throughout. Both gates passed on that build -- neither vendor-deps nor KMI can
+# see a v33-only symbol reference. tools/v31-delta-check.py is what does, and it
+# names both of these files.
+#
+# 🔑 Neither has a single consumer in any DT_NEEDED on the partition, and that is
+# not evidence they are unused -- it is what a passthrough implementation looks
+# like. ServiceManagement.cpp openLibs() builds the filename at runtime from the
+# interface name (findFiles(path, "<package>@<ver>-impl", ".so")) and dlopens
+# whatever matches, so no ELF ever names them. A reverse-dependency search would
+# have called the boot blocker dead weight.
+#
+# Stock ships both, built against VNDK 31 by construction, so they move to
+# proprietary-files.txt. They keep their canonical filenames: the passthrough
+# manager matches on the `-impl` PREFIX, so a `-stock` suffix would still be
+# found, but there is no name to collide with once the source module is no longer
+# requested -- which is exactly how android.hardware.audio.effect@7.0-impl has
+# always shipped here (blob, no rename, no collision).
+#
+# ⚠ The RECOVERY variant below is deliberately untouched. It installs to
+# recovery/root/system/lib64/hw/, not to /vendor, and recovery has no VNDK
+# namespace at all -- so it is a different consumer of the same source module and
+# the v31 delta does not apply to it. Swapping it blind would put an A12 impl
+# against the A13 libraries in the recovery ramdisk and cost the sideload path.
 
 # android.hardware.boot@1.2-mtkimpl REQUIRES a build-tree patch. See
 # apply-overlays.sh step 35. Its 32-bit variant does not compile here:
