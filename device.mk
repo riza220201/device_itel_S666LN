@@ -399,6 +399,53 @@ PRODUCT_PACKAGES += \
     libclang_rt.scudo_minimal-arm-android-vndk31 \
     libclang_rt.ubsan_standalone-arm-android-vndk31
 
+# --- A12 AIDL soname aliases, into /vendor/lib{,64} ------------------------
+#
+# 🔴 The vndk31 snapshot above CANNOT supply these, and build 68 hung proving it.
+#
+# vendor/lib*/vndk is not a search path of the namespace a vendor process runs
+# in (vendordefault.cc:38 lists /odm/${LIB}, /vendor/${LIB}, /vendor/${LIB}/hw,
+# /vendor/${LIB}/egl and nothing else). It is reached only over an ALLOWLISTED
+# link whose contents are vndkcore.libraries.33.txt + vndksp.libraries.33.txt --
+# and those contain no `_platform` soname at all, because v33 renamed every AIDL
+# NDK library. So the snapshot's `-ndk_platform` members are invisible to the
+# vendor processes that need them, however correctly they are installed.
+#
+# hardware/lineage/compat/Android.bp already solves this. Each entry there is an
+# empty forwarding library --
+#     cc_library_shared {
+#         name: "android.hardware.security.keymint-V1-ndk_platform",
+#         shared_libs: ["android.hardware.security.keymint-V1-ndk"],
+#         system_ext_specific: true, vendor_available: true,
+#     }
+# -- so the A12 soname exists on the default search path and its symbols resolve
+# transitively from the real -V1-ndk library. Source-built, no prebuilt in
+# /vendor/lib, and it pulls in the -V1-ndk .vendor variants, which is strictly
+# better than build 63: there secureclock and sharedsecret resolved out of
+# /apex/com.android.vndk.v33, i.e. a second VNDK generation inside the keymint
+# process. These are vendor.33 builds that take their core libs from vndk31.
+#
+# ⚠ These modules own vendor/lib{,64}/<soname>.so. Giving the vndk31 snapshot
+# that path instead -- by dropping its `relative_install_path: "vndk"` -- is a
+# duplicate install rule and a kati parse error, EVEN THOUGH the compat module
+# is not otherwise requested:
+#     installs-lineage_S666LN.mk:180649: error: overriding commands for target
+#       `.../vendor/lib64/android.hardware.authsecret-V1-ndk_platform.so'
+# Only the six with a measured consumer are requested; the rest of the class
+# stays unbuilt rather than installed on speculation.
+#
+#   keymint/secureclock/sharedsecret  <- android.hardware.security.keymint-service.trustonic
+#   memtrack                          <- android.hardware.memtrack-service.mediatek
+#   vibrator                          <- android.hardware.vibrator-service.mediatek-stock
+#   keystore2                         <- libkeystore-engine-wifi-hidl.so
+PRODUCT_PACKAGES += \
+    android.hardware.memtrack-V1-ndk_platform.vendor \
+    android.hardware.security.keymint-V1-ndk_platform.vendor \
+    android.hardware.security.secureclock-V1-ndk_platform.vendor \
+    android.hardware.security.sharedsecret-V1-ndk_platform.vendor \
+    android.hardware.vibrator-V2-ndk_platform.vendor \
+    android.system.keystore2-V1-ndk_platform.vendor
+
 # JamesDSP, replacing AudioFX. OPTIONAL -- see fetch-jamesdsp.sh.
 #
 # Guarded on the APK actually being present. fetch-jamesdsp.sh generates both the

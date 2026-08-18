@@ -246,15 +246,57 @@ fi
 # `[ -f ]` is a bash builtin, follows symlinks, and behaves identically under
 # both. `${p##*/}` replaces basename for the same reason. No external tool is
 # used here beyond find itself, which both implementations support.
+#
+# 🔴 vndk/ AND vndk-sp/ ARE EXCLUDED HERE, and added back below only for the
+# sonames the VNDK allowlist names. Added 2026-08-18, after this gate printed
+# "OK: every DT_NEEDED resolves" for build 68 and build 68 hung in post-fs-data.
+#
+# vendor/lib*/vndk is NOT a search path of the namespace a vendor process runs
+# in. system/linkerconfig/contents/namespace/vendordefault.cc:38 gives the
+# vendor `default` namespace exactly four:
+#
+#     /odm/${LIB}   /vendor/${LIB}   /vendor/${LIB}/hw   /vendor/${LIB}/egl
+#
+# vndk/ is reached only through an ALLOWLISTED link,
+#     ns.GetLink("vndk").AddSharedLib({VNDK_SAMEPROCESS_LIBRARIES_VENDOR,
+#                                      VNDK_CORE_LIBRARIES_VENDOR})
+# whose contents are vndkcore.libraries.<ver>.txt + vndksp.libraries.<ver>.txt.
+# A file sitting in vndk/ whose soname is not in those lists is invisible.
+#
+# Sweeping vndk/ by basename therefore answers "does a file by this name exist",
+# not "can this consumer load it" -- the identical mistake the ABI split above
+# was written to fix, one directory deeper. It cost a boot:
+# android.hardware.security.keymint-service.trustonic needs the three A12
+# android.hardware.security.*-V1-ndk_platform.so, the v31 snapshot put them in
+# vndk/, and the v33 allowlist contains no _platform soname at all. keymint
+# never linked, keystore2 never registered IKeystoreService, and
+# `exec - system system -- /system/bin/vdc keymaster earlyBootEnded`
+# (init.rc:710, post-fs-data) blocked init's action queue forever.
 _collect_libs() {   # $1 = dir, $2 = output file
     : > "$2"
     [ -d "$1" ] || return 0
     while IFS= read -r p; do
         [ -f "$p" ] && printf '%s\n' "${p##*/}"
-    done < <(find "$1" -maxdepth 3 -name '*.so' 2>/dev/null) | sort -u > "$2"
+    done < <(find "$1" -maxdepth 3 -name '*.so' \
+                  ! -path '*/vndk/*' ! -path '*/vndk-sp/*' 2>/dev/null) \
+        | sort -u > "$2"
+}
+# The vndk/ + vndk-sp/ contents, kept separately: they are what a consumer that
+# ITSELF lives in that namespace may load (vndk.cc search order 1), and the pool the
+# allowlist intersection below draws from.
+_collect_vndk() {   # $1 = lib dir, $2 = output file
+    : > "$2"
+    for d in "$1/vndk" "$1/vndk-sp"; do
+        [ -d "$d" ] || continue
+        while IFS= read -r p; do
+            [ -f "$p" ] && printf '%s\n' "${p##*/}"
+        done < <(find "$d" -maxdepth 2 -name '*.so' 2>/dev/null)
+    done | sort -u > "$2"
 }
 _collect_libs "${VENDOR_DIR}/lib"   "${TMP}/resolvable32"
 _collect_libs "${VENDOR_DIR}/lib64" "${TMP}/resolvable64"
+_collect_vndk "${VENDOR_DIR}/lib"   "${TMP}/vndkdir32"
+_collect_vndk "${VENDOR_DIR}/lib64" "${TMP}/vndkdir64"
 # Everything below (VNDK, LLNDK, public.libraries, linker-provided) is added to
 # both: those are delivered per-ABI in matching pairs.
 cat "${TMP}/resolvable32" "${TMP}/resolvable64" | sort -u > "${TMP}/resolvable"
@@ -279,6 +321,44 @@ if [ -d "${SYSTEM_DIR}" ]; then
             < <(find "$d" -name '*.so' 2>/dev/null) >> "${TMP}/resolvable"
     done
 fi
+
+# --- the VNDK allowlist: which of vendor/lib*/vndk is actually an entry point --
+#
+# See _collect_libs above. vndk/ was excluded from the per-ABI sets; this puts
+# back exactly the sonames the vendor->vndk namespace link permits, and only
+# those that are really present on the vendor side (the APEX copies were already
+# swept above, so a name missing from BOTH still reports as unresolved rather
+# than being papered over).
+: > "${TMP}/vndkallow"
+for f in "${SYSTEM_DIR}/apex/com.android.vndk.current/etc/vndkcore.libraries.${VNDK_VER}.txt" \
+         "${SYSTEM_DIR}/apex/com.android.vndk.current/etc/vndksp.libraries.${VNDK_VER}.txt" \
+         "${SYSTEM_DIR}/apex/com.android.vndk.v${VNDK_VER}/etc/vndkcore.libraries.${VNDK_VER}.txt" \
+         "${SYSTEM_DIR}/apex/com.android.vndk.v${VNDK_VER}/etc/vndksp.libraries.${VNDK_VER}.txt" \
+         "${SYSTEM_DIR}/etc/vndkcore.libraries.${VNDK_VER}.txt" \
+         "${SYSTEM_DIR}/etc/vndksp.libraries.${VNDK_VER}.txt"; do
+    [ -f "$f" ] && grep -oE '^[A-Za-z0-9_.+-]+\.so' "$f" >> "${TMP}/vndkallow" 2>/dev/null
+done
+sort -u "${TMP}/vndkallow" -o "${TMP}/vndkallow"
+
+# Positive control. If the allowlist cannot be found, EVERY vndk/ library looks
+# unreachable and the report becomes thousands of false positives -- loud, but
+# for the wrong reason. Refuse instead, the same way the resolvable floor does.
+VNDKALLOW_N=$(grep -c . "${TMP}/vndkallow" 2>/dev/null || echo 0)
+if [ -d "${SYSTEM_DIR}" ] && [ "${VNDKALLOW_N}" -lt 50 ]; then
+    echo "!! REFUSING TO PASS: VNDK allowlist has ${VNDKALLOW_N} entries (expected ~160)" >&2
+    echo "   looked for vndkcore/vndksp.libraries.${VNDK_VER}.txt under" >&2
+    echo "     ${SYSTEM_DIR}/apex/com.android.vndk.current/etc/" >&2
+    echo "     ${SYSTEM_DIR}/apex/com.android.vndk.v${VNDK_VER}/etc/" >&2
+    echo "     ${SYSTEM_DIR}/etc/" >&2
+    echo "   Without it this check cannot tell a reachable vndk/ library from an" >&2
+    echo "   unreachable one, which is the exact hole that let build 68 ship." >&2
+    exit 2
+fi
+for abi in 32 64; do
+    comm -12 "${TMP}/vndkdir${abi}" "${TMP}/vndkallow" >> "${TMP}/resolvable${abi}"
+    sort -u "${TMP}/resolvable${abi}" -o "${TMP}/resolvable${abi}"
+done
+cat "${TMP}/resolvable32" "${TMP}/resolvable64" >> "${TMP}/resolvable"
 
 # LLNDK: libraries /system exposes to vendor by contract (libEGL, libnativewindow,
 # libsync, libbinder_ndk, libmediandk, libselinux ...). They live in system/lib{,64}
@@ -378,6 +458,13 @@ comm -13 <(cat "${TMP}/resolvable32" "${TMP}/resolvable64" | sort -u) \
          <(sort -u "${TMP}/resolvable") > "${TMP}/resolvable_common"
 sort -u "${TMP}/resolvable32" "${TMP}/resolvable_common" > "${TMP}/ok32"
 sort -u "${TMP}/resolvable64" "${TMP}/resolvable_common" > "${TMP}/ok64"
+# A consumer that itself lives in vndk/ or vndk-sp/ RUNS in the vndk namespace,
+# where the allowlist does not apply and the whole directory is on search path 1
+# (vndk.cc:70-77), with /vendor/${LIB} following at search path 3 (vndk.cc:94-97).
+# Judging those consumers by the vendor `default` rule would report every
+# intra-VNDK edge as broken -- e.g. libmemtrack.so -> memtrack-V1-ndk_platform.so.
+sort -u "${TMP}/ok32" "${TMP}/vndkdir32" > "${TMP}/okvndk32"
+sort -u "${TMP}/ok64" "${TMP}/vndkdir64" > "${TMP}/okvndk64"
 
 : > "${TMP}/unresolved"
 COUNT=0
@@ -387,8 +474,13 @@ while IFS= read -r f; do
     # ELF class byte (offset 4): 1 = 32-bit, 2 = 64-bit. Check each consumer
     # against the libraries its own ABI can actually load.
     case "$(od -An -tu1 -j4 -N1 "$f" 2>/dev/null | tr -d ' ')" in
-        2) _ok="${TMP}/ok64"; _abi=64 ;;
-        *) _ok="${TMP}/ok32"; _abi=32 ;;
+        2) _abi=64 ;;
+        *) _abi=32 ;;
+    esac
+    # ...and against the namespace it will actually run in.
+    case "$f" in
+        */vndk/*|*/vndk-sp/*) _ok="${TMP}/okvndk${_abi}" ;;
+        *)                    _ok="${TMP}/ok${_abi}" ;;
     esac
     "${READELF}" -d "$f" 2>/dev/null \
         | grep -oE 'Shared library: \[[^]]+\]' | sed 's/.*\[//; s/\]//' \
@@ -476,13 +568,77 @@ else
     echo "      DT_NEEDED alone cannot detect a missing dlopen'd implementation."
 fi
 
+# --- a renamed vendor executable must keep its SELinux exec type ------------
+#
+# 🔴 Added 2026-08-18, after build 69 hung at the boot animation.
+#
+# extract-files.sh renames blobs that would collide with a platform module --
+# ...wifi@1.0-service-stock, ...vibrator-service.mediatek-stock. Upstream
+# file_contexts labels only the UNSUFFIXED spelling, so a renamed binary lands
+# as plain vendor_file, init finds no domain transition and never execs it. The
+# HAL is then silently absent: nothing fails to build, nothing fails to link,
+# and this gate's DT_NEEDED pass is perfectly clean.
+#
+# The cost was a boot, not a feature. IVibrator and IVibratorManager are both
+# DECLARED in the VINTF manifest, so a client blocks in waitForService forever
+# and the boot animation never exits -- the same shape as build 68's keystore2
+# hang one flash earlier. "A service running is not a service serving" has a
+# predecessor: a binary INSTALLED is not a binary init will EXEC.
+#
+# The rule checked is narrow on purpose, so it reports regressions rather than
+# pre-existing gaps: a path with NO domain-transition label whose canonical
+# (de-`-stock`) spelling HAS one is a rename that lost its label. Three stock
+# Transsion HALs in bin/hw have never had a label in any build, 61 onward; they
+# are listed as a note and do not fail.
+LABEL_BAD=0
+FCTX="${VENDOR_DIR}/etc/selinux/vendor_file_contexts"
+if [ -f "${FCTX}" ]; then
+    # Positive control: the file must actually contain patterns, or every lookup
+    # below returns "no label" and the check becomes noise instead of a verdict.
+    FCTX_N=$(grep -cE '^/' "${FCTX}" 2>/dev/null || echo 0)
+    if [ "${FCTX_N}" -lt 50 ]; then
+        echo "!! REFUSING TO PASS: ${FCTX} has ${FCTX_N} patterns (expected many hundreds)" >&2
+        exit 2
+    fi
+    _label() {  # _label <device path> -> prints the last matching context, or nothing
+        local t="$1"
+        awk -v t="$t" '$1 ~ /^\// && NF>=2 {
+            pat="^" $1 "$"; if (t ~ pat) last=$NF
+        } END { if (last != "") print last }' "${FCTX}" 2>/dev/null
+    }
+    for d in bin bin/hw; do
+        [ -d "${VENDOR_DIR}/${d}" ] || continue
+        for f in "${VENDOR_DIR}/${d}"/*; do
+            [ -f "$f" ] && [ -x "$f" ] || continue
+            base="${f##*/}"
+            case "${base}" in *-stock*) ;; *) continue ;; esac
+            dev="/vendor/${d}/${base}"
+            canon="${dev//-stock/}"
+            got="$(_label "${dev}")"
+            want="$(_label "${canon}")"
+            case "${got}" in ""|*vendor_file:s0) got="" ;; esac
+            case "${want}" in ""|*vendor_file:s0) want="" ;; esac
+            if [ -z "${got}" ] && [ -n "${want}" ]; then
+                echo "UNLABELLED RENAME: ${dev}"
+                echo "    gets no domain-transition label; ${canon} gets ${want}"
+                echo "    -> add it to sepolicy/vendor/file_contexts (see the Wi-Fi entry)"
+                LABEL_BAD=$((LABEL_BAD + 1))
+            fi
+        done
+    done
+    echo "renamed executables missing an exec type: ${LABEL_BAD}"
+else
+    echo "NOTE: no ${FCTX} -- cannot check exec types on renamed binaries."
+fi
+
 if [ ! -s "${TMP}/unresolved" ] && [ "${IMPL_MISSING}" -eq 0 ] && [ "${DANGLING}" -eq 0 ] \
    && [ "${PROP_BAD}" -eq 0 ] && [ "${SERVICE_MISSING}" -eq 0 ] \
-   && [ "${MODULES_BAD}" -eq 0 ]; then
+   && [ "${MODULES_BAD}" -eq 0 ] && [ "${LABEL_BAD}" -eq 0 ]; then
     echo "OK: every DT_NEEDED resolves, no passthrough impl is missing vs stock,"
     echo "    no symlink dangles, no required vendor property is empty, every"
-    echo "    init service has its binary, and every kernel module load list"
-    echo "    matches the kernel package in both content and order"
+    echo "    init service has its binary, every renamed executable kept its"
+    echo "    SELinux exec type, and every kernel module load list matches the"
+    echo "    kernel package in both content and order"
     exit 0
 fi
 if [ "${MODULES_BAD}" -gt 0 ]; then
@@ -504,7 +660,18 @@ if [ "${DANGLING}" -gt 0 ]; then
     echo "unreliable, and a library behind a broken link is unloadable."
 fi
 if [ ! -s "${TMP}/unresolved" ]; then
-    echo "Link dependencies are clean, but passthrough implementations are missing."
+    # Link dependencies are clean, so name the check that actually failed rather
+    # than blaming passthrough impls -- which is what this said until 2026-08-18,
+    # when a missing SELinux exec type reported itself as a missing impl.
+    echo "Link dependencies are clean. What failed:"
+    [ "${IMPL_MISSING}" -gt 0 ]    && echo "  * ${IMPL_MISSING} passthrough HAL implementation(s) missing vs stock"
+    [ "${LABEL_BAD}" -gt 0 ]       && echo "  * ${LABEL_BAD} renamed executable(s) with no SELinux exec type -- init will
+    NOT exec them, so the HAL is silently absent. If its interface is DECLARED
+    in the VINTF manifest, this is a BOOT HANG, not a missing feature."
+    [ "${DANGLING}" -gt 0 ]        && echo "  * ${DANGLING} dangling symlink(s)"
+    [ "${PROP_BAD}" -gt 0 ]        && echo "  * ${PROP_BAD} required vendor property empty"
+    [ "${SERVICE_MISSING}" -gt 0 ] && echo "  * ${SERVICE_MISSING} init service(s) with no binary"
+    [ "${MODULES_BAD}" -gt 0 ]     && echo "  * ${MODULES_BAD} kernel module load list mismatch(es)"
     exit 1
 fi
 

@@ -1,5 +1,29 @@
 // VNDK 31 snapshot, installed into /vendor/lib{,64}/vndk for the A12 blobs.
 //
+// 🔴 THIS DIRECTORY CANNOT SERVE THE AIDL `-ndk_platform` MEMBERS. 2026-08-18.
+//   vendor/lib*/vndk is not a search path of the namespace a vendor process
+//   runs in -- vendordefault.cc:38 gives it /odm/${LIB}, /vendor/${LIB},
+//   /vendor/${LIB}/hw, /vendor/${LIB}/egl and nothing more. vndk/ is reached
+//   only over an ALLOWLISTED link:
+//       ns.GetLink("vndk").AddSharedLib({VNDK_SAMEPROCESS_LIBRARIES_VENDOR,
+//                                        VNDK_CORE_LIBRARIES_VENDOR})
+//   = vndkcore.libraries.33.txt + vndksp.libraries.33.txt, which contain no
+//   `_platform` soname at all. So this snapshot's reach is the INTERSECTION of
+//   v31's VNDK set with v33's allowlist, and its 21 AIDL NDK libraries (VNDK in
+//   v31, not VNDK in v33) fall outside it. They are still worth shipping here --
+//   inside the vndk namespace the allowlist does not apply, so they satisfy
+//   intra-VNDK edges such as libmemtrack.so -> memtrack-V1-ndk_platform.so.
+//   They simply cannot serve a consumer in the vendor default namespace.
+//
+//   Those consumers are served from hardware/lineage/compat instead; see the
+//   'A12 AIDL soname aliases' block in device.mk. Do NOT try to fix it by
+//   dropping `relative_install_path: "vndk"` here -- the compat modules already
+//   own vendor/lib{,64}/<soname>.so and the second rule is a kati parse error.
+//
+//   COST: build 68 hung in post-fs-data. keymint-service.trustonic could not
+//   link, keystore2 never registered IKeystoreService, and init.rc:710's
+//   BLOCKING `exec ... vdc keymaster earlyBootEnded` froze init's action queue.
+//
 // WHY
 //   This vendor partition was built against VNDK 31 and its blobs abort against
 //   platform VNDK 33 -- RefBase's object layout moved between A12 and A13, which

@@ -28,6 +28,30 @@
 # lineage-20.0, the branch this tree builds.
 /(vendor|system/vendor)/bin/hw/android\.hardware\.wifi@1\.0-service-stock       u:object_r:hal_wifi_default_exec:s0
 
+# Stock's vibrator HAL, shipped under a renamed path. SAME TRAP AS THE WI-FI
+# ENTRY ABOVE, and it cost build 69's boot.
+#
+# extract-files.sh repoints vibrator-mtk-default.rc at
+#   /vendor/bin/hw/android.hardware.vibrator-service.mediatek-stock
+# Upstream labels only the unsuffixed spelling, so nothing matched ours:
+#   vendor_file_contexts:192  ...vibrator-service\.mediatek -> hal_vibrator_default_exec
+# and the binary landed as plain vendor_file. init found no domain transition,
+# the service never ran, and IVibrator/IVibratorManager -- BOTH declared by
+# configs/vintf/manifest/vibrator-mtk-default.xml -- never registered.
+#
+# The symptom was a hang at the boot animation, not a missing vibration:
+# something calls waitForService on the DECLARED IVibratorManager and blocks,
+# which ramoops showed as one line per second for the whole window:
+#   init: Control message: Could not find
+#     'aidl/android.hardware.vibrator.IVibratorManager/default'
+#     for ctl.interface_start from pid: 327 (/system/bin/servicemanager)
+#
+# 🔑 A declared-but-never-registered interface is a BOOT blocker, not a degraded
+# feature -- the same shape as build 68's keystore2 hang one flash earlier.
+# Whenever a blob is renamed, check the label: a rename that resolves its
+# DT_NEEDED is not a rename that runs.
+/(vendor|system/vendor)/bin/hw/android\.hardware\.vibrator-service\.mediatek-stock  u:object_r:hal_vibrator_default_exec:s0
+
 # Character devices.
 /dev/tranlog_ctl                                                                u:object_r:tranlog_device:s0
 /dev/ntsync                                                                     u:object_r:ntsync_device:s0
