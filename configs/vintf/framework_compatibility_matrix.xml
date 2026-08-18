@@ -401,4 +401,23 @@
             <instance>default</instance>
         </interface>
     </hal>
+    <!-- Transsion's own hotspot extension, added 2026-08-18 with option B.
+         Stock's hostapd VINTF fragment declares TWO interfaces and this is the
+         second; taking that fragment wholesale is what brought it in, and
+         checkvintf then rejected the OTA at 99% with target-files already built:
+           instances in the device manifest but not specified in framework
+           compatibility matrix: vendor.transsion.hardware.wifi.hostapd@1.0
+         Deleting it from our copy of the fragment would be the wrong fix —
+         stock's hostapd really does register it, and an implementation with no
+         declaration is what SIGABRT'd sensors 31 times per boot on build 46.
+         optional, because the framework's HostapdHal speaks only
+         android.hardware.wifi.hostapd; this must be declarable, not required. -->
+    <hal format="hidl" optional="true">
+        <name>vendor.transsion.hardware.wifi.hostapd</name>
+        <version>1.0</version>
+        <interface>
+            <name>IHostapd</name>
+            <instance>default</instance>
+        </interface>
+    </hal>
 </compatibility-matrix>
