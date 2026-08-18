@@ -3,3 +3,24 @@ genfscon sysfs /devices/platform/charger/tran_aichg_disable_charger u:object_r:s
 genfscon sysfs /devices/platform/odm/odm:tran_battery/tran_cam u:object_r:sysfs_tran_cam_file:s0
 genfscon sysfs /devices/virtual/torch/torch/torch_level u:object_r:sysfs_torch_file:s0
 genfscon sysfs /devices/virtual/sub_torch/sub_torch/sub_torch_level u:object_r:sysfs_sub_torch_file:s0
+
+# The vibrator this device actually has.
+#
+# 🔴 Found 2026-08-19, once the vibrator HAL started running for the first time
+# (its -stock rename had no exec type until today, so it never ran to be denied).
+#
+# There are TWO vibrator nodes here and MediaTek labels only the simple one:
+#   sepolicy_vndr/basic/non_plat/genfs_contexts:268
+#     /devices/platform/soc/soc:regulator_vibrator/leds/vibrator -> sysfs_vibrator
+# Stock's HAL drives the other one -- an I2C AWINIC-class LRA at 0-0058, with
+# f0/cali/lra_resistance/osc_cali/ram_update/rtp/gain, i.e. real haptics rather
+# than a on/off motor -- and nothing labelled it, so it landed as plain sysfs:
+#   avc: denied { read write } for comm="android.hardwar" name="activate"
+#     scontext=u:r:hal_vibrator_default:s0 tcontext=u:object_r:sysfs:s0
+#
+# Only the LABEL is missing. MediaTek already grants the permission:
+#   sepolicy_vndr/basic/non_plat/hal_vibrator_default.te
+#     allow hal_vibrator_default sysfs_vibrator:file rw_file_perms;
+# Confirmed live with chcon on the running device before this was written: the
+# denials stopped and did not come back.
+genfscon sysfs /devices/platform/soc/11e00000.i2c/i2c-0/0-0058/leds/vibrator_single u:object_r:sysfs_vibrator:s0

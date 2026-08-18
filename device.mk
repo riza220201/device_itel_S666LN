@@ -461,6 +461,40 @@ PRODUCT_PACKAGES += \
     JamesDSP
 endif
 
+# --- classic JamesDSP: the system-wide audio EFFECT --------------------------
+#
+# This is the other half of the JamesDSP question, and the one the operator
+# actually wants: rootless JamesDSP needs DUMP granted through Shizuku or adb
+# after every reboot and cannot process apps that set
+# allowAudioPlaybackCapture="false". A system effect has neither limitation.
+#
+# Source is committed under jamesdsp/ (GPL-2.0, upstream james34602/
+# JamesDSPManager, Main/libjamesdsp) rather than fetched, so it is unconditional:
+# the build cannot be broken by a script nobody ran.
+#
+# 🔑 WHY THIS IS SAFE UNDER OPTION B, measured rather than assumed. Effects are
+# dlopen'd by the VENDOR audio HAL -- /vendor/bin/hw/android.hardware.audio
+# .service.mediatek, which on build 69 maps 113 libraries, 28 of them from the
+# v31 snapshot. An A13-built C++ library there is the "which pair matches"
+# failure this tree has paid for repeatedly. libjamesdsp escapes it entirely:
+# it is pure C, built stl:"none", and its DT_NEEDED is liblog/libc/libm/libdl
+# and nothing else -- strictly less than the stock effect libdynproc.so, which
+# already pulls libcutils and libc++ in that same process.
+#
+# VALIDATED ON HARDWARE 2026-08-19, before this line was written, by overlaying
+# the .so and audio_effects.xml with the meta-overlayfs KSU module and rebooting
+# -- no flash. dumpsys media.audio_flinger then reported:
+#     Library jamesdsp
+#       path: /vendor/lib64/soundfx/libjamesdsp.so
+#       JamesDSP v4.01 / James Fung
+#         UUID: f27317f4-c984-4de6-9a90-545759495bf2
+#         apiVersion: 00020000
+# with zero EffectsFactory errors. The UUID must stay in step with
+# configs/audio/audio_effects.xml and james.dsp's HeadsetService.java:64.
+PRODUCT_PACKAGES += \
+    libjamesdsp \
+    JamesDSPClassic
+
 # Vendor variants of platform-built libraries.
 #
 # NOT optional. Without these the vendor partition contains HALs that cannot

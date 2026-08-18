@@ -1,0 +1,14 @@
+--- a/jdsp/Effects/eel2/numericSys/FilterDesign/polyphaseFilterbank.c
++++ b/jdsp/Effects/eel2/numericSys/FilterDesign/polyphaseFilterbank.c
+@@ -52,6 +52,11 @@
+ 	}
+ 	else
+ 		return 1.0 / (1.5 * max(N, m));
++	/* UNREACHABLE. m < 1 and m >= 7 both return above, so the chain over
++	   m in {1..6} is exhaustive; clang cannot prove the range and
++	   -Werror=return-type is in soong noOverrideGlobalCflags, so it cannot
++	   be silenced by a module cflag. Defensive only -- no behaviour change. */
++	return 0.0;
+ }
+ void initWarpedPFB(WarpedPFB *pfb, double fs, unsigned int N, unsigned int m)
+ {

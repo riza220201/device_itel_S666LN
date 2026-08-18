@@ -1,0 +1,94 @@
+// Classic JamesDSP control app (GPL-2.0), upstream Main/DSPManager.
+//
+// This is the GUI half of the classic effect: libjamesdsp registers the DSP
+// with AudioFlinger, and this app attaches it to the output session and writes
+// its parameters. HeadsetService.java:64 hard-codes the same UUID that
+// configs/audio/audio_effects.xml declares -- they must not drift.
+//
+// ⚠ AndroidManifest.xml carries sharedUserId="android.uid.system" and
+// android:persistent="true". That is what lets it drive a global effect, and it
+// is also why it must be signed with the platform certificate. RESUME records
+// that shipping JamesDSP privileged boot-looped build 51 with a
+// privapp-permissions allowlist that was present, correct and provably read,
+// and was never explained -- so this is validated by overlaying it on a running
+// device BEFORE it is ever put in an image.
+
+cc_library_static {
+    name: "libsamplerate-jamesdsp",
+    vendor: false,
+    srcs: [
+        "jni/libsamplerate/samplerate.c",
+        "jni/libsamplerate/src_linear.c",
+        "jni/libsamplerate/src_sinc.c",
+    ],
+    local_include_dirs: ["jni/libsamplerate"],
+    cflags: [
+        "-ffunction-sections", "-fdata-sections", "-O3", "-ffast-math",
+        "-ftree-vectorize", "-DNDEBUG", "-Wno-error", "-Wno-unused-parameter",
+        "-Wno-unused-variable", "-Wno-unused-function", "-Wno-sign-compare",
+        "-Wno-missing-field-initializers", "-Wno-implicit-function-declaration",
+    ],
+    stl: "none",
+    sdk_version: "current",
+}
+
+cc_library_shared {
+    name: "libjamesDSPImpulseToolbox",
+    srcs: [
+        "jni/main/cpthread.c",
+        "jni/main/interpolation.c",
+        "jni/main/JdspImpResToolbox.c",
+    ],
+    local_include_dirs: ["jni/main", "jni"],
+    static_libs: ["libsamplerate-jamesdsp"],
+    // JdspImpResToolbox.c includes <jni.h>. sdk_version alone does not put it on
+    // the include path for a cc_library_shared; jni_headers does.
+    header_libs: ["jni_headers"],
+    cflags: [
+        "-ffunction-sections", "-fdata-sections", "-O3", "-ffast-math",
+        "-ftree-vectorize", "-DNDEBUG", "-Wno-error", "-Wno-unused-parameter",
+        "-Wno-unused-variable", "-Wno-unused-function", "-Wno-sign-compare",
+        "-Wno-missing-field-initializers", "-Wno-implicit-function-declaration",
+        "-Wno-pointer-sign",
+    ],
+    ldflags: ["-Wl,--gc-sections"],
+    stl: "none",
+    sdk_version: "current",
+}
+
+android_app {
+    name: "JamesDSPClassic",
+    srcs: ["src/**/*.java"],
+    resource_dirs: ["res"],
+    manifest: "AndroidManifest.xml",
+    // The legacy support libraries, NOT the bundled libs/android-support-v13.jar.
+    // That jar carries classes only, so aapt2 could not resolve AppCompat's
+    // resources (drawerArrowStyle, Widget.AppCompat.DrawerArrowToggle, spinBars)
+    // and resource linking failed. These modules are real AAR prebuilts with
+    // resources and still present at prebuilts/sdk/current/support, so the app
+    // needs no androidx migration -- its sources keep importing android.support.*
+    // (v4 compat, v13 FragmentPagerAdapter, v7 ActionBarDrawerToggle).
+    static_libs: [
+        "android-support-v13",
+        "android-support-v7-appcompat",
+    ],
+    jni_libs: ["libjamesDSPImpulseToolbox"],
+    platform_apis: true,
+    min_sdk_version: "21",
+    // Upstream's manifest declared targetSdkVersion 29 and the app is written to
+    // that surface. Removing <uses-sdk> (needed to stop manifest-merger crashing)
+    // let manifest_fixer default the target to the platform's 33, which turns on
+    // the S+ behaviour changes -- and the app does not implement them:
+    //   * PendingIntent without FLAG_IMMUTABLE/FLAG_MUTABLE -> IllegalArgumentException
+    //     at HeadsetService.foregroundPersistent(HeadsetService.java:469), which
+    //     crash-looped the persistent service on a live device
+    //   * BluetoothAdapter use would need the runtime BLUETOOTH_CONNECT permission,
+    //     which the manifest does not request
+    // Declaring 29 restores exactly the surface upstream tested, instead of
+    // guessing at a cascade of S+ compat fixes. android:exported is kept on the
+    // two components with intent filters -- correct at any target.
+    target_sdk_version: "29",
+    certificate: "platform",
+    privileged: true,
+    optimize: { enabled: false },
+}

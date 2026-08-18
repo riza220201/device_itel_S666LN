@@ -4,6 +4,35 @@
 # This is a common source of Android security bugs.
 #
 
+# AOSP's rild is not this device's RIL, and it respawns forever.
+#
+# Two RIL services are installed. /vendor/etc/init/mtkrild.rc has the real one
+#   service vendor.ril-daemon-mtk /vendor/bin/hw/mtkfusionrild -l libmtk-ril.so
+# which is `disabled` and started on demand, and works: SIM LOADED, operator
+# present. /vendor/etc/init/rild.rc has generic AOSP rild with NO -l argument,
+# so it looks for libreference-ril.so, which MediaTek does not ship. It exits 1
+# about 20 ms after every start, `class main` with no oneshot, so init respawns
+# it every 5 s for the life of the boot -- measured at 72 restarts in 20 minutes,
+# pure CPU, wakelock and log noise for a daemon that cannot ever work.
+#
+# rild.rc is not in proprietary-files.txt: the module is source-built and comes
+# in through an inherited makefile, and PRODUCT_PACKAGES cannot be subtracted
+# from. Overriding the .rc is not possible either -- the module owns that install
+# path, and a second rule for it is a kati parse error (see the vndk31 snapshot
+# vs hardware/lineage/compat collision, 2026-08-18).
+#
+# So disable the service instead. `stop` sets SVC_DISABLED, and StartIfNotDisabled
+# (system/core/init/service.cpp:711) skips a disabled service, so `class_start
+# main` in `on boot` never starts it -- it does not spawn even once. `on init`
+# runs before `on boot`, and LoadBootScripts parses all of /vendor/etc/init
+# before any action executes, so the service is known by then.
+#
+# Verified live on build 69 before this was written: after ctl.stop the state
+# stayed `stopped` past the 5 s respawn interval, vendor.ril-daemon-mtk stayed
+# running, and the SIM stayed LOADED on by.U.
+on init
+    stop vendor.ril-daemon
+
 on early-init
     write /sys/class/net/ccmni0/queues/rx-0/rps_cpus "0D"
     write /sys/class/net/ccmni1/queues/rx-0/rps_cpus "0D"
