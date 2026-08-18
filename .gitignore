@@ -4,3 +4,7 @@
 prebuilts/JamesDSP/JamesDSP.apk
 prebuilts/JamesDSP/JamesDSP.apk.tmp
 prebuilts/JamesDSP/Android.bp
+
+# Python bytecode from tools/ (v31-delta-check.py imports nothing, but running it
+# from this directory still leaves a __pycache__ behind).
+tools/__pycache__/
