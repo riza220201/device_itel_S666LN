@@ -416,9 +416,22 @@ def die_unbelievable(msg):
 
 
 def main():
-    if len(sys.argv) != 4:
-        die_unbelievable("usage: v31-delta-check.py <built-vendor-dir> <v31-lib-dir> <v33-lib-dir>")
-    vendor_dir, v31_dir, v33_dir = sys.argv[1:4]
+    # --accept <relpath> marks a finding as a KNOWN, DELIBERATE exception. It is
+    # repeatable, and it is not an allowlist in the usual rotting sense: an
+    # accepted path that is NOT a finding fails the gate (see below), so an
+    # exception cannot outlive the defect it was written for.
+    argv, accepted = [], []
+    it = iter(sys.argv[1:])
+    for a in it:
+        if a == "--accept":
+            accepted.append(next(it, ""))
+        else:
+            argv.append(a)
+    accepted = [a for a in accepted if a]
+    if len(argv) != 3:
+        die_unbelievable("usage: v31-delta-check.py [--accept <relpath>]... "
+                         "<built-vendor-dir> <v31-lib-dir> <v33-lib-dir>")
+    vendor_dir, v31_dir, v33_dir = argv
     for p in (vendor_dir, v31_dir, v33_dir):
         if not os.path.isdir(p):
             die_unbelievable(f"v31 delta gate: not a directory: {p}")
@@ -622,9 +635,36 @@ def main():
               "      is invisible here. If one of these is a library some vendor process\n"
               "      loads by name, it is as broken as anything above.")
 
+    # ---- accepted exceptions.
+    #
+    # 🔴 A stale exception is a FAILURE, not a courtesy. If an accepted path is
+    # no longer a finding, the reason it was accepted is gone and the flag is now
+    # lying about the build -- which is how an allowlist stops describing
+    # anything. This project has shipped three checks that could not fail; an
+    # exception mechanism that cannot go stale is the price of having one at all.
+    live_rel = {rel(p) for p in list(a_live) + list(b1_live) + list(b2_live)}
+    stale = [a for a in accepted if a not in live_rel]
+    if accepted:
+        hit = [a for a in accepted if a in live_rel]
+        print(f"\n  ACCEPTED EXCEPTIONS : {len(hit)} of {len(accepted)}")
+        for a in hit:
+            print(f"    [ok] {a}")
+        for a in stale:
+            print(f"    [STALE] {a}  <- accepted but NOT a finding")
+    a_live = {p: v for p, v in a_live.items() if rel(p) not in accepted}
+    b1_live = {p: v for p, v in b1_live.items() if rel(p) not in accepted}
+    b2_live = {p: v for p, v in b2_live.items() if rel(p) not in accepted}
+
+    if stale:
+        print("\nv31 DELTA GATE FAILED — stale --accept entries.")
+        print("  Each path above was passed as a deliberate exception and is no longer\n"
+              "  a finding. Remove the flag, in the same commit as whatever fixed it.")
+        return 1
+
     if not a_live and not b1_live and not b2_live:
         print("\n  v31 delta gate PASSED — nothing REACHABLE is at risk under a v31 "
-              "vendor namespace")
+              "vendor namespace"
+              + (f" (with {len(accepted)} accepted exception(s))" if accepted else ""))
         return 0
 
     print("\nv31 DELTA GATE FAILED.")

@@ -520,50 +520,61 @@ BOARD_VENDOR_SEPOLICY_DIRS += $(DEVICE_PATH)/sepolicy/vendor
 BOARD_HAS_MTK_HARDWARE := true
 BOARD_HAVE_BLUETOOTH := true
 BOARD_WLAN_DEVICE := MediaTek
-WPA_SUPPLICANT_VERSION := VER_0_8_X
-BOARD_WPA_SUPPLICANT_DRIVER := NL80211
-BOARD_HOSTAPD_DRIVER := NL80211
-
-# Without this the hotspot daemon is not merely unrequested, it is UNDEFINED:
-# external/wpa_supplicant_8/hostapd/Android.mk:15 wraps the whole file in
-# `ifeq ($(WPA_BUILD_HOSTAPD),true)`, so PRODUCT_PACKAGES += hostapd cannot
-# reach it and BOARD_HOSTAPD_DRIVER above was inert. Measured on build 54: no
-# hostapd binary anywhere, no rc, while our VINTF declares AIDL IHostapd/default.
-WPA_BUILD_HOSTAPD := true
-
-# 🔴 THIS LINE IS WHY WI-FI WORKS. Without it wpa_supplicant is built and
-# installed but has NO INIT SERVICE, so nothing can ever start it.
+# 🔴 WPA_SUPPLICANT_VERSION, BOARD_WPA_SUPPLICANT_DRIVER, BOARD_HOSTAPD_DRIVER,
+# WPA_BUILD_HOSTAPD and WIFI_HIDL_UNIFIED_SUPPLICANT_SERVICE_RC_ENTRY were all
+# here and are all GONE. They existed to build wpa_supplicant and hostapd from
+# source; option B takes stock's A12 daemons instead, and every one of these
+# would then be an inert setting -- the `vendor_mtk_powerhal_prop` shape, a line
+# that looks load-bearing and does nothing.
 #
-# external/wpa_supplicant_8/wpa_supplicant/Android.mk:1828 gates the daemon's
-# own rc on it, and nothing else in the whole tree sets it:
+# WHY the source daemons had to go. Under a v31 vendor namespace they are the one
+# class tools/v31-delta-check.py calls B2 -- not fixable by a rename, because
+# there is nothing to rename to:
 #
-#   ifeq ($(WIFI_HIDL_UNIFIED_SUPPLICANT_SERVICE_RC_ENTRY), true)
-#   LOCAL_INIT_RC=aidl/android.hardware.wifi.supplicant-service.rc
-#   endif
+#   bin/hw/wpa_supplicant  ->  android.hardware.wifi.supplicant-V1-ndk.so
+#   bin/hw/hostapd         ->  android.hardware.wifi.hostapd-V1-ndk.so
 #
-# Measured on hardware, build 54, before this line existed:
+# Both AIDL libraries are Android-13-only and exist in NO v31 set. So the daemons
+# would take v31 libutils/libbinder from /vendor while those libraries arrived
+# from the v33 apex, which is a separate linker namespace carrying v33's core:
+# the two-libutils condition, relocated into Wi-Fi.
 #
-#   /vendor/bin/hw/wpa_supplicant            present, 3,098,984 B
-#   /vendor/etc/init/*supplicant*            ABSENT  (93 files, none matching)
-#   /dev/socket/wpa_wlan0                    ABSENT  (init never made the socket)
-#   getprop init.svc.wpa_supplicant          empty
-#   cmd wifi set-wifi-enabled enabled     -> "Wifi is disabled"
-#   E WifiThreadRunner: at WifiNative.startAndWaitForSupplicantConnection:555
-#                       at WifiNative.startSupplicant:579
+# 🔑 ONE VARIABLE removes both modules, and it is cheaper than the rename this
+# looked like it would need. external/wpa_supplicant_8/Android.mk wraps BOTH
+# sub-makefiles in
 #
-# PROVEN live, single variable, demonstrated BOTH ways on the running device:
-# starting the daemon by hand with the exact arguments this rc uses made
-# ISupplicant/default register, Wi-Fi enable, ClientModeManager come up as
-# ROLE_CLIENT_PRIMARY on wlan0, scan 11 APs across 2.4 and 5 GHz, associate to
-# a WPA2 AP (802.11ac, 390 Mbps), take a DHCP lease and ping 8.8.8.8 at 15 ms
-# with 0% loss. Killing the daemon put it straight back to "Wifi is disabled";
-# restarting it restored everything.
+#   ifneq ($(filter VER_0_8_X VER_2_1_DEVEL,$(WPA_SUPPLICANT_VERSION)),)
+#     include $(S_LOCAL_PATH)/hostapd/Android.mk $(S_LOCAL_PATH)/wpa_supplicant/Android.mk
 #
-# Note the AIDL half was already correct and needs no flag here:
-# WPA_SUPPLICANT_USE_AIDL defaults on, so the daemon links
-# android.hardware.wifi.supplicant-V1-ndk.so and the module ships its own
-# VINTF fragment. Only the rc was gated, and only by this variable.
-WIFI_HIDL_UNIFIED_SUPPLICANT_SERVICE_RC_ENTRY := true
+# so with WPA_SUPPLICANT_VERSION unset the kati modules `wpa_supplicant` and
+# `hostapd` are never DEFINED -- not merely unrequested. That matters because
+# they are kati (hostapd/Android.mk:1171, wpa_supplicant/Android.mk:1784), and a
+# kati module name is emitted on every build whether or not anything asks for it,
+# with no soong `prefer:` displacement to rescue a same-named prebuilt. Leaving
+# them defined would have forced `-stock` renames on both binaries AND a
+# blob_fixup sed on each rc. Unsetting one variable avoids all of it, and stock's
+# daemons keep their real filenames so their rc files need no patching.
+#
+# Checked before removing: nothing else in this tree reads these variables, and
+# nothing requests libwpa_client. The other readers of WPA_SUPPLICANT_VERSION in
+# the tree are hardware/qcom/wlan and hardware/broadcom/wlan, neither of which is
+# this SoC.
+#
+# BOARD_WLAN_DEVICE stays -- it is what makes soong resolve libwifi-hal, and it
+# is unrelated to the supplicant.
+#
+# ⚠ The framework side is what makes this legal, and it was read on the branch we
+# build rather than assumed. packages/modules/Wifi
+# .../SupplicantStaIfaceHal.java:812-822 selects the implementation at runtime:
+#
+#   if (SupplicantStaIfaceHalAidlImpl.serviceDeclared())      -> AIDL
+#   else if (SupplicantStaIfaceHalHidlImpl.serviceDeclared()) -> HIDL
+#
+# AIDL is tried FIRST, so the swap is all-or-nothing: the AIDL VINTF fragments
+# must go at the same time as the daemons, or the framework declares AIDL, finds
+# no implementation, and Wi-Fi is dead in a way that looks nothing like this
+# change. configs/vintf/manifest/ now carries stock's HIDL declarations instead
+# (supplicant @1.4, hostapd @1.3 plus vendor.transsion...hostapd@1.0).
 
 # Inherit the proprietary blob makefiles
 include vendor/itel/S666LN/BoardConfigVendor.mk

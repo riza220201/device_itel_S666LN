@@ -373,6 +373,26 @@ function blob_fixup() {
             "${PATCHELF}" --replace-needed "libeffectsconfig.so" \
                 "libeffectsconfig-stock.so" "${2}"
             ;;
+        vendor/etc/init/vibrator-mtk-default.rc)
+            # Same shape as the c2 rc below: an init service pointed at a binary
+            # this tree installs under a different name.
+            #
+            # The vibrator service ships as `-stock` because
+            # hardware/mediatek/aidl/vibrator/Android.mk:4 defines
+            # `android.hardware.vibrator-service.mediatek` in KATI, and a kati
+            # module name is defined on every build whether or not anything
+            # requests it -- there is no soong `prefer:` displacement for it, so
+            # the blob would collide on the module name. Same class as
+            # libvibrator (build 42), libeffectsconfig (49) and
+            # wifi@1.0-service-lazy (55).
+            sed -i 's|\(/vendor/bin/hw/android\.hardware\.vibrator-service\.mediatek\)$|\1-stock|' "${2}"
+            # Loud, because a sed that silently matches nothing leaves exactly
+            # the defect it was added to fix and the build would not notice.
+            grep -q 'vibrator-service\.mediatek-stock$' "${2}" || {
+                echo "!! blob_fixup: vibrator rc was not repointed to -stock -- pattern stale" >&2
+                exit 1
+            }
+            ;;
         vendor/etc/init/android.hardware.media.c2@1.2-mediatek.rc)
             # Not a soname fixup -- an init service pointed at a binary this
             # tree does not install.
@@ -468,31 +488,30 @@ function blob_fixup() {
             "${PATCHELF}" --replace-needed "android.hardware.gnss-V1-ndk_platform.so" \
                 "android.hardware.gnss-V1-ndk.so" "${2}"
             ;;
-        vendor/bin/hw/android.hardware.security.keymint-service.trustonic)
-            # One binary serves all three interfaces, so all three sonames move.
-            # keymint-V1-ndk.vendor is already installed as a dependency of
-            # something else; secureclock and sharedsecret are not, which is why
-            # device.mk requests their .vendor variants explicitly. Without that
-            # this rename would point at nothing -- and this is the HAL behind
-            # the Trustonic keybox, i.e. Play Integrity and e-KYC.
-            # 🔴 Unrolled ON PURPOSE. Do not "tidy" this into a for-loop.
-            #
-            # blob_fixup() is called from inside extract()'s own loop and shares
-            # its scope. extract_utils.sh:305 counts with `for (( i=1; i<COUNT+1;
-            # i++ ))`, so a `for i in ...` here leaves i="sharedsecret", which
-            # the arithmetic evaluates as 0 -- and the entire extraction restarts
-            # from the first blob, forever. Observed: 45,106 log lines, 766
-            # unique, every path emitted exactly 60 times before it was killed.
-            #
-            # Any loop variable added here must be `local`, or named something
-            # extract_utils cannot be using. Not worth the risk for three lines.
-            "${PATCHELF}" --replace-needed "android.hardware.security.keymint-V1-ndk_platform.so" \
-                "android.hardware.security.keymint-V1-ndk.so" "${2}"
-            "${PATCHELF}" --replace-needed "android.hardware.security.secureclock-V1-ndk_platform.so" \
-                "android.hardware.security.secureclock-V1-ndk.so" "${2}"
-            "${PATCHELF}" --replace-needed "android.hardware.security.sharedsecret-V1-ndk_platform.so" \
-                "android.hardware.security.sharedsecret-V1-ndk.so" "${2}"
-            ;;
+        # 🔴 vendor/bin/hw/android.hardware.security.keymint-service.trustonic
+        # is deliberately NOT patched. It used to have all three of its AIDL
+        # sonames renamed from the A12 `_platform` spelling to the Android 13
+        # one; under a v31 vendor namespace that rename points the wrong way.
+        #
+        # Stock's binary natively asks for
+        #     android.hardware.security.{keymint,secureclock,sharedsecret}-V1-ndk_platform.so
+        # and the v31 set carries exactly those, so leaving it alone is the fix.
+        #
+        # And the old comment's premise was measured FALSE on hardware. It said
+        # device.mk requests the secureclock/sharedsecret .vendor variants so the
+        # rename resolves, and that they were "verified present in /vendor/lib64".
+        # They are not present -- not in build 67, and not on the running device:
+        #
+        #   /proc/<keymint pid>/maps, build 63:
+        #     /apex/com.android.vndk.v33/lib64/...secureclock-V1-ndk.so
+        #     /apex/com.android.vndk.v33/lib64/...sharedsecret-V1-ndk.so
+        #     /vendor/lib64/android.hardware.security.keymint-V1-ndk.so
+        #
+        # Two of the three resolved from the v33 APEX, which is a separate linker
+        # namespace carrying v33's libutils -- i.e. under v31 this binary would
+        # take v31 core libs from /vendor and v33 core libs from the apex, in one
+        # process. That is the two-libutils condition, landing on the HAL the
+        # Trustonic keybox depends on, and Play Integrity and e-KYC with it.
         # NOTE: arm.graphics-V1-ndk_platform is deliberately NOT renamed here.
         #
         # The android.hardware.light-V1-ndk rename above IS correct -- that AIDL
