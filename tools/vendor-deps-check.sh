@@ -423,10 +423,30 @@ if [ -n "${STOCK_VENDOR:-}" ] && [ -d "${STOCK_VENDOR}" ]; then
         [ -d "${STOCK_VENDOR}/${abi}/hw" ] || continue
         while IFS= read -r impl; do
             base="${impl##*/}"   # builtin; basename is toybox in a build action
-            if [ ! -e "${VENDOR_DIR}/${abi}/hw/${base}" ]; then
-                echo "MISSING IMPL: ${abi}/hw/${base}"
-                IMPL_MISSING=$((IMPL_MISSING + 1))
+            if [ -e "${VENDOR_DIR}/${abi}/hw/${base}" ]; then
+                continue
             fi
+            # 🔴 An exact-name miss is NOT a missing implementation. The
+            # passthrough manager matches by PREFIX, not by filename:
+            #
+            #   system/libhidl/transport/ServiceManagement.cpp:253
+            #     findFiles(path, "<package>@<version>-impl", ".so")
+            #       -> base::StartsWith(name, prefix) && base::EndsWith(name, ".so")
+            #
+            # so a renamed impl still loads. This tree renames one:
+            # android.hardware.boot@1.0-impl-1.2-mtkimpl-stock.so, because
+            # hardware/mediatek/bootctrl has its own soong namespace and both
+            # install rules survive otherwise. Comparing filenames flagged that
+            # as missing on build 68 when the loader would have found it fine.
+            #
+            # Match what the loader matches: strip at "-impl" and look for any
+            # file sharing that prefix.
+            prefix="${base%%-impl*}-impl"
+            if compgen -G "${VENDOR_DIR}/${abi}/hw/${prefix}*.so" >/dev/null 2>&1; then
+                continue
+            fi
+            echo "MISSING IMPL: ${abi}/hw/${base}"
+            IMPL_MISSING=$((IMPL_MISSING + 1))
         done < <(find "${STOCK_VENDOR}/${abi}/hw" -maxdepth 1 -name '*-impl*.so' 2>/dev/null)
     done
     echo "passthrough impls missing vs stock: ${IMPL_MISSING}"
@@ -434,10 +454,21 @@ elif [ -f "${IMPL_LIST}" ]; then
     while IFS= read -r rel; do
         [ -z "${rel}" ] && continue
         case "${rel}" in \#*) continue ;; esac
-        if [ ! -e "${VENDOR_DIR}/${rel}" ]; then
-            echo "MISSING IMPL: ${rel}"
-            IMPL_MISSING=$((IMPL_MISSING + 1))
+        if [ -e "${VENDOR_DIR}/${rel}" ]; then
+            continue
         fi
+        # Same prefix rule as the STOCK_VENDOR branch above, and this is the
+        # branch the BUILD actually takes (Android.mk passes no STOCK_VENDOR).
+        # The passthrough manager matches "<package>@<ver>-impl"* , so a renamed
+        # impl still loads -- android.hardware.boot@1.0-impl-1.2-mtkimpl-stock.so
+        # is one, and comparing filenames failed build 68 on a file the loader
+        # would have found.
+        ipfx="${rel%%-impl*}-impl"
+        if compgen -G "${VENDOR_DIR}/${ipfx}"'*.so' >/dev/null 2>&1; then
+            continue
+        fi
+        echo "MISSING IMPL: ${rel}"
+        IMPL_MISSING=$((IMPL_MISSING + 1))
     done < "${IMPL_LIST}"
     echo "passthrough impls missing vs stock: ${IMPL_MISSING}"
 else

@@ -847,6 +847,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/egl/libMEOW_qt.so
 -vendor/lib/egl/libMEOW_trace.so
 -vendor/lib/egl/mt6789/libGLES_mali.so
+-vendor/lib/android.hardware.audio.effect@6.0-util.so
 -vendor/lib/hw/android.hardware.audio.effect@6.0-impl.so
 -vendor/lib/hw/android.hardware.audio.effect@7.0-impl.so
 -vendor/lib/hw/android.hardware.bluetooth.audio@2.0-impl.so
@@ -1404,6 +1405,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/android.hardware.media.c2@1.1.so:vendor/lib64/android.hardware.media.c2@1.1-stock.so
 -vendor/lib64/android.hardware.media.c2@1.2.so:vendor/lib64/android.hardware.media.c2@1.2-stock.so
 -vendor/lib64/hal_libnfc.so
+-vendor/lib64/android.hardware.audio.effect@6.0-util.so
 -vendor/lib64/hw/android.hardware.audio.effect@6.0-impl.so
 -vendor/lib64/hw/android.hardware.audio.effect@7.0-impl.so
 -vendor/lib64/hw/android.hardware.bluetooth.audio@2.0-impl.so

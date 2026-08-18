@@ -944,6 +944,30 @@ PRODUCT_PACKAGES += \
 # already does for android.hardware.wifi@1.0..1.5 immediately above. HIDL
 # interfaces are versioned and ABI-stable by design, which is exactly what lets
 # stock's A12 daemons link the platform's build of the same @version.
+# 🔴 Three libraries the vendor-deps gate caught AFTER packaging build 68 --
+# consumers of the stock binaries this conversion introduced, and each one takes
+# a DIFFERENT route for the reason established today: what DECLARES a module
+# decides whether a prebuilt can displace it.
+#
+#   android.hardware.audio.effect@6.0-util  cc_library_shared in
+#       hardware/interfaces (ROOT namespace) -> a prebuilt DISPLACES it, so it
+#       ships as a blob with no rename, and stock's A12 copy is the right partner
+#       for stock's @6.0-impl.so. In proprietary-files.txt, both ABIs.
+#   android.system.wifi.keystore@1.0        hidl_interface -> GENERATED, and a
+#       prebuilt does not replace a generated module. .vendor variant, below.
+#       Reached from stock's wpa_supplicant via stock's libkeystore-engine-wifi-hidl.
+#   libmtk_bsg                              cc_library_shared, but in
+#       hardware/mediatek, which declares its own soong_namespace -> nothing is
+#       displaced and a blob would collide. .vendor variant, below. Consumed by
+#       stock's boot@1.0-impl-1.2-mtkimpl.
+#
+# 🪤 All three were missed because I measured each new binary's DIRECT DT_NEEDED
+# and not the TRANSITIVE closure of the libraries I had just added. The daemons'
+# own dependencies were checked; their dependencies' dependencies were not.
+PRODUCT_PACKAGES += \
+    android.system.wifi.keystore@1.0.vendor \
+    libmtk_bsg.vendor
+
 PRODUCT_PACKAGES += \
     android.hardware.wifi.supplicant@1.0.vendor \
     android.hardware.wifi.supplicant@1.1.vendor \
