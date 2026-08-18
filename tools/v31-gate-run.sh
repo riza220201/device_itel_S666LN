@@ -55,31 +55,48 @@ die() { echo "!! $*" >&2; exit 1; }
 [ -d "${V31_DIR}" ] || die "no v31 snapshot at ${V31_DIR}"
 
 # ---- the v33 set, out of the platform's own apex.
-APEX="${OUT}/system/apex/com.android.vndk.current.apex"
-[ -f "${APEX}" ] || die "no ${APEX}
-   That apex IS the v33 reference set; without it there is nothing to diff
-   against and the gate would have an empty delta -- which is its documented way
-   of passing vacuously. It refuses below 1,000 v33-only symbols, so this would
-   exit 2 rather than lie, but fix the input rather than reading that as a pass."
-
+#
+# Two shapes, and a build produces the easy one. soong emits a FLATTENED apex --
+# a plain directory of lib/ and lib64/ -- so the reference set can be read
+# straight off disk. The .apex FILE form only appears in a stock dump, and that
+# is the one needing unzip + debugfs.
+#
+# ⚠ The flattened path is `com.android.vndk.current`, with no `.apex` suffix and
+# no version in the name. Looking for com.android.vndk.current.apex finds
+# nothing on a freshly built tree, which is what this script did first.
+APEX_DIR="${OUT}/system/apex/com.android.vndk.current"
+APEX_FILE="${OUT}/system/apex/com.android.vndk.current.apex"
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
-unzip -o -q "${APEX}" apex_payload.img -d "${TMP}"
-# debugfs lives in /sbin, which is NOT on a normal user's PATH on Debian -- the
-# same trap notes/kernel-modules-2026-08-04.md records for modprobe.
-DEBUGFS=/sbin/debugfs; [ -x "${DEBUGFS}" ] || DEBUGFS="$(command -v debugfs)" || \
-    die "debugfs not found (try /sbin/debugfs)"
-mkdir -p "${TMP}/v33"
-# The ownership warnings from a non-root rdump are expected and harmless: the
-# file CONTENTS are what this reads.
-"${DEBUGFS}" -R "rdump /lib64 ${TMP}/v33" "${TMP}/apex_payload.img" >/dev/null 2>&1 || true
-"${DEBUGFS}" -R "rdump /lib   ${TMP}/v33" "${TMP}/apex_payload.img" >/dev/null 2>&1 || true
-n="$(find "${TMP}/v33" -name '*.so' | wc -l)"
-[ "${n}" -ge 200 ] || die "only ${n} libraries extracted from the v33 apex.
-   Expected ~326 (163 per ABI). The gate's own floor would catch this, but a
-   broken extraction should fail here rather than be reported as a verdict."
-echo "== v33 reference set: ${n} libraries from $(basename "${APEX}")"
+
+if [ -d "${APEX_DIR}/lib64" ]; then
+    V33_DIR="${APEX_DIR}"
+    n="$(find "${APEX_DIR}" -name '*.so' | wc -l)"
+    echo "== v33 reference set: ${n} libraries from the flattened apex"
+elif [ -f "${APEX_FILE}" ]; then
+    unzip -o -q "${APEX_FILE}" apex_payload.img -d "${TMP}"
+    # debugfs lives in /sbin, off a normal user's PATH on Debian -- the same trap
+    # notes/kernel-modules-2026-08-04.md records for modprobe.
+    DEBUGFS=/sbin/debugfs; [ -x "${DEBUGFS}" ] || DEBUGFS="$(command -v debugfs)" || \
+        die "debugfs not found (try /sbin/debugfs)"
+    mkdir -p "${TMP}/v33"
+    "${DEBUGFS}" -R "rdump /lib64 ${TMP}/v33" "${TMP}/apex_payload.img" >/dev/null 2>&1 || true
+    "${DEBUGFS}" -R "rdump /lib   ${TMP}/v33" "${TMP}/apex_payload.img" >/dev/null 2>&1 || true
+    V33_DIR="${TMP}/v33"
+    n="$(find "${V33_DIR}" -name '*.so' | wc -l)"
+    echo "== v33 reference set: ${n} libraries from $(basename "${APEX_FILE}")"
+else
+    die "no VNDK apex at either
+     ${APEX_DIR}          (flattened, what a build produces)
+     ${APEX_FILE}         (packed, what a stock dump has)
+   That apex IS the v33 reference set; without it the delta is empty, which is
+   this gate's documented way of passing vacuously. It refuses below 1,000
+   v33-only symbols and would exit 2 rather than lie -- but fix the input rather
+   than reading that as a pass."
+fi
+[ "${n}" -ge 200 ] || die "only ${n} libraries in the v33 set (expected ~326, 163 per ABI).
+   A broken extraction should fail here rather than be reported as a verdict."
 
 exec python3 "${MY_DIR}/v31-delta-check.py" \
     --accept bin/dumpsys \
-    "${VENDOR_DIR}" "${V31_DIR}" "${TMP}/v33"
+    "${VENDOR_DIR}" "${V31_DIR}" "${V33_DIR}"

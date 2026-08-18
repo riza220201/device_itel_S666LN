@@ -265,6 +265,28 @@ function blob_fixup() {
             "${PATCHELF}" --replace-needed "ese_spi_nxp.so" \
                 "ese_spi_nxp-stock.so" "${2}"
             ;;
+        vendor/lib64/hw/android.hardware.boot@1.0-impl-1.2-mtkimpl-stock.so)
+            # Stock's boot-control implementation, and it must be stock's: built
+            # at A13 it holds android::base::Tokenize, a v33-only symbol, and
+            # that is what hung build 68's predecessor at the boot logo with
+            # IBootControl never registering.
+            #
+            # libmtk_bsg is renamed for the usual reason -- hardware/mediatek
+            # defines that module name and dropping our PRODUCT_PACKAGES request
+            # does not undefine it, because `...-mtkimpl.recovery` still pulls
+            # the module in. Its VENDOR variant then stops being installed while
+            # the NAME stays taken, which is the worst of both and is exactly
+            # what the vendor-deps gate reported: `1 libmtk_bsg.so`.
+            #
+            # A sweep of every stock vendor ELF finds exactly two references to
+            # libmtk_bsg.so -- the 64- and 32-bit boot impls -- and this tree
+            # ships only the 64-bit one (the 32-bit variant cannot compile here:
+            # generated_kernel_includes exports arm64 headers to every ABI, so
+            # asm/sigcontext.h's __uint128_t breaks an armv7a compile). So this
+            # single rename reaches every consumer that exists.
+            "${PATCHELF}" --replace-needed "libmtk_bsg.so" \
+                "libmtk_bsg-stock.so" "${2}"
+            ;;
         vendor/bin/hw/android.hardware.wifi@1.0-service-stock)
             # Stock's Wi-Fi HAL, and it has to be stock's. PROVEN ON HARDWARE,
             # build 57: the chip is powered and wlan0/wlan1/p2p0 created by a

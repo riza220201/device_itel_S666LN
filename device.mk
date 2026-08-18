@@ -457,6 +457,7 @@ PRODUCT_PACKAGES += \
     android.hardware.audio.common@7.0-util.vendor \
     android.hardware.audio.common@7.0.vendor \
     android.hardware.audio.effect@6.0.vendor \
+    android.hardware.audio.effect@6.0-util.vendor \
     android.hardware.audio.effect@7.0-util.vendor \
     android.hardware.audio.effect@7.0.vendor \
     android.hardware.audio@6.0.vendor \
@@ -949,10 +950,28 @@ PRODUCT_PACKAGES += \
 # a DIFFERENT route for the reason established today: what DECLARES a module
 # decides whether a prebuilt can displace it.
 #
-#   android.hardware.audio.effect@6.0-util  cc_library_shared in
-#       hardware/interfaces (ROOT namespace) -> a prebuilt DISPLACES it, so it
-#       ships as a blob with no rename, and stock's A12 copy is the right partner
-#       for stock's @6.0-impl.so. In proprietary-files.txt, both ABIs.
+#   android.hardware.audio.effect@6.0-util  .vendor variant, beside the @7.0-util
+#       request that has always been there. Stock's @7.0-impl.so links
+#       @7.0-util.so and gets it exactly this way, with no blob -- the @6.0 case
+#       is the same shape and I simply had not noticed the precedent one line
+#       above where I was editing.
+#
+#       🪤 I first shipped it as a BLOB, reasoning that a cc_library_shared in
+#       hardware/interfaces is in the ROOT namespace and would be displaced.
+#       It collided:
+#         base_rules.mk:338: MODULE.TARGET.SHARED_LIBRARIES.
+#           android.hardware.audio.effect@6.0-util already defined by
+#           hardware/interfaces/audio/effect/all-versions/default/util
+#       So "root namespace -> displaced" is NOT the rule, and it never was. The
+#       cases where a blob did NOT collide -- audio.effect@6.0-impl,
+#       vndservicemanager -- are ones where this tree had just REMOVED the only
+#       PRODUCT_PACKAGES request, leaving the platform module unreachable and so
+#       never exported to make. @6.0-util is still reachable (the audio stack
+#       needs it), so its make module exists and the name is taken.
+#
+#       🔑 The real rule: a prebuilt's module name is free only when the
+#       platform's module is not otherwise reachable in the build. Namespace was
+#       a coincidence of the first two cases I looked at.
 #   android.system.wifi.keystore@1.0        hidl_interface -> GENERATED, and a
 #       prebuilt does not replace a generated module. .vendor variant, below.
 #       Reached from stock's wpa_supplicant via stock's libkeystore-engine-wifi-hidl.
@@ -965,8 +984,7 @@ PRODUCT_PACKAGES += \
 # and not the TRANSITIVE closure of the libraries I had just added. The daemons'
 # own dependencies were checked; their dependencies' dependencies were not.
 PRODUCT_PACKAGES += \
-    android.system.wifi.keystore@1.0.vendor \
-    libmtk_bsg.vendor
+    android.system.wifi.keystore@1.0.vendor
 
 PRODUCT_PACKAGES += \
     android.hardware.wifi.supplicant@1.0.vendor \
