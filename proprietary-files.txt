@@ -1401,7 +1401,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/hw/android.hardware.bluetooth.audio@2.0-impl.so
 -vendor/lib64/hw/android.hardware.bluetooth.audio@2.1-impl.so
 -vendor/lib64/hw/android.hardware.bluetooth@1.1-impl-mediatek.so
--vendor/lib64/hw/android.hardware.boot@1.0-impl-1.2-mtkimpl.so
+-vendor/lib64/hw/android.hardware.boot@1.0-impl-1.2-mtkimpl.so:vendor/lib64/hw/android.hardware.boot@1.0-impl-1.2-mtkimpl-stock.so
 -vendor/lib64/hw/android.hardware.gatekeeper@1.0-impl.so
 -vendor/lib64/hw/android.hardware.gnss-impl-mediatek.so
 -vendor/lib64/hw/android.hardware.gnss@2.1-impl-mediatek.so

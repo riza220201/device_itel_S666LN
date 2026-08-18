@@ -675,11 +675,36 @@ PRODUCT_PACKAGES += \
 # have called the boot blocker dead weight.
 #
 # Stock ships both, built against VNDK 31 by construction, so they move to
-# proprietary-files.txt. They keep their canonical filenames: the passthrough
-# manager matches on the `-impl` PREFIX, so a `-stock` suffix would still be
-# found, but there is no name to collide with once the source module is no longer
-# requested -- which is exactly how android.hardware.audio.effect@7.0-impl has
-# always shipped here (blob, no rename, no collision).
+# proprietary-files.txt -- but they are NOT treated the same way, and the
+# difference is the namespace their source module lives in:
+#
+#   audio.effect@6.0-impl   source is hardware/interfaces/audio/effect/6.0,
+#                           i.e. the ROOT namespace, so our prebuilt DISPLACES it
+#                           and no rename is needed. Same shape that has shipped
+#                           android.hardware.audio.effect@7.0-impl as an unrenamed
+#                           blob for months. Confirmed: no collision.
+#   boot@1.0-impl-1.2-...   source is hardware/mediatek/bootctrl, which is its OWN
+#                           namespace, so nothing is displaced and BOTH rules stay.
+#                           Ships as `-stock`.
+#
+# 🪤 The boot one collided, and this file had already said it would:
+#
+#     out/soong/installs-lineage_S666LN.mk:182258: error: overriding commands for
+#     target `.../vendor/lib64/hw/android.hardware.boot@1.0-impl-1.2-mtkimpl.so'
+#
+# The comment below ("It cannot be shipped as a blob instead") names BOTH failure
+# modes -- same module name, and different module names sharing an install path.
+# The module names differ here, so the first does not apply and the second does.
+# That is build 64's lesson again: a unique `name:` is not enough, because the
+# install PATH is a second dimension. A distinct filename is what actually fixes
+# it, which is the pattern already used for libeffectsconfig-stock,
+# libwifi-hal-stock, ese_spi_nxp-stock and the eleven codec2 -stock libraries.
+#
+# The `-stock` suffix is safe for a passthrough impl specifically: openLibs()
+# matches on the PREFIX `<package>@<version>-impl`, so the renamed file is still
+# found. And only ONE copy reaches the image -- the platform's rule exists but is
+# orphaned (it is not in PRODUCT_PACKAGES, and `ninja -t query` shows its
+# `outputs:` empty), so there is no second provider and no registration race.
 #
 # ⚠ The RECOVERY variant below is deliberately untouched. It installs to
 # recovery/root/system/lib64/hw/, not to /vendor, and recovery has no VNDK
