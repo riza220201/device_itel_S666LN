@@ -56,14 +56,41 @@ WHAT IT CHECKS
   resolves" while the 64-bit codec2 HAL dies in the linker every boot -- which
   is exactly what happened to tools/vendor-deps-check.sh before it was split.
 
+  Reachability — added 2026-08-18, and it is what makes the exit code usable.
+    A finding is WORK only if something LOADS the file. Both checks are therefore
+    split against a DT_NEEDED closure grown from the partition's real entry
+    points: binaries an init rc starts, other executables under bin/, and
+    passthrough HAL impls. Only reachable findings fail the gate.
+
+    Measured on build 67: of 15 Check A findings, 8 sit on chains this tree has
+    already severed -- nothing anywhere DT_NEEDEDs libaudiofoundation.so since
+    blob_fixup repointed the audio stack at liblog.so, and the c2 service links
+    only the -stock codec2 set, leaving the 12 canonical A13 codec2 libraries as
+    an island with no root. Those 8 are platform `.vendor` variants that arrive
+    as somebody else's dependency and that this tree cannot stop installing
+    (build 64). Failing the gate on them would make its zero unreachable, and a
+    gate whose zero can never be reached is a number people learn to ignore.
+
+    🔴 The same pass is what keeps the boot blocker in scope. Reverse edges would
+    have been the obvious way to do this and would have been catastrophic:
+    android.hardware.boot@1.0-impl-1.2-mtkimpl.so has ZERO consumers in any
+    DT_NEEDED on the partition, because openLibs() constructs its filename at
+    runtime, and it is the file that hung build 67. Passthrough impls are roots.
+
+    ⚠ DT_NEEDED only. MediaTek dlopen()s ~305 libraries into camerahalserver, so
+    inside a closure proves live and outside every closure does NOT prove dead.
+    Unreachable findings are printed in full for that reason, never dropped.
+
 EXIT
-    0   nothing at risk
-    1   findings (the file list is the work)
-    2   the inputs do not describe a believable device -- see the sanity floor.
+    0   nothing REACHABLE is at risk (unreachable findings may still be listed)
+    1   reachable findings (the file list is the work)
+    2   the inputs do not describe a believable device -- see the sanity floors.
         A gate that has never been shown to fail is indistinguishable from one
-        that passes, and this one has a specific way of passing vacuously: point
-        it at an empty or wrong directory and every set is empty, so the delta is
-        empty and nothing is ever flagged.
+        that passes, and this one has two specific ways of passing vacuously:
+        point it at an empty or wrong directory and every set is empty, so the
+        delta is empty and nothing is flagged; or let the reachability pass find
+        no roots, and every finding classifies as unreachable. There is a floor
+        under each.
 """
 import os
 import re
@@ -90,6 +117,22 @@ MIN_VENDOR_ELFS = 500
 # 8,492 v33-only symbols and still zero findings, because stock pins
 # ro.vndk.version=31 and ships exactly that vendor. A control needs a control.
 MIN_V33_ONLY_SYMBOLS = 1000
+
+# A vendor partition for this device has ~77-103 init services and ~61 passthrough
+# impls. If the reachability pass finds almost none it has failed to parse
+# etc/init or to spot lib*/hw, and then EVERY finding classifies as unreachable
+# and the gate reports a clean run having tested nothing -- the same vacuous-pass
+# shape as the v33 floor above, one layer up.
+#
+# 🔑 These are PER KIND, and that is not fussiness. The first version of this
+# floor counted roots in total, and its positive control -- a vendor tree with
+# etc/init and lib*/hw deleted outright -- did not fire it: 21 executables under
+# bin/ still counted as roots and cleared a threshold of 20. So the check passed
+# while both mechanisms it depends on were gone. A total that any one kind can
+# satisfy alone cannot detect the loss of the other two. The control needs a
+# control, and this time the control had one.
+MIN_SERVICE_ROOTS = 20
+MIN_PASSTHROUGH_ROOTS = 20
 
 
 class Elf:
@@ -278,6 +321,89 @@ def _same_ver(dep, alt):
     return bool(a and b and a.group("ver") == b.group(1))
 
 
+_SERVICE_RE = re.compile(r"^\s*service\s+\S+\s+(/\S+)", re.M)
+
+
+def collect_roots(vendor_dir, elf_rels):
+    """[(kind, relpath)] — the entry points a vendor file can be reached FROM.
+
+    Three kinds, and the second is the one a naive reverse-DT_NEEDED search gets
+    catastrophically wrong:
+
+      service       a binary some /vendor/etc/init/*.rc actually starts.
+      command       any other executable under bin/. An executable is an entry
+                    point by definition -- nothing "loads" it -- so it is never
+                    unreachable, but it is worth distinguishing from a service
+                    because it is not on the boot path. bin/dumpsys is this.
+      passthrough   a HIDL passthrough implementation. These have ZERO consumers
+                    in any DT_NEEDED anywhere, because ServiceManagement.cpp's
+                    openLibs() builds the filename at runtime from the interface
+                    name -- findFiles(path, "<package>@<ver>-impl", ".so") -- and
+                    dlopens whatever matches.
+
+    🔴 That third kind is why this pass exists in this shape. Build 67 hung at the
+    boot logo on android.hardware.boot@1.0-impl-1.2-mtkimpl.so, which has zero
+    reverse edges. Anything that classified files by "who links me" would have
+    called the boot blocker dead weight and told the operator to skip it.
+    """
+    roots = []
+    init_dir = os.path.join(vendor_dir, "etc", "init")
+    for dirpath, _dirs, files in os.walk(init_dir):
+        for fn in files:
+            if not fn.endswith(".rc"):
+                continue
+            try:
+                with open(os.path.join(dirpath, fn), errors="ignore") as f:
+                    txt = f.read()
+            except OSError:
+                continue
+            for m in _SERVICE_RE.finditer(txt):
+                path = m.group(1)
+                if not path.startswith("/vendor/"):
+                    continue
+                r = path[len("/vendor/"):]
+                if r in elf_rels:
+                    roots.append(("service", r))
+    named = {r for _k, r in roots}
+    for r in elf_rels:
+        base = os.path.basename(r)
+        if r.startswith("bin/") and r not in named:
+            roots.append(("command", r))
+        elif "/hw/" in r and "-impl" in base and base.endswith(".so"):
+            roots.append(("passthrough", r))
+    return sorted(set(roots))
+
+
+def reachable_from_roots(roots, deps_by_rel, bits_by_rel, by_soname):
+    """Every vendor file on a DT_NEEDED path from some root, per ABI.
+
+    ⚠ DT_NEEDED only, and the limit is not a detail. MediaTek dlopen()s roughly
+    305 libraries into camerahalserver alone (measured 2026-08-13 from
+    /proc/pid/maps: 17 in the DT_NEEDED closure, 322 mapped). So:
+
+        INSIDE  a closure  ->  proven live
+        OUTSIDE every one  ->  NOT proven dead
+
+    which is why an unreachable finding is reported rather than dropped.
+    """
+    seen = set()
+    for _kind, root in roots:
+        bits = bits_by_rel.get(root)
+        if bits is None:
+            continue
+        stack = [root]
+        while stack:
+            cur = stack.pop()
+            if cur in seen:
+                continue
+            seen.add(cur)
+            for dep in deps_by_rel.get(cur, ()):
+                nxt = by_soname[bits].get(dep)
+                if nxt and nxt not in seen:
+                    stack.append(nxt)
+    return seen
+
+
 def die_unbelievable(msg):
     """Exit 2 — the inputs do not describe a device, so there is no verdict.
 
@@ -316,6 +442,8 @@ def main():
     vendor = {32: [], 64: []}
     vendor_defines = {32: set(), 64: set()}
     vendor_sonames = {32: set(), 64: set()}
+    deps_by_rel, bits_by_rel = {}, {}
+    by_soname = {32: {}, 64: {}}
     for p in walk_elfs(vendor_dir):
         e = Elf(p)
         if not e.ok:
@@ -325,12 +453,38 @@ def main():
         vendor[e.bits].append((p, undef, deps))
         vendor_defines[e.bits] |= defined
         vendor_sonames[e.bits].add(soname or os.path.basename(p))
+        r = os.path.relpath(p, vendor_dir)
+        deps_by_rel[r] = deps
+        bits_by_rel[r] = e.bits
+        by_soname[e.bits].setdefault(soname or os.path.basename(p), r)
     total = len(vendor[32]) + len(vendor[64])
     print(f"  {'vendor ELFs':24s} lib {len(vendor[32]):4d}   lib64 {len(vendor[64]):4d}   ({vendor_dir})")
     if total < MIN_VENDOR_ELFS:
         die_unbelievable(f"v31 delta gate: only {total} vendor ELFs under {vendor_dir}.\n"
                          "A built vendor partition for this device is ~2,000. "
                          "Refusing to report a verdict.")
+
+    # ---- reachability. A finding is WORK only if something loads the file.
+    roots = collect_roots(vendor_dir, set(bits_by_rel))
+    nsvc = sum(1 for k, _r in roots if k == "service")
+    ncmd = sum(1 for k, _r in roots if k == "command")
+    npt = sum(1 for k, _r in roots if k == "passthrough")
+    print(f"  {'roots':24s} {nsvc} init services, {ncmd} commands, "
+          f"{npt} passthrough impls")
+    if nsvc < MIN_SERVICE_ROOTS or npt < MIN_PASSTHROUGH_ROOTS:
+        die_unbelievable(
+            f"v31 delta gate: {nsvc} init services and {npt} passthrough impls found "
+            f"under {vendor_dir}.\n"
+            "This device's vendor partition has ~77-103 and ~61. The reachability pass\n"
+            "has failed to read etc/init or to see lib*/hw, and with those roots missing\n"
+            "every finding classifies as unreachable and this gate reports a clean run\n"
+            "having tested nothing. Refusing to report a verdict.\n"
+            "(Executables under bin/ are counted separately and deliberately do NOT\n"
+            " satisfy this floor -- they are present even when both other kinds are\n"
+            " gone, which is how the first version of this check passed its own\n"
+            " positive control.)")
+    reachable = reachable_from_roots(roots, deps_by_rel, bits_by_rel, by_soname)
+    print(f"  {'reachable from a root':24s} {len(reachable)} of {total} vendor ELFs")
 
     # ---- Check A: v33-only symbols referenced by vendor ELFs
     findings_a = {}
@@ -392,44 +546,101 @@ def main():
                 findings_b_rename[path] = (bits, sorted(renameable))
 
     rel = lambda p: os.path.relpath(p, vendor_dir)
+    root_kind = {r: k for k, r in roots}
 
-    print(f"\n  CHECK A  v33-only symbol references : {len(findings_a)} file(s)")
-    for path in sorted(findings_a):
+    def split(findings):
+        live, dead = {}, {}
+        for path, val in findings.items():
+            (live if rel(path) in reachable else dead)[path] = val
+        return live, dead
+
+    a_live, a_dead = split(findings_a)
+    b1_live, b1_dead = split(findings_b_rename)
+    b2_live, b2_dead = split(findings_b)
+
+    def tag(path):
+        k = root_kind.get(rel(path))
+        return f"  ({k})" if k else ""
+
+    def show_a(path):
         bits, hits = findings_a[path]
         shown = ", ".join(hits[:3]) + (f" (+{len(hits)-3} more)" if len(hits) > 3 else "")
-        print(f"    [{bits}] {rel(path)}\n           {shown}")
+        print(f"    [{bits}] {rel(path)}{tag(path)}\n           {shown}")
 
-    print(f"\n  CHECK B1 v33-only DT_NEEDED, RENAMEABLE to a v31 name : "
-          f"{len(findings_b_rename)} file(s)")
-    for path in sorted(findings_b_rename):
+    def show_b1(path):
         bits, hits = findings_b_rename[path]
         for dep, alt in hits:
             note = "" if _same_ver(dep, alt) else "   ⚠ interface version differs"
-            print(f"    [{bits}] {rel(path)}\n           {dep}  ->  {alt}{note}")
+            print(f"    [{bits}] {rel(path)}{tag(path)}\n           {dep}  ->  {alt}{note}")
 
-    print(f"\n  CHECK B2 v33-only DT_NEEDED, NO v31 counterpart : {len(findings_b)} file(s)")
-    for path in sorted(findings_b):
+    def show_b2(path):
         bits, hits = findings_b[path]
-        print(f"    [{bits}] {rel(path)}\n           {', '.join(hits)}")
+        print(f"    [{bits}] {rel(path)}{tag(path)}\n           {', '.join(hits)}")
 
-    if not findings_a and not findings_b and not findings_b_rename:
-        print("\n  v31 delta gate PASSED — nothing at risk under a v31 vendor namespace")
+    print(f"\n  CHECK A  v33-only symbol references : {len(a_live)} reachable"
+          f"   ({len(a_dead)} with no static path, listed below)")
+    for path in sorted(a_live):
+        show_a(path)
+
+    print(f"\n  CHECK B1 v33-only DT_NEEDED, RENAMEABLE to a v31 name : "
+          f"{len(b1_live)} reachable   ({len(b1_dead)} with no static path)")
+    for path in sorted(b1_live):
+        show_b1(path)
+
+    print(f"\n  CHECK B2 v33-only DT_NEEDED, NO v31 counterpart : {len(b2_live)} reachable"
+          f"   ({len(b2_dead)} with no static path)")
+    for path in sorted(b2_live):
+        show_b2(path)
+
+    # ---- the unreachable set. Reported, never dropped, and it does not fail the
+    # gate. These are files the image carries that no init service, command or
+    # passthrough impl can reach through DT_NEEDED -- typically a platform
+    # `.vendor` variant that arrives as somebody else's dependency and that this
+    # tree cannot stop installing (build 64: "the platform's vendor variant is
+    # not ours to remove"), sitting beside the stock copy that actually runs.
+    #
+    # 🔴 They do not fail the gate because they cannot be fixed, and a gate whose
+    # zero is unreachable stops being a gate: option B is gated on this exit
+    # code, so a permanent floor of unfixable findings would mean the green light
+    # never comes and the number gets ignored instead.
+    #
+    # ⚠ But "no static path" is NOT "dead". This pass reads DT_NEEDED, and
+    # MediaTek dlopen()s ~305 libraries into camerahalserver alone. Anything here
+    # becomes live the moment something dlopens it, and this gate will not see
+    # that happen. Read the list.
+    dead_total = len(a_dead) + len(b1_dead) + len(b2_dead)
+    if dead_total:
+        print(f"\n  NOT ON ANY STATIC PATH : {dead_total} file(s) — reported, not failing")
+        for path in sorted(a_dead):
+            show_a(path)
+        for path in sorted(b1_dead):
+            show_b1(path)
+        for path in sorted(b2_dead):
+            show_b2(path)
+        print("    ^ no init service, command or passthrough impl reaches these through\n"
+              "      DT_NEEDED. That is evidence of dead weight, not proof of it: a dlopen\n"
+              "      is invisible here. If one of these is a library some vendor process\n"
+              "      loads by name, it is as broken as anything above.")
+
+    if not a_live and not b1_live and not b2_live:
+        print("\n  v31 delta gate PASSED — nothing REACHABLE is at risk under a v31 "
+              "vendor namespace")
         return 0
 
     print("\nv31 DELTA GATE FAILED.")
-    if findings_b_rename:
+    if b1_live:
         print("  Check B1 is the CHEAP class: the same AIDL interface exists in v31 under\n"
               "  the Android 11/12 `_platform` naming. blob_fixup already does this rename\n"
               "  for arm.graphics and android.hardware.light. Where the interface VERSION\n"
               "  also moved, confirm the vendor consumer actually tolerates the older one\n"
               "  before renaming -- a rename that compiles is not a rename that works.")
-    if findings_a:
+    if a_live:
         print("  Check A files each have a stock A12 counterpart; ship stock's copy.\n"
               "  Mind the module-name AND install-path collisions -- a unique `name:` is\n"
               "  not enough, `stem` leaves the install path identical and that is a\n"
               "  parse-time error (build 64). Distinct filenames plus blob_fixup\n"
               "  repointing is the pattern that works (build 65's codec2 set).")
-    if findings_b:
+    if b2_live:
         print("  Check B2 is NOT fixable by swapping or renaming -- there is no v31 copy to\n"
               "  swap to under any name. Each of these needs its consumer moved to stock's\n"
               "  A12 daemon, which for wpa_supplicant/hostapd means re-deriving the whole\n"
