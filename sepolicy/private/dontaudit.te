@@ -1,0 +1,35 @@
+# Root-owned helpers asking for DAC overrides they do not need.
+#
+# Build 71, per boot: 2 + 2 for mkswap, 2 + 2 for the boringssl self test, 1 for
+# gsid. All the same shape -- a process running as root touches a file it can
+# already reach, and the kernel audits the capability check that the DAC layer
+# short-circuits:
+#
+#   avc: denied { dac_override }    for comm="mkswap" capability=1
+#     scontext=u:r:toolbox:s0 tcontext=u:r:toolbox:s0 tclass=capability
+#   avc: denied { dac_read_search } for comm="mkswap" capability=2
+#   avc: denied { dac_override }    for comm="boringssl_self_" capability=1
+#     scontext=u:r:boringssl_self_test:s0
+#   avc: denied { dac_read_search } for comm="boringssl_self_" capability=2
+#   avc: denied { dac_read_search } for comm="gsid" capability=2
+#     scontext=u:r:gsid:s0
+#
+# None of them fails: mkswap creates the swapfile (persist.vendor.swapfile_enable
+# is set on this device), the boringssl self test passes -- init would refuse to
+# continue if it did not -- and gsid runs. Granting dac_override to work around
+# file ownership is the thing AOSP neverallows for good reason, and this tree
+# already refuses to do it for hal_power_default (sepolicy/vendor/dontaudit.te).
+#
+# 🔑 Upstream already reached this conclusion for gsid and covered only half of
+# it:
+#   system/sepolicy/private/gsid.te:23
+#     dontaudit gsid self:global_capability_class_set dac_override;
+# The record here is dac_read_search, the sibling capability, on the same domain
+# for the same reason. The other two domains have no upstream rule at all.
+#
+# global_capability_class_set rather than `capability`, matching upstream style:
+# it covers the user-namespace class too, so the rule does not need revisiting
+# if one of these ever runs namespaced.
+dontaudit toolbox self:global_capability_class_set { dac_override dac_read_search };
+dontaudit boringssl_self_test self:global_capability_class_set { dac_override dac_read_search };
+dontaudit gsid self:global_capability_class_set dac_read_search;

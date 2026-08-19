@@ -40,3 +40,37 @@ allow mtk_hal_camera sysfs_tran_cam_file:file r_file_perms;
 # file.te, labels in genfs_contexts; all three are needed.
 allow mtk_hal_camera sysfs_torch_file:file rw_file_perms;
 allow mtk_hal_camera sysfs_sub_torch_file:file rw_file_perms;
+
+# --- the camera HAL's debug-path probe, silenced 2026-08-19 (build 71) ---
+#
+# 14 denials per boot, in pairs at the same millisecond, and both inodes resolve
+# on the device:
+#
+#   avc: denied { search } name="tmp"  ino=104 tcontext=u:object_r:shell_data_file:s0
+#   avc: denied { search } name="data" ino=106 tcontext=u:object_r:system_data_file:s0:c512,c768
+#
+#   104 = /data/local/tmp   u:object_r:shell_data_file:s0
+#   106 = /data/data        u:object_r:system_data_file:s0:c512,c768
+#
+# camerahalserver walks both looking for something that is not there -- the
+# MediaTek camera stack probes for adb-pushed tuning and debug files at startup.
+# Nothing depends on finding them: the camera is fully up on build 71, 2 devices,
+# with provider @2.4/@2.5/@2.6 all registered.
+#
+# 🔴 NEITHER OF THESE SHOULD EVER BE GRANTED, for two different reasons.
+#
+# /data/local/tmp is the adb-writable directory. Granting a vendor HAL a read
+# path out of it means anything pushed over adb can steer the camera stack. That
+# is a bad trade for a debug convenience, and it is a trade this project would be
+# making on behalf of ~3,100 users who never asked for it.
+#
+# /data/data is an MLS failure, not a missing allow. The target carries
+# categories (c512,c768) and the subject sits at s0, so no allow rule can satisfy
+# it -- BLUEPRINT §9. The only fix would be mlstrustedsubject on mtk_hal_camera,
+# which hands the camera HAL the right to cross every per-app category boundary
+# on the device, to service a probe for a debug file.
+#
+# Silenced, so that a denial sweep stays readable and a REAL camera denial is
+# visible when one appears.
+dontaudit mtk_hal_camera shell_data_file:dir search;
+dontaudit mtk_hal_camera system_data_file:dir search;

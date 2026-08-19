@@ -1,0 +1,31 @@
+# vold_prepare_subdirs may relabel /data/misc_ce/N/checkin TO its type but not
+# FROM it.
+#
+#   avc: denied { relabelfrom } for comm="vold_prepare_su" name="checkin"
+#     dev="dm-12" scontext=u:r:vold_prepare_subdirs:s0
+#     tcontext=u:object_r:checkin_data_file:s0 tclass=dir
+#
+# AOSP's own policy is asymmetric here, and the two lists are adjacent enough
+# that it reads as an oversight rather than a decision:
+#
+#   system/sepolicy/private/vold_prepare_subdirs.te:14-18
+#     allow vold_prepare_subdirs {
+#       sdk_sandbox_system_data_file system_data_file vendor_data_file
+#     }:dir { open read write add_name remove_name rmdir relabelfrom };
+#                                                     ^^^^^^^^^^^ 3 types only
+#   system/sepolicy/private/vold_prepare_subdirs.te:19-33
+#     allow vold_prepare_subdirs {
+#       ... checkin_data_file ... 12 more types ...
+#     }:dir { create_dir_perms relabelto };
+#                              ^^^^^^^^^ checkin_data_file IS here
+#
+# So the directory can be created and labelled, and then never re-labelled. The
+# denial appears once per boot, when vold restorecons a checkin directory that
+# already exists from a previous boot.
+#
+# This is safe to grant rather than silence: the domain already carries
+# mlstrustedsubject and `self:process setfscreate` (lines 3 and 13), holds
+# relabelto on this exact type, and exists to do precisely this job. Withholding
+# relabelfrom does not protect anything -- it just leaves one directory unable to
+# be corrected if its label is ever wrong.
+allow vold_prepare_subdirs checkin_data_file:dir relabelfrom;

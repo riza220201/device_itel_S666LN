@@ -19,3 +19,26 @@ dontaudit hal_power_default self:capability dac_override;
 # but measure that first. sysfs is a very wide type to open up.
 dontaudit hal_health_default sysfs:file r_file_perms;
 dontaudit system_server sysfs:file r_file_perms;
+
+# --- boot 2026-08-19, build 71 ---
+
+# vendor_init reads the VTS gate property on a build that has no VTS.
+#
+#   avc: denied { read } for property=vts.native_server.on uid=0 gid=0
+#     scontext=u:r:vendor_init:s0 tcontext=u:object_r:vts_status_prop:s0
+#     tclass=file
+#
+# 4 records per boot. `vts.native_server.on` is an exact-match bool declared
+# system_restricted_prop (system/sepolicy/public/property.te:99,
+# private/property_contexts:1140) -- it exists so the Vendor Test Suite can flip
+# native servers into test mode. A release build never sets it, and vendor_init
+# is evaluating a trigger on it regardless.
+#
+# Reading it would return nothing even if allowed, and a restricted property is
+# restricted on purpose. Silenced.
+dontaudit vendor_init vts_status_prop:file read;
+
+# wpa_supplicant asking for a DAC override it does not need. Same shape as the
+# plat-side set in sepolicy/private/dontaudit.te, and the same conclusion: Wi-Fi
+# and hotspot both work on build 71 with this denied.
+dontaudit hal_wifi_supplicant_default self:global_capability_class_set dac_read_search;

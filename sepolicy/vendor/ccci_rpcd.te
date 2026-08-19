@@ -1,0 +1,28 @@
+# ccci_rpcd reads a system property no vendor domain may read.
+#
+#   avc: denied { read } for comm="ccci_rpcd"
+#     name="u:object_r:default_prop:s0" dev="tmpfs"
+#     scontext=u:r:ccci_rpcd:s0 tcontext=u:object_r:default_prop:s0 tclass=file
+#
+# 2 records per boot. `default_prop` is the fallback label for an unlabelled
+# SYSTEM property, and AOSP grants it to core and app domains only:
+#
+#   system/sepolicy/private/domain.te:88   get_prop(domain, core_property_type)
+#                                          (not_compatible_property branch)
+#
+# ⚠ WHICH property is NOT identified, and the record cannot say -- a property
+# read is audited against the context's backing file, never the property name.
+# Tried, and failed to find it: intersecting the 45 properties that currently
+# resolve to default_prop on the device against the string literals in
+# /vendor/bin/ccci_rpcd and in the three libraries it loads that could read one
+# (libsysenv.so, libccci_util.so, libhardware_legacy.so). No hit, which most
+# likely means the property is simply not set on this device -- an unset
+# property still requires access to the context file to come back empty.
+#
+# That also bounds the impact: whether the read is denied or allowed, ccci_rpcd
+# gets nothing. The modem works -- SIM LOADED, both slots, data up.
+#
+# Silenced rather than granted. Granting a vendor domain read of default_prop
+# means granting it every unlabelled system property at once, to fix a read that
+# returns nothing.
+dontaudit ccci_rpcd default_prop:file read;

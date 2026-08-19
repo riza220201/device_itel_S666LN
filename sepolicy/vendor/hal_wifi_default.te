@@ -1,0 +1,23 @@
+# The Wi-Fi HAL reads its debug property on a build where that is deliberately
+# not allowed.
+#
+#   avc: denied { read } for comm="wifi@1.0-servic"
+#     name="u:object_r:persist_vendor_debug_wifi_prop:s0" dev="tmpfs"
+#     scontext=u:r:hal_wifi_default:s0
+#     tcontext=u:object_r:persist_vendor_debug_wifi_prop:s0 tclass=file
+#
+# `persist.vendor.debug.wifi.` (system/sepolicy/private/property_contexts:88) is
+# granted to the Wi-Fi HAL by AOSP itself -- but only on a debuggable build:
+#
+#   system/sepolicy/public/hal_wifi.te
+#     userdebug_or_eng(`get_prop(hal_wifi, persist_vendor_debug_wifi_prop)')
+#
+# Releases here are `user`, so the grant is compiled out and the HAL asks anyway.
+# The denial IS the intended behaviour on this build type; granting it would
+# undo a decision AOSP made on purpose, and the HAL works without it -- Wi-Fi,
+# supplicant and hotspot are all up on build 71.
+#
+# Silenced rather than granted, and deliberately NOT wrapped in
+# userdebug_or_eng: on a debuggable build the grant exists and there is nothing
+# to silence, so the rule is harmless there and correct here.
+dontaudit hal_wifi_default persist_vendor_debug_wifi_prop:file read;

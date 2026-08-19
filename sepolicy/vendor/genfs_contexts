@@ -24,3 +24,26 @@ genfscon sysfs /devices/virtual/sub_torch/sub_torch/sub_torch_level u:object_r:s
 # Confirmed live with chcon on the running device before this was written: the
 # denials stopped and did not come back.
 genfscon sysfs /devices/platform/soc/11e00000.i2c/i2c-0/0-0058/leds/vibrator_single u:object_r:sysfs_vibrator:s0
+
+# /proc/sys/vm/dirty_writeback_centisecs -- the third of three sibling knobs,
+# and the one AOSP forgot to label:
+#   system/sepolicy/private/genfs_contexts:82  /sys/vm/dirty_background_ratio  -> proc_dirty
+#   system/sepolicy/private/genfs_contexts:83  /sys/vm/dirty_expire_centisecs  -> proc_dirty
+#   (no entry at all for dirty_writeback_centisecs)
+#
+# Unlabelled it resolves to plain `proc`, which vendor_init may open, read,
+# setattr and map but NOT write (system/sepolicy/public/vendor_init.te:143).
+# So stock's own tuning line, which this tree extracts verbatim --
+#   rootdir/etc/init/hw/init.mt6789.rc:821  write /proc/sys/vm/dirty_writeback_centisecs 300
+#   (stock's init.mt6789.rc:800, byte for byte)
+# -- fails silently. Measured on build 71: one avc denial at boot, and
+#   /proc/sys/vm/dirty_writeback_centisecs = 500
+# which is the kernel default, not the 300 stock asks for. init reports no error
+# for a failed `write`, so nothing surfaces it.
+#
+# Labelling it proc_dirty is what its two siblings already carry, and no
+# neverallow names proc_dirty or restricts writing proc_type. Labelling a
+# /proc/sys/vm node from vendor policy follows MediaTek's own precedent:
+#   sepolicy_vndr/basic/non_plat/genfs_contexts:125
+#     genfscon proc /sys/vm/swappiness u:object_r:proc_swappiness:s0
+genfscon proc /sys/vm/dirty_writeback_centisecs u:object_r:proc_dirty:s0

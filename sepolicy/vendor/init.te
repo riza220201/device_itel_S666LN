@@ -21,3 +21,14 @@ allow init logo_block_device:lnk_file relabelto;
 # a successful enroll. SILENCED, not granted: ptrace on a HAL is real privilege,
 # nothing depends on it succeeding, and init reaps the process either way.
 dontaudit init hal_fingerprint_default:process ptrace;
+
+# The write half of the genfs_contexts entry for
+# /proc/sys/vm/dirty_writeback_centisecs. Labelling it proc_dirty is not enough:
+# init may write proc_dirty already (system/sepolicy/public/init.te:385), but
+# every command in a VENDOR rc file runs as vendor_init, and vendor_init's proc
+# access is read-only -- `{ open read setattr map }` on fs_type, with no write
+# anywhere (public/vendor_init.te:143).
+#
+# Same shape as MediaTek's own entries for the knobs it labels:
+#   sepolicy_vndr/basic/non_plat/vendor_init.te:14  allow vendor_init proc_cpufreq:file w_file_perms;
+allow vendor_init proc_dirty:file w_file_perms;

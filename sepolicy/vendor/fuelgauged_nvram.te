@@ -1,0 +1,45 @@
+# fuelgauged_nvram cannot read the device-tree fstab it is told to read.
+#
+# 4 denials on every boot of build 71 -- new, because this daemon had never
+# actually run until the `on charger` block was restored from stock (BLUEPRINT
+# §7): the old tree gated it behind a property nothing ever set:
+#
+#   avc: denied { search } for comm="fuelgauged_nvra" name="android" dev="sysfs"
+#     scontext=u:r:fuelgauged_nvram:s0
+#     tcontext=u:object_r:sysfs_dt_firmware_android:s0 tclass=dir
+#
+# The daemon's own policy ends with, and explains, the call that needs this:
+#
+#   sepolicy_vndr/basic/non_plat/fuelgauged_nvram.te
+#     # Allow ReadDefaultFstab().
+#     read_fstab(fuelgauged_nvram)
+#
+# but the macro does not cover the device-tree case at all:
+#
+#   system/sepolicy/public/te_macros:1025  define(`read_fstab',
+#     allow $1 { metadata_file gsi_metadata_file_type }:dir search;
+#     allow $1 gsi_public_metadata_file:file r_file_perms;
+#     allow $1 { proc_bootconfig proc_cmdline }:file r_file_perms;
+#
+# ReadDefaultFstab() falls back to the fstab carried in the device tree, under
+# /proc/device-tree/firmware/android, and this device still has one. So every
+# domain that calls it on this hardware needs sysfs_dt_firmware_android and the
+# macro gives none of them it.
+#
+# MediaTek already hit this and fixed it for the sibling nvram domain, by hand,
+# with exactly these two lines:
+#
+#   sepolicy_vndr/basic/non_plat/nvram_daemon.te:86
+#     allow nvram_daemon sysfs_dt_firmware_android:dir r_dir_perms;
+#   sepolicy_vndr/basic/non_plat/nvram_daemon.te:87
+#     allow nvram_daemon sysfs_dt_firmware_android:file r_file_perms;
+#
+# fuelgauged_nvram calls the same function and was simply not given the same
+# treatment. This is that pair.
+#
+# ⚠ Both lines, not just the `search` the log shows. SELinux denies at the
+# directory and stops, so the file read that follows it has never had the chance
+# to be audited -- granting only what was observed would produce a second round
+# for a permission the sibling rule already tells us is needed.
+allow fuelgauged_nvram sysfs_dt_firmware_android:dir r_dir_perms;
+allow fuelgauged_nvram sysfs_dt_firmware_android:file r_file_perms;

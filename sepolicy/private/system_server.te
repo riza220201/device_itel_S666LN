@@ -1,0 +1,93 @@
+# system_server reads a vendor property it is not allowed to read, and does not
+# need to. 28 denials on every boot of build 71 — the single largest denial
+# class on the device:
+#
+#   avc: denied { read } for comm="GrallocUploadTh"
+#     name="u:object_r:vendor_default_prop:s0" dev="tmpfs"
+#     scontext=u:r:system_server:s0 tcontext=u:object_r:vendor_default_prop:s0
+#     tclass=file
+#
+# (14 unattributed + 9 GrallocUploadTh + 5 RenderThread; all one domain.)
+#
+# WHICH property, established by intersecting the 177 properties that resolve to
+# vendor_default_prop on the device with the string literals in the graphics
+# blobs system_server loads:
+#
+#   ro.vendor.smvr.p2batch.hd   = 4     read by gralloc.common.so and
+#   ro.vendor.smvr.p2batch.vga  = 8     android.hardware.graphics.mapper@4.0-impl-mediatek.so
+#
+# The mapper is loaded by every process that touches a graphics buffer, so it
+# runs inside system_server and reads the same properties there that it reads in
+# the camera and codec pipelines.
+#
+# 🔑 THIS IS NOT A MISSING LABEL. Stock does not label ro.vendor.smvr.* either —
+# its vendor_property_contexts has no entry for it, so it falls to
+# vendor_default_prop on stock exactly as it does here. What differs is the
+# READER's policy, not the property's:
+#
+#   system/sepolicy/private/domain.te:96
+#     get_prop({domain -coredomain -appdomain}, vendor_default_prop)
+#
+# Vendor domains may read it; coredomains and app domains may not, deliberately.
+# So the camera and video pipelines — the code that actually consumes a
+# slow-motion batch size — get the value, and system_server, which does not, is
+# refused. Giving system_server the read, or inventing a type to dodge the rule,
+# would be working around a decision upstream made on purpose.
+#
+# AOSP's own answer to this exact situation is dontaudit, applied to the core
+# domains that load vendor graphics libraries:
+#
+#   system/sepolicy/private/app.te:76             dontaudit appdomain ...
+#   system/sepolicy/private/bootanim.te:9         dontaudit bootanim ...
+#   system/sepolicy/private/surfaceflinger.te:142 dontaudit surfaceflinger ...
+#
+# system_server belongs in that list and is simply missing from it; it loads the
+# same mapper surfaceflinger does. This is that line.
+#
+# ⚠ Silencing an audit is not fixing a behaviour: the mapper still cannot read
+# these two values inside system_server and still falls back to its defaults.
+# That is the intended outcome, not a side effect — nothing in system_server
+# records slow-motion video.
+dontaudit system_server vendor_default_prop:file read;
+
+
+# InputReader reads max_brightness on the LRA, and does not need to.
+#
+#   avc: denied { read } for comm="InputReader" name="max_brightness" dev="sysfs"
+#     scontext=u:r:system_server:s0 tcontext=u:object_r:sysfs_vibrator:s0 tclass=file
+#
+# EventHub enumerates /sys/class/leds/* and reads max_brightness for any LED it
+# can associate with an input device. The AWINIC LRA presents as an LED node
+# (/sys/class/leds/vibrator_single) because that is how the haptic driver
+# registers, so it gets scanned like one.
+#
+# 🔑 AOSP grants system_server WRITE on this type and deliberately not read:
+#   system/sepolicy/private/system_server.te:459
+#     allow system_server sysfs_vibrator:file { write append };
+# system_server drives a vibrator; it has no reason to read one back. Adding
+# read to satisfy an enumeration pass would widen that on purpose-built policy.
+#
+# Nothing is lost. Vibration reaches the hardware through the vibrator HAL, not
+# through EventHub's LED path -- confirmed on build 71 by driving the node
+# directly and watching the driver run a full cycle:
+#   [haptic_nv] vibrator_work_routine: enter activate_mode=2
+#   [haptic_nv] aw862xx_play_stop: entered standby! glb_state=0x00
+# The only consequence of the denial is that this LRA is not offered as an
+# input-device LED, which is correct: it is not one.
+#
+# ⚠ THIS TREE'S OWN LABEL IS WHY THE DENIAL IS VISIBLE, and that is worth being
+# precise about. /sys/class/leds/vibrator_single is a symlink labelled plain
+# `sysfs`; the read resolves to the real device path, which this tree's
+# genfs_contexts entry for the I2C LRA now labels sysfs_vibrator.
+#
+# The read was refused before that entry too -- system_server holds
+# sysfs_type:dir r_dir_perms (private/system_server.te:437) but no blanket file
+# read. What changed is that it used to be SILENCED, by this tree's own
+#   sepolicy/vendor/dontaudit.te   dontaudit system_server sysfs:file r_file_perms;
+# and moving the node to a specific type moved it out from under that blanket.
+#
+# So: no behaviour changed, one audit record became visible, and the honest fix
+# is a matching dontaudit for the narrower type rather than widening the broad
+# one. A blanket `sysfs` dontaudit hiding a specific denial is exactly the kind
+# of thing that should get narrower over time, not wider.
+dontaudit system_server sysfs_vibrator:file read;

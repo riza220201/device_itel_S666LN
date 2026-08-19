@@ -1,0 +1,39 @@
+# AOSP's own init.rc asks init to write two paths and its own policy permits
+# only one of them:
+#
+#   system/core/rootdir/init.rc:1101
+#     write /dev/sys/block/by-name/userdata/queue/discard_max_bytes 134217728
+#   system/core/rootdir/init.rc:1102
+#     write /dev/sys/block/by-name/rootdisk/queue/discard_max_bytes 134217728
+#
+# On this device the two nodes carry different labels, because userdata is a
+# device-mapper target and rootdisk is the raw disk:
+#
+#   u:object_r:sysfs_dm:s0             .../userdata/queue/discard_max_bytes
+#   u:object_r:sysfs_devices_block:s0  .../rootdisk/queue/discard_max_bytes
+#
+# and init's write list (system/sepolicy/public/init.te:420) carries sysfs_dm
+# but not sysfs_devices_block. So line 1101 succeeds, line 1102 is denied, and
+# `write` failing in an rc file produces no error init ever reports.
+#
+# Measured on build 71 -- one denial at boot, and the values disagree exactly as
+# the labels predict:
+#
+#   avc: denied { write } for comm="init" name="discard_max_bytes" dev="sysfs"
+#     scontext=u:r:init:s0 tcontext=u:object_r:sysfs_devices_block:s0 tclass=file
+#
+#   userdata discard_max_bytes = 134217728    <- 128 MiB, applied
+#   rootdisk discard_max_bytes = 34359734272  <- 32 GiB, i.e. the driver default
+#
+# ⚠ Worth understanding rather than just silencing: that cap is not cosmetic.
+# discard_max_bytes bounds how much a SINGLE discard request may cover, and an
+# unbounded discard on eMMC/UFS can hold the queue for a long time. AOSP caps it
+# at 128 MiB for exactly that reason. Leaving the raw disk at 32 GiB leaves one
+# fstrim free to issue a discard 256x larger than the platform intends, on a
+# device whose most common field complaint is freezes. That does not prove the
+# two are connected -- it does mean this is a wrong value, not a noisy log line.
+#
+# No neverallow names sysfs_devices_block anywhere in system/sepolicy, and vold
+# and dumpstate already hold access to it (public/vold.te:14, public/dumpstate.te:109).
+# This grants init the write AOSP's own init.rc already assumes it has.
+allow init sysfs_devices_block:file w_file_perms;
