@@ -91,4 +91,9 @@ android_app {
     certificate: "platform",
     privileged: true,
     optimize: { enabled: false },
+    // Replace AudioFX. It enters through an inherited makefile
+    // (vendor/lineage/config/common_full.mk:20) and PRODUCT_PACKAGES cannot be
+    // subtracted from, so `overrides` is the only mechanism -- the same reason
+    // the rootless JamesDSP glue used it.
+    overrides: ["AudioFX"],
 }
