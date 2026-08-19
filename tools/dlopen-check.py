@@ -125,7 +125,8 @@ def main():
     if args.device:
         have |= device_sonames()
 
-    refs = {}          # soname -> set of referring blobs
+    refs = {}          # soname -> set of referring blobs   (dlopen, by string)
+    unres = {}         # soname -> set of referring blobs   (DT_NEEDED)
     scanned = 0
     for entry in sorted(shipped):
         if not entry.startswith(("vendor/", "odm/")):
@@ -138,6 +139,15 @@ def main():
             continue
         scanned += 1
         needed = dt_needed(path)
+        # DT_NEEDED closure. vendor-deps-check.sh models this too, but only
+        # against a BUILT image -- so adding a blob whose own dependency is not
+        # shipped is not caught until a build has already happened. It happened:
+        # adding libnwk_opt_halwrap_vendor.so pulled in
+        # vendor.mediatek.hardware.nwk_opt@1.0.so, which is in stock and was in
+        # neither the blob list nor the device.
+        for name in needed:
+            if name not in have:
+                unres.setdefault(name, set()).add(os.path.basename(entry))
         for name in strings_sonames(path) - needed - {os.path.basename(entry)}:
             if name not in have:
                 refs.setdefault(name, set()).add(os.path.basename(entry))
@@ -158,7 +168,24 @@ def main():
     for n in sorted(absent):
         print(f"  {n:<38} asked by: {', '.join(sorted(absent[n]))}")
 
-    return 1 if missing else 0
+    # DT_NEEDED is a hard failure in a way dlopen is not: the loader refuses to
+    # start the consumer at all, rather than one feature quietly going missing.
+    print(f"\nUNRESOLVED DT_NEEDED -- a shipped blob links against something "
+          f"nothing provides ({len(unres)})")
+    for n in sorted(unres):
+        where = ", ".join(sorted(in_stock[n])) if n in in_stock else "NOT IN STOCK"
+        print(f"  {n}")
+        print(f"      stock: {where}")
+        print(f"      needed by: {', '.join(sorted(unres[n]))}")
+    if not unres:
+        print("  (none)")
+
+    if not (args.device or args.have):
+        print("\n⚠ Run with --device or --have: without a list of what is already\n"
+              "  available, platform libraries (libc, liblog, …) look unresolved and\n"
+              "  both sections above are noise.")
+
+    return 1 if (missing or unres) else 0
 
 
 if __name__ == "__main__":
