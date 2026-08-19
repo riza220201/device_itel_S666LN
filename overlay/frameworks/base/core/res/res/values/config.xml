@@ -71,4 +71,53 @@
     <string-array name="config_biometric_sensors" translatable="false">
         <item>0:2:15</item>
     </string-array>
+
+    <!-- Automatic brightness. NEITHER stock NOR this ROM has ever enabled it,
+         so its absence is not a regression — but the hardware supports it and
+         the feature was missing from Settings and Quick Settings entirely.
+
+         🔑 THE SENSOR WORKS. Measured on build 70, 2026-08-19, by subscribing a
+         consumer and varying the light by hand:
+             101 lux ambient -> 0 (covered) -> 97 -> 0 (covered) -> 103
+         An earlier reading of "pinned at 0.00" was taken while NOTHING was
+         subscribed to the sensor, i.e. stale last-event data, and was wrong.
+
+         Stock ships config_autoBrightnessLevels as an EMPTY array, so there is
+         no vendor curve to copy and this one is authored. Values are in the
+         framework's 0-255 integer scale (screen_brightness reads 102 for the
+         ~0.40 the display controller reports); the panel's own sysfs maximum is
+         4095 and the framework scales to it.
+
+         ⚠ The curve is a considered FIRST CUT, not a measurement of this panel's
+         nits. levels has N entries and backlight values N+1 — the first value
+         applies below the first threshold. Tune on hardware: if the screen is
+         too dim outdoors raise the tail, too bright at night lower the head. -->
+    <bool name="config_automatic_brightness_available">true</bool>
+
+    <integer-array name="config_autoBrightnessLevels">
+        <item>10</item>
+        <item>30</item>
+        <item>60</item>
+        <item>100</item>
+        <item>200</item>
+        <item>400</item>
+        <item>800</item>
+        <item>1500</item>
+        <item>3000</item>
+        <item>6000</item>
+    </integer-array>
+
+    <integer-array name="config_autoBrightnessLcdBacklightValues">
+        <item>8</item>
+        <item>20</item>
+        <item>40</item>
+        <item>60</item>
+        <item>80</item>
+        <item>110</item>
+        <item>140</item>
+        <item>175</item>
+        <item>205</item>
+        <item>235</item>
+        <item>255</item>
+    </integer-array>
 </resources>
