@@ -40,5 +40,10 @@ dontaudit vendor_init vts_status_prop:file read;
 
 # wpa_supplicant asking for a DAC override it does not need. Same shape as the
 # plat-side set in sepolicy/private/dontaudit.te, and the same conclusion: Wi-Fi
-# and hotspot both work on build 71 with this denied.
-dontaudit hal_wifi_supplicant_default self:global_capability_class_set dac_read_search;
+# and hotspot both work with this denied.
+#
+# 🔴 BOTH capabilities, not one. Build 71 showed dac_read_search, this rule was
+# written for exactly that, and build 72 came back with dac_override from the
+# same domain -- the sibling capability. A capability denial from a root process
+# is a CLASS, not a record: cover the set, or it returns under the other name.
+dontaudit hal_wifi_supplicant_default self:global_capability_class_set { dac_override dac_read_search };

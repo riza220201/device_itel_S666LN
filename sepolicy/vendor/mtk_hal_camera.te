@@ -74,3 +74,22 @@ allow mtk_hal_camera sysfs_sub_torch_file:file rw_file_perms;
 # visible when one appears.
 dontaudit mtk_hal_camera shell_data_file:dir search;
 dontaudit mtk_hal_camera system_data_file:dir search;
+
+# The camera HAL reads an unlabelled SYSTEM property, 2 records per boot:
+#   avc: denied { read } for comm="camerahalserver"
+#     name="u:object_r:default_prop:s0" dev="tmpfs"
+#     scontext=u:r:mtk_hal_camera:s0 tcontext=u:object_r:default_prop:s0
+#     tclass=file
+#
+# 🔴 MY MISS, recorded as one. This denial was in build 71's sweep with exactly
+# the same shape as ccci_rpcd's, and I wrote sepolicy/vendor/ccci_rpcd.te for
+# that domain and stopped -- fixing the record instead of the class. It survived
+# into build 72 as a result. Two domains, one denial shape; check for siblings
+# before calling a denial handled.
+#
+# Same reasoning as ccci_rpcd.te: default_prop is the fallback label for an
+# unlabelled system property, granted to core and app domains only
+# (system/sepolicy/private/domain.te:88). Granting a vendor domain read of it
+# means granting every unlabelled system property at once. The camera is fully
+# functional with this denied -- 2 devices, providers @2.4/@2.5/@2.6 registered.
+dontaudit mtk_hal_camera default_prop:file read;

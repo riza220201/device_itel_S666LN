@@ -1,0 +1,28 @@
+# The power HAL reads /proc/meminfo and MediaTek forgot to grant it.
+#
+# Build 72, 1 record per boot:
+#   avc: denied { read } for comm="mtkPowerAIDL" name="meminfo" dev="proc"
+#     scontext=u:r:mtk_hal_power:s0 tcontext=u:object_r:proc_meminfo:s0
+#     tclass=file
+#
+# GRANTED, not silenced, and the reason is MediaTek's own policy: it hands
+# proc_meminfo to its other vendor consumers and simply missed this one.
+#   sepolicy_vndr/basic/non_plat/mtk_hal_camera.te:189
+#     allow mtk_hal_camera proc_meminfo:file r_file_perms;
+#   sepolicy_vndr/basic/non_plat/crash_dump.te:53
+#     allow crash_dump proc_meminfo:file r_file_perms;
+#   sepolicy_vndr/basic/debug/non_plat/aee_aedv.te:208
+#     allow aee_aedv proc_meminfo:file r_file_perms;
+#
+# A power HAL reading memory pressure to shape its hints is doing its job, and
+# /proc/meminfo is system-wide aggregate information with nothing per-process or
+# per-app in it. Silencing this would leave the HAL making decisions on data it
+# was refused, which is the failure mode BLUEPRINT §9 warns about: a denial that
+# produces no error and no crash, just a worse decision.
+#
+# ⚠ Appeared for the first time in build 72, the build that started shipping
+# libpowerhal.so. Not proof the two are connected -- the earlier test of that
+# library was falsified on its own terms (mtkpower@1.2 still does not register
+# and `setMode unknown type` still occurs) -- but it is the first plausible sign
+# the library is being exercised at all. Do not read more into it than that.
+allow mtk_hal_power proc_meminfo:file r_file_perms;

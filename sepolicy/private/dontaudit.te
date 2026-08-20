@@ -33,3 +33,34 @@
 dontaudit toolbox self:global_capability_class_set { dac_override dac_read_search };
 dontaudit boringssl_self_test self:global_capability_class_set { dac_override dac_read_search };
 dontaudit gsid self:global_capability_class_set dac_read_search;
+
+# --- boot 2026-08-20, build 72: the same class, three more root helpers -------
+#
+# Identical shape to the set above -- a process running as root touches a file it
+# can already reach and the kernel audits the capability check the DAC layer
+# short-circuits. None of them fails at anything.
+#
+#   avc: denied { dac_read_search } comm="extra_free_kbyt" scontext=u:r:extra_free_kbytes:s0
+#   avc: denied { dac_override }    comm="extra_free_kbyt"
+#   avc: denied { dac_read_search } comm="atrace"          scontext=u:r:atrace:s0
+#   avc: denied { dac_read_search } comm="adb_root"        scontext=u:r:adbroot:s0
+#   avc: denied { dac_override }    comm="adb_root"
+#
+# extra_free_kbytes is AOSP's init helper that writes /proc/sys/vm/extra_free_kbytes
+# (system/sepolicy/private/extra_free_kbytes.te). atrace already carries upstream
+# dontaudits for hwservice_manager, service_manager and binder (private/atrace.te:63-65)
+# and simply has none for capabilities; this tree also silences its
+# debugfs_tracing_debug write in sepolicy/vendor/atrace.te.
+#
+# adbroot is LineageOS's, not AOSP's -- device/lineage/sepolicy/common/private/adbroot.te,
+# the `adb root` service. ⚠ It only runs when someone actually enables adb root, so
+# it will never appear on a user's device; it is here because it appears in OUR
+# audits and a sweep that has to explain two records every time is a sweep people
+# stop reading.
+#
+# Both capabilities on each, deliberately: build 71 showed dac_read_search for
+# wpa_supplicant, that rule was written for that one record, and build 72 returned
+# dac_override from the same domain. Cover the class.
+dontaudit extra_free_kbytes self:global_capability_class_set { dac_override dac_read_search };
+dontaudit atrace self:global_capability_class_set { dac_override dac_read_search };
+dontaudit adbroot self:global_capability_class_set { dac_override dac_read_search };
