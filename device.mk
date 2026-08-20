@@ -1392,6 +1392,21 @@ PRODUCT_PACKAGES += \
 PRODUCT_COPY_FILES += \
     $(call find-copy-subdir-files,*,$(LOCAL_PATH)/configs/audio,$(TARGET_COPY_OUT_VENDOR)/etc)
 
+# Privileged-permission allowlist additions.
+#
+# 🔴 TARGET_COPY_OUT_PRODUCT, not _VENDOR or _SYSTEM, and that is load-bearing.
+# The privapp allowlist is read PER PARTITION and only applies to apps on the
+# same one. GmsCore.apk lives in /product/priv-app, so a copy anywhere else is
+# parsed and then silently does not apply.
+#
+# Currently one entry: WRITE_DEVICE_CONFIG for com.google.android.gms, which
+# MindTheGapps omits from its 95-permission list and Phenotype needs. 93 failed
+# DeviceConfig writes per boot on build 72 without it. The file documents the
+# whole finding and how to reverse it; SystemConfig MERGES privapp-permissions
+# across files, so this adds to MindTheGapps' set rather than replacing it.
+PRODUCT_COPY_FILES += \
+    $(call find-copy-subdir-files,*,$(LOCAL_PATH)/configs/permissions,$(TARGET_COPY_OUT_PRODUCT)/etc/permissions)
+
 # Media
 PRODUCT_COPY_FILES += \
     $(call find-copy-subdir-files,*,$(LOCAL_PATH)/configs/media,$(TARGET_COPY_OUT_VENDOR)/etc)
