@@ -1063,6 +1063,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libcamalgo.utility.so
 -vendor/lib/libcamera2ndk_vendor.so
 -vendor/lib/libcapctrl.so
+-vendor/lib/libcmdl.so
 -vendor/lib/libcustom_nvram.so
 -vendor/lib/libcvsd_mtk.so
 -vendor/lib/libdecrypt.so
@@ -1076,6 +1077,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/librcs_interface.so
 -vendor/lib/libscltm.so
 -vendor/lib/meta_wifi_data.so
+-vendor/lib/vendor.mediatek.hardware.netdagent@1.0.so
 -vendor/lib/vendor.mediatek.hardware.nwk_opt@1.0.so
 -vendor/lib/libeffectsconfig.so:vendor/lib/libeffectsconfig-stock.so
 -vendor/lib/libfgauge_gm30.so
