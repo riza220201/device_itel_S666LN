@@ -166,6 +166,15 @@
   <project path="system/core" name="android_system_core" remote="riza"
            revision="13.0-rs4" groups="pdk" />
 
+  <!-- Launcher3 is not a merge: crDroid forked GOOGLE's Launcher3 and there is
+       no LineageOS upstream (LineageOS ships Trebuchet). The frameworks/base
+       merge added ISystemUiProxy.onKeyEvent(int) = 60, which Launcher3's
+       SystemUiProxy implements, so it carries a FORWARD-PORT. Same durability
+       problem, same answer. -->
+  <remove-project name="crdroidandroid/android_packages_apps_Launcher3" />
+  <project path="packages/apps/Launcher3" name="android_packages_apps_Launcher3"
+           remote="riza" revision="13.0-rs4" />
+
   <remove-project name="crdroidandroid/android_packages_apps_Settings" />
   <project path="packages/apps/Settings" name="android_packages_apps_Settings"
            remote="riza" revision="13.0-rs4" groups="pdk-fs" />
