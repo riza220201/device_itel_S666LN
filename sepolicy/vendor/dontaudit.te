@@ -47,3 +47,18 @@ dontaudit vendor_init vts_status_prop:file read;
 # same domain -- the sibling capability. A capability denial from a root process
 # is a CLASS, not a record: cover the set, or it returns under the other name.
 dontaudit hal_wifi_supplicant_default self:global_capability_class_set { dac_override dac_read_search };
+
+# fsck.exfat walking sysfs to resolve the OTG device's USB topology:
+#
+#   avc: denied { search } comm="fsck.exfat" name="usb2" dev="sysfs"
+#     scontext=u:r:fsck_untrusted:s0 tcontext=u:object_r:sysfs_usb_nonplat:s0
+#
+# In sepolicy/vendor/ and not private/ because sysfs_usb_nonplat is MediaTek's
+# type (sepolicy_vndr/basic/non_plat/file.te:199), and vendor policy is the only
+# side that may name it -- BLUEPRINT section 9.
+#
+# Silenced rather than granted for the same reason as the capability set in
+# private/dontaudit.te: fsck_untrusted is deliberately minimal, and the exFAT
+# volume mounted and was browsable in the same boot with this denied, so nothing
+# depends on the access succeeding.
+dontaudit fsck_untrusted sysfs_usb_nonplat:dir search;

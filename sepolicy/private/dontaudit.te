@@ -64,3 +64,39 @@ dontaudit gsid self:global_capability_class_set dac_read_search;
 dontaudit extra_free_kbytes self:global_capability_class_set { dac_override dac_read_search };
 dontaudit atrace self:global_capability_class_set { dac_override dac_read_search };
 dontaudit adbroot self:global_capability_class_set { dac_override dac_read_search };
+
+# --- boot 2026-08-24, build 74: vold's removable-media helpers ------------------
+#
+# FOUND BY USING OTG FOR THE FIRST TIME IN ANDROID. Android-side OTG never
+# worked before (the VBUS permit flag was never written -- see
+# sepolicy/vendor/file.te sysfs_otg_ctl_file), so this whole code path had never
+# executed on this ROM and these denials had never been seen. Fixing OTG is what
+# revealed them.
+#
+#   avc: denied { dac_override }    comm="blkid"      scontext=u:r:blkid_untrusted:s0
+#   avc: denied { dac_read_search } comm="blkid"
+#   avc: denied { dac_override }    comm="fsck.exfat" scontext=u:r:fsck_untrusted:s0
+#   avc: denied { dac_read_search } comm="fsck.exfat"
+#   avc: denied { dac_override }    comm="sgdisk"     scontext=u:r:sgdisk:s0
+#   avc: denied { dac_read_search } comm="sgdisk"
+#
+# Same class as the six above: a root process touching a file it can already
+# reach, and the kernel audits the capability check DAC short-circuits. NOTHING
+# FAILS -- measured, not assumed: the stick mounted end to end in the same boot,
+# vold created volume public:8,49 (exFAT, label FACF-5897), the FUSE daemon came
+# up at /mnt/user/0/FACF-5897 and the operator browsed it. The later
+# `bad_removal` is the stick being pulled without ejecting.
+#
+# Upstream grants sgdisk only sys_admin (public/sgdisk.te:31) and gives
+# fsck_untrusted/blkid_untrusted no capability rules at all -- these domains are
+# deliberately minimal because they run on UNTRUSTED removable media. Silencing
+# is therefore the right instrument; granting would widen exactly the domains
+# upstream keeps narrow. Their neverallows were checked first (BLUEPRINT section
+# 9): public/fsck_untrusted.te:33 constrains block devices and process
+# transitions, not capabilities, so this is legal as well as correct.
+#
+# BOTH capabilities on each, per the standing lesson: write the rule for one
+# record and the sibling comes back in the next build.
+dontaudit fsck_untrusted  self:global_capability_class_set { dac_override dac_read_search };
+dontaudit blkid_untrusted self:global_capability_class_set { dac_override dac_read_search };
+dontaudit sgdisk          self:global_capability_class_set { dac_override dac_read_search };

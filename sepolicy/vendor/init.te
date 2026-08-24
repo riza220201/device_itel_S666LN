@@ -32,3 +32,9 @@ dontaudit init hal_fingerprint_default:process ptrace;
 # Same shape as MediaTek's own entries for the knobs it labels:
 #   sepolicy_vndr/basic/non_plat/vendor_init.te:14  allow vendor_init proc_cpufreq:file w_file_perms;
 allow vendor_init proc_dirty:file w_file_perms;
+
+# The write half of the genfs_contexts entry for the OTG VBUS permit flag.
+# Same shape as proc_dirty above: every command in a VENDOR rc runs as
+# vendor_init, so labelling the node is not enough -- vendor_init needs the
+# write. init.mt6789.usb.rc's `on boot` sets it to 1.
+allow vendor_init sysfs_otg_ctl_file:file w_file_perms;

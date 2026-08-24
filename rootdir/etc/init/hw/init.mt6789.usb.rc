@@ -50,6 +50,13 @@ on post-fs-data
     mkdir /config/usb_gadget/g1/functions/via_atc.gs0
 
 on boot
+    # OTG: permit the VBUS boost. Without this the port reaches host mode and
+    # supplies no bus power, so nothing plugged into an OTG adapter enumerates
+    # (measured on build 74; see sepolicy/vendor/file.te sysfs_otg_ctl_file).
+    # Stock gets this from Transsion's OTG toggle in Settings, which this ROM
+    # does not ship. VBUS is still only raised when the port actually enters
+    # host mode -- this flag permits it, it does not force it on.
+    write /sys/devices/platform/odm/odm:tran_battery/OTG_CTL 1
     setprop sys.usb.configfs 1
     setprop sys.usb.controller "musb-hdrc"
     setprop vendor.usb.controller "musb-hdrc"

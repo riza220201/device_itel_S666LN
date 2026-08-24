@@ -32,6 +32,24 @@ type vendor_watermark_data_file, file_type, data_file_type;
 # turning into a process abort three frames later.
 type sysfs_tran_cam_file, fs_type, sysfs_type;
 
+# /sys/devices/platform/odm/odm:tran_battery/OTG_CTL -- the OTG VBUS permit flag,
+# a sibling of tran_cam in the same Transsion node. This is what actually decides
+# whether the boost regulator comes up when the port enters host mode.
+#
+# MEASURED on build 74, as an A/B on hardware with the OTG stick:
+#   OTG_CTL=0   typec negotiates host+source, [MUSB]do_host_work is_host=1, but
+#               tran_otg_enable_vbus:tran_otg_enable 0 / sc8548_enable_otg en:0 /
+#               sc8950_set_en_otg en:0x0 -> tran_otg_enable_vbus = 0. No bus
+#               power, so the stick never enumerates and the USB device list
+#               never changes. This is "OTG does nothing" as a user sees it.
+#   OTG_CTL=1   tran_otg_enable 1 -> usb 2-1: New USB device found,
+#               idVendor=0781 -> scsi host1: usb-storage -> sdd: sdd1.
+#
+# Stock itel writes this from Transsion's own OTG toggle in Settings, which this
+# ROM does not ship, so nothing wrote it and it stayed 0. /vendor/etc/init/
+# init.otg.rc only chmods it 0666 -- it never sets a value.
+type sysfs_otg_ctl_file, fs_type, sysfs_type;
+
 # /sys/devices/virtual/torch/torch/torch_level and
 # /sys/devices/virtual/sub_torch/sub_torch/sub_torch_level — the flash LED
 # brightness controls for the main and sub cameras. Exactly the tran_cam defect
