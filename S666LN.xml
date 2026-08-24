@@ -92,57 +92,83 @@
        Re-add the project with the correct linkfile, matching current LineageOS.
        =================================================================== -->
 
-  <!-- packages/services/Mms pinned to the last commit that matches crDroid's
-       frameworks/base.
+  <!-- packages/services/{Mms,Telephony}: PINS REMOVED 2026-08-24.
 
-       LineageOS hardened the MMS path by threading a calling-user id through
-       IMms ("Propagating callingUserId from messaging app to the RADIO process",
-       fbb2828). That changed BOTH frameworks/base/mms/.../IMms.aidl and
-       packages/services/Mms together. crDroid ships its own frameworks/base and
-       never merged the AIDL half (LineageOS's IMms.aidl puts `in int callingUser`
-       on 4 methods, crDroid's on 0) while still inheriting
-       LineageOS's Mms from default.xml. The two therefore disagree:
+       Both projects used to be pinned BACKWARDS here, to the last LineageOS
+       revision whose signatures matched crDroid's frozen frameworks/base:
 
-         MmsService.java:211: error: <anonymous MmsService$1> is not abstract and
-         does not override abstract method addMultimediaMessageDraft(String,Uri)
+         Mms       4c511b7d  (2022-06-07)  gave up "Verify calling user on mms
+                                           downloads" + the callingUserId work
+         Telephony f1e9284   (2025-01-06)  gave up "Disallow shell to change
+                                           CarrierRestrictionRules" and 8 more
 
-       This is not device-specific and not caused by this tree; any fresh crDroid
-       13.0 sync hits it. 4c511b7d is the parent of fbb2828, the last Mms commit
-       whose signatures match crDroid's AIDL (verified: 2-arg
-       addMultimediaMessageDraft, zero callingUser references).
+       Both comments ended "Drop this block once crDroid picks up the
+       frameworks/base side." That has now happened: crDroid's frozen 13.0 forks
+       were merged forward from live lineage-20.0 (SPL 2024-09-05 -> 2026-02-01),
+       so frameworks/base now carries BOTH halves. Verified before removing:
 
-       TRADE-OFF: this gives up the LineageOS calling-user verification on the MMS
-       path until crDroid merges the frameworks/base side. The alternative is
-       patching crDroid's frameworks/base, which means carrying a fork of a repo
-       this project does not own. Drop this block once crDroid picks up fbb2828.
+         IMms.aidl  `in int callingUser`                      0 -> 4 occurrences
+         TelephonyPermissions.isShell(int)                    absent -> present
+           (telephony/common/.../TelephonyPermissions.java:813 — note the path;
+            it is NOT under telephony/java/android/telephony/, and grepping the
+            wrong file is how this was first mis-measured)
 
-       No clone-depth: repo cannot resolve a bare SHA in a shallow fetch. -->
-  <!-- packages/services/Telephony pinned for the same reason as Mms below.
+       🔴 These pins are only safe to leave out while the frameworks/base merge
+       is present. That merge is a LOCAL commit in a repo we do not own
+       (crdroidandroid/android_frameworks_base), so a plain `repo sync` will
+       discard it and re-break the build. tools/spl-check.sh asserts the SPL for
+       exactly this reason; run it before any build. -->
 
-       LineageOS commit c1b4425 ("Disallow shell to change
-       CarrierRestrictionRules") calls TelephonyPermissions.isShell(int), which
-       LineageOS added to their frameworks/base. crDroid ships its own
-       frameworks/base and does not have that method (verified against
-       crdroidandroid/android_frameworks_base 13.0 as well as the local
-       checkout, which is at upstream HEAD), so the build fails:
+  <!-- ==================================================================
+       TIER B — the six crDroid forks merged forward from live lineage-20.0,
+       taking PLATFORM_SECURITY_PATCH from 2024-09-05 to 2026-02-01.
 
-         PhoneInterfaceManager.java:8267: error: cannot find symbol
-           symbol: method isShell(int)  location: class TelephonyPermissions
+       WHY THEY ARE POINTED AT OUR OWN FORKS
+       This work was done once before, on the build VM, and verified on
+       hardware 2026-07-27. It was then LOST — not because it was unsaved, but
+       because it was saved somewhere we do not own. The merges were proper
+       commits in crdroidandroid/* checkouts; the VM died 2026-08-17, the local
+       re-sync restored crDroid's frozen branches, and builds 68-73 all shipped
+       a 17-month-old SPL with every other gate green.
 
-       f1e9284 is the parent of c1b4425 and the last revision with no isShell
-       reference in either PhoneInterfaceManager.java or CarrierConfigLoader.java.
+       RESUME section 10's rule was "everything in a repo survived". The real
+       rule is: work is durable only where it can be PUSHED to something we
+       control. So the merges now live at riza220201/&lt;repo&gt; on branch
+       13.0-rs4, and repo syncs them from there.
 
-       TRADE-OFF: gives up that one shell restriction until crDroid merges the
-       frameworks/base side. -->
-  <remove-project name="LineageOS/android_packages_services_Telephony" />
-  <project path="packages/services/Telephony" name="LineageOS/android_packages_services_Telephony"
-           groups="pdk-fs" remote="github"
-           revision="f1e9284296c768b6a537d8c07a186c044ee7a678" />
+       Re-verify with device/itel/S666LN/tools/spl-check.sh before any build;
+       it asserts the SPL string AND the presence of the patches that string
+       claims, because bumping the number alone would be a lie.
+       ================================================================== -->
 
-  <remove-project name="LineageOS/android_packages_services_Mms" />
-  <project path="packages/services/Mms" name="LineageOS/android_packages_services_Mms"
-           groups="pdk-cw-fs,pdk-fs" remote="github"
-           revision="4c511b7d21424a8c23a3db9a08ccee07d88dd153" />
+  <remove-project name="crdroidandroid/android_build" />
+  <project path="build/make" name="android_build" remote="riza"
+           revision="13.0-rs4" groups="pdk">
+    <linkfile src="CleanSpec.mk" dest="build/CleanSpec.mk" />
+    <linkfile src="buildspec.mk.default" dest="build/buildspec.mk.default" />
+    <linkfile src="core" dest="build/core" />
+    <linkfile src="envsetup.sh" dest="build/envsetup.sh" />
+  </project>
+
+  <remove-project name="crdroidandroid/android_frameworks_base" />
+  <project path="frameworks/base" name="android_frameworks_base" remote="riza"
+           revision="13.0-rs4" groups="pdk-cw-fs,pdk-fs" />
+
+  <remove-project name="crdroidandroid/android_frameworks_av" />
+  <project path="frameworks/av" name="android_frameworks_av" remote="riza"
+           revision="13.0-rs4" groups="pdk" />
+
+  <remove-project name="crdroidandroid/android_frameworks_opt_telephony" />
+  <project path="frameworks/opt/telephony" name="android_frameworks_opt_telephony"
+           remote="riza" revision="13.0-rs4" groups="pdk" />
+
+  <remove-project name="crdroidandroid/android_system_core" />
+  <project path="system/core" name="android_system_core" remote="riza"
+           revision="13.0-rs4" groups="pdk" />
+
+  <remove-project name="crdroidandroid/android_packages_apps_Settings" />
+  <project path="packages/apps/Settings" name="android_packages_apps_Settings"
+           remote="riza" revision="13.0-rs4" groups="pdk-fs" />
 
   <remove-project name="LineageOS/android_external_chromium-webview_patches" />
   <project path="external/chromium-webview/patches"
