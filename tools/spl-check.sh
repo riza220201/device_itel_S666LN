@@ -19,7 +19,7 @@
 #   exit 0 = clean · 1 = findings · 2 = inputs do not describe a build tree.
 #
 # USAGE
-#   tools/spl-check.sh <android-tree-root> <expected-spl> [built-build.prop ...]
+#   tools/spl-check.sh <android-tree-root> <expected-spl> [--recovery <tree>] [build.prop ...]
 #   tools/spl-check.sh /mnt/external_nvme/crdroid 2026-02-01
 #   tools/spl-check.sh ~/crdroid 2026-02-01 out/target/product/S666LN/system/build.prop
 
@@ -28,6 +28,8 @@ set -u
 TREE="${1:-}"
 EXPECT="${2:-}"
 shift 2 2>/dev/null || true
+RECOVERY_TREE=""
+if [ "${1:-}" = "--recovery" ]; then RECOVERY_TREE="${2:-}"; shift 2 2>/dev/null || true; fi
 
 fail()  { echo "  ✗ $*"; FINDINGS=$((FINDINGS+1)); }
 pass()  { echo "  ✓ $*"; }
@@ -109,6 +111,51 @@ for prop in "$@"; do
     pass "CHECK 4  built artifact stamps $PGOT"
   fi
 done
+
+# ---- CHECK 5: the RECOVERY must agree, and nothing else checks this ----------
+# 🔴 THIS IS THE CHECK WHOSE ABSENCE COST A SESSION. Tier B moved the ROM's SPL
+# 17 months; recovery_itel_S666LN/BoardConfig.mk still declared the old value;
+# KeyMint then refused the metadata key in recovery and PBRP could not open
+# /data at all. The rule was written in capitals in that BoardConfig
+# ("THESE THREE MUST MATCH THE ROM EXACTLY... If the ROM's security patch level
+# ever changes, change it here too") and was still broken, because a rule in a
+# comment in another repo enforces nothing.
+#
+# A recovery BEHIND the ROM can never open the key: Android's vold upgrades a
+# key blob forward (system/vold/KeyStorage.cpp CommitUpgradedKey), and there is
+# no downgrade path.
+if [ -n "$RECOVERY_TREE" ]; then
+  RBC="$RECOVERY_TREE/BoardConfig.mk"
+  if [ ! -f "$RBC" ]; then
+    fail "CHECK 5  --recovery given but $RBC does not exist"
+  else
+    RSPL=$(sed -n 's/^[[:space:]]*PLATFORM_SECURITY_PATCH[[:space:]]*:=[[:space:]]*\([0-9-]*\).*/\1/p' "$RBC" | head -1)
+    if [ "$RSPL" != "$EXPECT" ]; then
+      fail "CHECK 5  recovery declares $RSPL, ROM is $EXPECT — PBRP will not decrypt /data"
+    else
+      pass "CHECK 5  recovery fallback SPL matches the ROM ($RSPL)"
+    fi
+    # the dynamic sync makes the hardcoded value a FALLBACK rather than the
+    # only answer; assert it is actually wired, or a mismatch becomes fatal again
+    SYNC="$RECOVERY_TREE/recovery/root/system/bin/sync-rom-spl.sh"
+    RRC="$RECOVERY_TREE/recovery/root/init.recovery.mt6789.rc"
+    if [ -x "$SYNC" ] && grep -q 'sync-rom-spl.sh' "$RRC" 2>/dev/null; then
+      # and it must run BEFORE keymint, or it sets the props too late to matter
+      if [ "$(grep -n 'sync-rom-spl.sh' "$RRC" | cut -d: -f1 | head -1)" \
+           -lt "$(grep -n 'start vendor.keymint-trustonic' "$RRC" | cut -d: -f1 | head -1)" ]; then
+        pass "CHECK 5  dynamic SPL sync present and ordered before keymint"
+      else
+        fail "CHECK 5  sync-rom-spl.sh runs AFTER keymint starts — too late to matter"
+      fi
+    else
+      fail "CHECK 5  dynamic SPL sync missing; recovery is pinned to the hardcoded value"
+    fi
+  fi
+else
+  # A silent skip is how this whole class hides. Say it loudly.
+  echo "  ⚠ CHECK 5  SKIPPED — no --recovery <tree> given, so the cross-repo"
+  echo "             invariant (recovery SPL == ROM SPL) was NOT checked."
+fi
 
 echo
 if [ "$FINDINGS" -eq 0 ]; then echo "PASSED"; exit 0; fi
