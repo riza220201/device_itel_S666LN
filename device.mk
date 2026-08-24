@@ -1482,3 +1482,32 @@ PRODUCT_SOONG_NAMESPACES += \
 
 # Inherit the proprietary blobs
 $(call inherit-product, vendor/itel/S666LN/S666LN-vendor.mk)
+
+# ---------------------------------------------------------------------------
+# ro.rs4.build.stamp — what PackageManager compares to decide "is this an update?"
+#
+# 🔴 This ROM pins ro.build.version.incremental to the stock identity
+# (251212V1661) on purpose, so e-KYC and Play Integrity see an honest device.
+# AOSP's upgrade test is exactly that string, so mIsUpgrade is permanently false
+# and everything gated on it is dead — measured on hardware, "Upgrading from"
+# appeared 0 times in a boot that had just installed a new build, and build 73's
+# GMS WRITE_DEVICE_CONFIG allowlist still read granted=false as a result.
+#
+# The fix patches what PackageManager COMPARES, never what the device REPORTS:
+# frameworks/base PackageManagerService.getUpgradeStamp() reads this property and
+# falls back to Build.VERSION.INCREMENTAL when it is absent. The fingerprint,
+# the incremental and the whole reported identity are untouched.
+#
+# ⚠ GUARDED ON PURPOSE. If RS4_BUILD_STAMP is unset — any plain `m`, or anyone
+# building this tree without the release script — the property is NOT emitted at
+# all, getUpgradeStamp() falls back, and behaviour is exactly stock. An empty
+# value would be equally safe (SystemProperties_getSS only overrides the default
+# when value[0] is non-NUL, verified in core/jni), but not emitting it is
+# clearer than emitting an empty string.
+#
+# ⚠ ONE VALUE PER RELEASE BUILD, not per `m`. crdroid-build-rc.sh exports it once
+# so every artifact in a single release carries the same stamp; generating it
+# here would change on every incremental re-run and make every boot an "upgrade".
+ifneq ($(RS4_BUILD_STAMP),)
+PRODUCT_SYSTEM_PROPERTIES += ro.rs4.build.stamp=$(RS4_BUILD_STAMP)
+endif
