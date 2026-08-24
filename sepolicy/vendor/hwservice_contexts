@@ -17,11 +17,21 @@
 #                           a domain of its own; separate change.
 #   IFpsensorHidlSvc        a probe for a fingerprint vendor this unit does not
 #                           have (no /dev/fpsensor, no /dev/silead_fp).
-#   INxpNfc, INxpNfcLegacy  the finds were denied only while the NFC HAL was
-#                           failing to start. With /dev/pn553 labelled the HAL
-#                           comes up, NFC works, and these stopped appearing —
-#                           they were downstream of the real defect, not a
-#                           defect themselves.
+#   INxpNfc, INxpNfcLegacy  🔴 CORRECTED 2026-08-24 (build 73). This entry used
+#                           to say the finds "stopped appearing" once /dev/pn553
+#                           was labelled, i.e. that they were downstream of the
+#                           NFC HAL failing to start. MEASURED ON BUILD 73: they
+#                           fire EVERY boot, and they fire from a HEALTHY HAL —
+#                           the same pid that has android.hardware.nfc@1.0/@1.1/
+#                           @1.2::INfc/default registered, with /dev/pn553
+#                           correctly labelled nfc_device. So the reason was
+#                           wrong even though the decision stands: stock's
+#                           merged manifest declares both interfaces and NOTHING
+#                           in stock or here serves them, so labelling them would
+#                           point the HAL at a service that does not exist.
+#                           Left unlabelled deliberately; if the noise is ever
+#                           worth removing, the honest instrument is a dontaudit,
+#                           not a label.
 vendor.goodix.hardware.biometrics.fingerprint::IGoodixFingerprintDaemon          u:object_r:goodix_fingerprint_service:s0
 vendor.goodix.hardware.biometrics.fingerprint::IGoodixFingerprintDaemonExt       u:object_r:goodix_fingerprint_service:s0
 vendor.goodix.hardware.biometrics.fingerprint::IGoodixFingerprintDaemonHbd       u:object_r:goodix_fingerprint_service:s0
