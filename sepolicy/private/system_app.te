@@ -1,0 +1,47 @@
+# Settings' "Memory" screen (App memory usage) reads /proc/pagetypeinfo.
+#
+# com.android.internal.app.procstats.ProcessStats.updateFragmentation()
+# (frameworks/base/.../procstats/ProcessStats.java:689) opens the file directly
+# to build the memory-fragmentation view. When Settings drives procstats for its
+# own UI the parse happens in the SETTINGS process, i.e. in system_app -- not in
+# system_server, which AOSP does grant this type.
+#
+# Measured on build 77, reproduced on demand by launching the screen:
+#
+#   avc: denied { read } for comm="ndroid.settings" name="pagetypeinfo"
+#     scontext=u:r:system_app:s0 tcontext=u:object_r:proc_pagetypeinfo:s0
+#     tclass=file permissive=0
+#
+# It fails SILENTLY: the reader is wrapped in catch (IOException), which clears
+# mPageTypeNodes/Zones/Labels/Sizes, so the screen simply shows no fragmentation
+# data and nothing logs an error. A denial with no visible failure is exactly the
+# class BLUEPRINT section 9 warns about in the other direction -- worth grepping
+# for the consumer before deciding it is noise.
+#
+# GRANTED rather than dontaudit'd, because upstream's own posture is that this
+# data is fine for system-side domains and only off-limits to apps:
+#
+#   private/system_server.te:1126  system_server gets proc_pagetypeinfo r_file_perms
+#   private/incidentd.te:29        incidentd likewise
+#   public/system_app.te + private/system_app.te:155
+#                                  "settings app reads /proc/version" -- the same
+#                                  Settings-reads-a-/proc-node shape, already granted
+#
+# Neverallow checked first (BLUEPRINT section 9): private/app_neverallows.te:186
+# forbids this type to `all_untrusted_apps`, and that macro (:5) is exactly
+# { ephemeral_app isolated_app mediaprovider mediaprovider_app untrusted_app
+#   untrusted_app_25/27/29/30 untrusted_app_all }. system_app is not a member, so
+# the rule is legal rather than merely un-rejected.
+#
+# Both types are declared in system/sepolicy/public (file.te:55, system_app.te:7),
+# so this belongs in sepolicy/private and NOT in sepolicy/vendor -- naming it from
+# vendor policy would compile it as the versioned type proc_pagetypeinfo_33_0 and
+# make it invisible to the obvious grep, which cost three false negatives on
+# build 74.
+#
+# VERIFIED LIVE on build 77 before this was written, via `ksud sepolicy patch`:
+#   before  2 records, reproduced on demand from android.settings.APP_MEMORY_USAGE
+#   after   0 records, with 52 ndroid.settings log lines in the same capture as
+#           the positive control, so the zero is a measured zero and not a
+#           screen that never opened.
+allow system_app proc_pagetypeinfo:file r_file_perms;

@@ -1,0 +1,54 @@
+# Transsion's camera file-lock manager. Stock ships it, labels it and runs it;
+# device/mediatek/sepolicy_vndr has no domain for it, so on this tree the binary
+# stayed u:object_r:vendor_file:s0 and init could never transition into it —
+# the service has therefore NEVER started on any build of this ROM.
+#
+# The visible cost, every boot since build 62, from a healthy camera HAL:
+#   avc: denied { find } for
+#     interface=vendor.transsion.hardware.trancam.trancamserver::ITrancamserver
+#     scontext=u:r:mtk_hal_camera:s0
+#     tcontext=u:object_r:default_android_hwservice:s0 tclass=hwservice_manager
+#
+# 🔑 This is the "a service running is not a service serving" class one step
+# earlier still: pnpmgr at least RAN. This one never even started, while the
+# tree shipped its binary, its rc and its four libraries — a dead payload that
+# looked installed. Same remedy as PNPMGR (build 77): carry stock's own labels,
+# under the same rule — SHIPPED provider AND measured denial, both satisfied.
+#
+# Stock's labels, for the record:
+#   .build/work/vendor/etc/selinux/vendor_file_contexts:275
+#     /(system\/vendor|vendor)/bin/hw/vendor.transsion.hardware.trancam.trancamserver@1.0-service
+#       u:object_r:trancamserver_exec:s0
+#   .build/work/vendor/etc/selinux/vendor_hwservice_contexts:68
+#     vendor.transsion.hardware.trancam.trancamserver::ITrancamserver
+#       u:object_r:hal_trancamserver_hwservice:s0
+#
+# ✅ MEASURED ON HARDWARE (build 77) BEFORE THIS WAS WRITTEN — the closure ships
+# and the daemon is healthy, so this is not a policy for a binary that cannot run:
+#   every DT_NEEDED resolves (libcutils, liblog, libhidlbase, libutils, libc++
+#     and its own @1.0.so — all four libs and trancam_filelock.json are on the
+#     device)
+#   run by hand it logged "TRANCAM_DEBUG: Trancamserver", REGISTERED
+#     ITrancamserver/default, and stayed up as a daemon
+#   with the find granted, `lshal` showed it serving (server-pid column Y),
+#     the camera HAL restarted clean, 2 camera devices still enumerated,
+#     the providers still registered, 0 FATAL and 0 tombstones
+type trancamserver, domain;
+type trancamserver_exec, exec_type, vendor_file_type, file_type;
+
+init_daemon_domain(trancamserver)
+
+# Publish its own HIDL interface. Without the hwservice type the name falls to
+# default_android_hwservice, which a vendor domain may neither add nor find —
+# the exact shape of the PNPMGR vndservice bug.
+add_hwservice(trancamserver, hal_trancamserver_hwservice)
+
+# The one measured client. Stock ALSO grants cameraserver and system_server the
+# find plus a binder_call, and those are deliberately NOT carried here: both are
+# platform domains, neither has ever produced a denial for this interface on any
+# build of this tree, and granting a core domain access to a vendor service with
+# no evidence it asks is how dead policy accumulates. If either ever asks, it
+# will say so in an avc record and can be added with a measurement behind it.
+allow mtk_hal_camera hal_trancamserver_hwservice:hwservice_manager find;
+binder_call(mtk_hal_camera, trancamserver)
+binder_call(trancamserver, mtk_hal_camera)

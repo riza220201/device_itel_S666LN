@@ -21,3 +21,15 @@
 # so the two are candidates, not a proven cause. Enrolment needs a finger on the
 # sensor and cannot be tested over adb. Test it on the build that carries this.
 type goodix_fingerprint_service, hwservice_manager_type;
+
+# Transsion's camera file-lock manager interface. itel labels it, sepolicy_vndr
+# does not, so it fell through to default_android_hwservice — which the camera
+# HAL may not find and the server may not add. See trancamserver.te for the
+# measured denial and the hardware verification.
+type hal_trancamserver_hwservice, hwservice_manager_type;
+
+# NXP's two NFC extension interfaces. Stock labels both to one type and
+# device/mediatek/sepolicy_vndr does not, so they fell to
+# default_android_hwservice and hal_nfc_default could neither add nor find them.
+# Our own NFC HAL is their SERVER -- see hal_nfc_default.te for the symbols.
+type nxpnfc_hwservice, hwservice_manager_type;

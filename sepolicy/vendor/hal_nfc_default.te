@@ -1,0 +1,44 @@
+# NXP's NFC extension interfaces, which our own NFC HAL implements.
+#
+# Denied on every boot from build 62 to 77, from a HEALTHY HAL (the same pid that
+# has android.hardware.nfc@1.0/@1.1/@1.2::INfc/default registered):
+#
+#   avc: denied { find } for interface=vendor.nxp.nxpnfc::INxpNfc
+#     scontext=u:r:hal_nfc_default:s0
+#     tcontext=u:object_r:default_android_hwservice:s0 tclass=hwservice_manager
+#   avc: denied { find } for interface=vendor.nxp.nxpnfclegacy::INxpNfcLegacy   (same)
+#
+# 🔴 THIS ENTRY REVERSES A STANDING DECISION, on evidence that was never gathered
+# before. hwservice_contexts used to leave these unlabelled on the grounds that
+# "stock's merged manifest declares both interfaces and NOTHING in stock or here
+# serves them, so labelling them would point the HAL at a service that does not
+# exist." The premise is false. Measured on build 77, in our own shipped binary:
+#
+#   $ strings /vendor/bin/hw/android.hardware.nfc@1.2-service | grep registerAsService
+#     vendor::nxp::nxpnfc::V2_0::INxpNfc::registerAsService
+#     vendor::nxp::nxpnfclegacy::V1_0::INxpNfcLegacy::registerAsService
+#     android::hardware::nfc::V1_2::INfc::registerAsService     <- this one succeeds
+#
+# The HAL carries the SERVER side of all three and the full method bodies with them
+# (NxpNfc::resetEse, setEseUpdateState, setNxpTransitConfig, NxpNfcLegacy::
+# NciTransceive, getEseState, getNxpConfig ...). It is not a client looking up
+# something absent; it is a server that was never allowed to publish. Same shape as
+# pnpmgr (build 77) and trancamserver -- itel labels it, sepolicy_vndr does not.
+# Stock's label, taken as-is:
+#   .build/work/vendor/etc/selinux/vendor_hwservice_contexts
+#     vendor.nxp.nxpnfc::INxpNfc              u:object_r:nxpnfc_hwservice:s0
+#     vendor.nxp.nxpnfclegacy::INxpNfcLegacy  u:object_r:nxpnfc_hwservice:s0
+#
+# The eSE path these extensions serve is real on this device, not theoretical:
+# mtk_secure_element_hal_service runs (pid 804) with ISecureElement @1.0/@1.1/@1.2
+# registered on SIM1 and SIM2.
+#
+# ⚠ WHAT IS PROVEN AND WHAT IS NOT. Proven: the server code exists, and the finds
+# are refused. NOT proven: that registration then succeeds. A live test was
+# attempted via `ksud sepolicy patch` and is VOID -- the instrument control failed
+# (a rule that demonstrably worked earlier in the day did not apply after a reboot),
+# so the run says nothing either way and is not being reported as a negative.
+# 👉 THE MEASUREMENT ON BUILD 78 IS: `lshal | grep -i nxp`. Registered = the server
+# was only ever blocked. Absent = it is a client-side lookup after all, and the
+# label still correctly permits the find, so the denial goes either way.
+add_hwservice(hal_nfc_default, nxpnfc_hwservice)

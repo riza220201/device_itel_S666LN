@@ -62,3 +62,24 @@ dontaudit hal_wifi_supplicant_default self:global_capability_class_set { dac_ove
 # volume mounted and was browsable in the same boot with this denied, so nothing
 # depends on the access succeeding.
 dontaudit fsck_untrusted sysfs_usb_nonplat:dir search;
+
+# A CHIPONE fingerprint interface on a GOODIX unit. Nothing can ever serve it:
+#
+#   avc: denied { find } for
+#     interface=vendor.fpsensor.hardware.fpsensorhidlsvc::IFpsensorHidlSvc
+#     scontext=u:r:hal_fingerprint_default:s0
+#     tcontext=u:object_r:default_android_hwservice:s0
+#
+# Established rather than assumed, on build 77:
+#   this unit's sensor        /dev/goodix_fp   (no /dev/fpsensor, no silead, no chipone)
+#   who declares it           stock's manifest_chipone.xml, a DIFFERENT sensor vendor's
+#                             fragment, which arrives wholesale via DEVICE_MANIFEST_FILE
+#   provider in stock         NONE -- no binary and no library anywhere in the rev 28
+#                             vendor partition references fpsensorhidlsvc
+#
+# So this is one of the 34 declared-but-unregistered entries the merged manifest
+# over-promises (build 73): itel ships one manifest across sensor variants and this
+# unit is not the chipone one. Unlike the NXP pair above there is no server to
+# unblock, so a LABEL would be dead weight and the honest instrument is a dontaudit
+# -- which is what sepolicy/vendor/hwservice_contexts has said all along.
+dontaudit hal_fingerprint_default default_android_hwservice:hwservice_manager find;

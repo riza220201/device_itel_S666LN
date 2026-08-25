@@ -1,6 +1,7 @@
 # Domains this tree adds.
 /vendor/bin/pnpmgr                                                              u:object_r:pnpmgr_exec:s0
 /vendor/bin/kmsetkey_ca\.trustonic                                              u:object_r:trustonic_kmsetkey_ca_exec:s0
+/vendor/bin/hw/vendor\.transsion\.hardware\.trancam\.trancamserver@1\.0-service   u:object_r:trancamserver_exec:s0
 
 # Stock's Wi-Fi HAL, shipped under a renamed path.
 #

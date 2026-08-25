@@ -10,29 +10,51 @@
 # and would fail the same way.
 #
 # Deliberately NOT carried, with reasons, so this is not re-litigated:
-#   ITrancamserver          the provider IS shipped but never starts — its
-#                           binary has no exec type, so init cannot transition
-#                           into it. Labelling the interface would leave the
-#                           camera finding something nothing serves. That needs
-#                           a domain of its own; separate change.
-#   IFpsensorHidlSvc        a probe for a fingerprint vendor this unit does not
-#                           have (no /dev/fpsensor, no /dev/silead_fp).
-#   INxpNfc, INxpNfcLegacy  🔴 CORRECTED 2026-08-24 (build 73). This entry used
-#                           to say the finds "stopped appearing" once /dev/pn553
-#                           was labelled, i.e. that they were downstream of the
-#                           NFC HAL failing to start. MEASURED ON BUILD 73: they
-#                           fire EVERY boot, and they fire from a HEALTHY HAL —
-#                           the same pid that has android.hardware.nfc@1.0/@1.1/
-#                           @1.2::INfc/default registered, with /dev/pn553
-#                           correctly labelled nfc_device. So the reason was
-#                           wrong even though the decision stands: stock's
-#                           merged manifest declares both interfaces and NOTHING
-#                           in stock or here serves them, so labelling them would
-#                           point the HAL at a service that does not exist.
-#                           Left unlabelled deliberately; if the noise is ever
-#                           worth removing, the honest instrument is a dontaudit,
-#                           not a label.
+#   ITrancamserver          ✅ NOW CARRIED (build 78). This entry used to defer it:
+#                           "the provider IS shipped but never starts — its binary
+#                           has no exec type ... that needs a domain of its own;
+#                           separate change." That change is sepolicy/vendor/
+#                           trancamserver.te, so the objection no longer holds —
+#                           the interface is no longer labelled for something
+#                           nothing serves. Verified on build 77 hardware first:
+#                           the binary's whole closure ships, it runs, and it
+#                           registers ITrancamserver/default (lshal server-pid Y).
+#   IFpsensorHidlSvc        STILL NOT CARRIED, and now with the measurement behind
+#                           it. This unit's sensor is GOODIX (/dev/goodix_fp);
+#                           IFpsensorHidlSvc is declared only by stock's
+#                           manifest_chipone.xml — a DIFFERENT sensor vendor's
+#                           fragment, arriving wholesale via DEVICE_MANIFEST_FILE —
+#                           and NO binary or library anywhere in the rev 28 vendor
+#                           partition references fpsensorhidlsvc. There is no
+#                           server to unblock, so a label would be dead weight.
+#                           Silenced instead, in sepolicy/vendor/dontaudit.te,
+#                           which is what this entry said the honest instrument
+#                           would be.
+#   INxpNfc, INxpNfcLegacy  ✅ NOW CARRIED (build 78) — and this REVERSES the
+#                           decision this entry recorded twice. The 2026-08-24
+#                           correction was right that the finds fire every boot
+#                           from a HEALTHY HAL, and wrong about the reason it drew
+#                           from that: it concluded "NOTHING in stock or here
+#                           serves them, so labelling them would point the HAL at a
+#                           service that does not exist." Nobody had checked the
+#                           binary. Build 77, our own shipped NFC HAL:
+#                             vendor::nxp::nxpnfc::V2_0::INxpNfc::registerAsService
+#                             vendor::nxp::nxpnfclegacy::V1_0::INxpNfcLegacy::
+#                                                              registerAsService
+#                           It carries the SERVER side of both, with the method
+#                           bodies (resetEse, setNxpTransitConfig, NciTransceive,
+#                           getEseState ...). It was never a client looking up
+#                           something absent — it is a server that was never
+#                           allowed to publish, exactly like pnpmgr. Full reasoning,
+#                           and what is still unproven, in hal_nfc_default.te.
+#                           🔑 The lesson: "nothing serves it" was inferred from
+#                           the MANIFEST both times. The provider is a property of
+#                           the BINARY, and one `strings` would have settled it in
+#                           either direction.
 vendor.goodix.hardware.biometrics.fingerprint::IGoodixFingerprintDaemon          u:object_r:goodix_fingerprint_service:s0
 vendor.goodix.hardware.biometrics.fingerprint::IGoodixFingerprintDaemonExt       u:object_r:goodix_fingerprint_service:s0
 vendor.goodix.hardware.biometrics.fingerprint::IGoodixFingerprintDaemonHbd       u:object_r:goodix_fingerprint_service:s0
 vendor.goodix.hardware.biometrics.fingerprint::IGoodixFingerprintDaemonFido      u:object_r:goodix_fingerprint_service:s0
+vendor.transsion.hardware.trancam.trancamserver::ITrancamserver                   u:object_r:hal_trancamserver_hwservice:s0
+vendor.nxp.nxpnfc::INxpNfc                                                      u:object_r:nxpnfc_hwservice:s0
+vendor.nxp.nxpnfclegacy::INxpNfcLegacy                                          u:object_r:nxpnfc_hwservice:s0
