@@ -120,4 +120,28 @@
         <item>235</item>
         <item>255</item>
     </integer-array>
+
+    <!-- The package allowed to hold android.permission.WRITE_DEVICE_CONFIG.
+         AOSP leaves this EMPTY (core/res/res/values/config.xml:3400), so on a
+         stock-AOSP-derived build NOTHING can hold that permission and GMS
+         Phenotype fails every DeviceConfig.setProperties() push — measured on
+         build 72 as 93 SecurityExceptions in a single boot, and on build 74 as
+         128 "PhBaseOp ... EventCode: COMMIT_CONFIG" failures over 12 minutes.
+
+         🔴 THIS, NOT A PRIVAPP ALLOWLIST, IS THE MECHANISM. WRITE_DEVICE_CONFIG
+         is protectionLevel="signature|verifier|configurator" — it is NOT
+         `privileged`, so a privapp-permissions entry can never grant it. Build
+         73 shipped exactly such a file on that wrong premise; it was inert, and
+         it is deleted in the same commit as this line. The grant path is:
+             PermissionManagerServiceImpl:3525  bp.isConfigurator() &&
+                 getKnownPackageNames(PACKAGE_CONFIGURATOR) contains pkg
+             PackageManagerService:2060         PACKAGE_CONFIGURATOR comes from
+                 R.string.config_deviceConfiguratorPackageName
+         A Google-certified device overlays this to GmsCore; we do the same.
+
+         ⚠ POLICY CHOICE, NOT A DEFECT FIX. It lets Google set platform
+         DeviceConfig flags remotely, which is what a Google-certified device
+         allows and is consistent with this ROM presenting the honest stock
+         identity. To reverse it, delete this string — nothing else depends on it. -->
+    <string name="config_deviceConfiguratorPackageName" translatable="false">com.google.android.gms</string>
 </resources>

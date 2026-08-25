@@ -1,0 +1,20 @@
+# itel/MediaTek label 18 vndbinder services; device/mediatek/sepolicy_vndr
+# carries 8, so 10 are unlabelled here and fall to default_android_vndservice.
+#
+# Same rule as sepolicy/vendor/hwservice_contexts: only entries with a SHIPPED
+# provider AND a measured denial are carried. A label for a service nothing
+# publishes is dead weight.
+#
+# PNPMGR qualifies on both counts, measured on build 76:
+#   avc: denied { add } for pid=2352 uid=0 name=PNPMGR
+#     scontext=u:r:pnpmgr:s0 tcontext=u:object_r:default_android_vndservice:s0
+#     tclass=service_manager permissive=0
+#
+# 🔑 AND IT IS THE "A SERVICE RUNNING IS NOT A SERVICE SERVING" CLASS AGAIN.
+# vendor.sys.pnpmgr.state reads `running` and the process is alive (pid 2352),
+# which is exactly what BLUEPRINT section 8 checks for — so every acceptance
+# criterion this project has for pnpmgr passed while its binder service was
+# never actually published. Stock labels it:
+#     .build/work/vendor/etc/selinux/vndservice_contexts:4
+#     PNPMGR  u:object_r:pnpmgr_service:s0
+PNPMGR                                    u:object_r:pnpmgr_service:s0

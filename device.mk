@@ -1391,21 +1391,24 @@ PRODUCT_PACKAGES += \
 # Audio
 PRODUCT_COPY_FILES += \
     $(call find-copy-subdir-files,*,$(LOCAL_PATH)/configs/audio,$(TARGET_COPY_OUT_VENDOR)/etc)
-
-# Privileged-permission allowlist additions.
+# configs/permissions/ — REMOVED 2026-08-25, and the reason matters.
 #
-# 🔴 TARGET_COPY_OUT_PRODUCT, not _VENDOR or _SYSTEM, and that is load-bearing.
-# The privapp allowlist is read PER PARTITION and only applies to apps on the
-# same one. GmsCore.apk lives in /product/priv-app, so a copy anywhere else is
-# parsed and then silently does not apply.
+# This installed privapp-permissions-gms-deviceconfig.xml, granting GMS
+# WRITE_DEVICE_CONFIG so Phenotype could push DeviceConfig flags. It never
+# worked, and never could have:
 #
-# Currently one entry: WRITE_DEVICE_CONFIG for com.google.android.gms, which
-# MindTheGapps omits from its 95-permission list and Phenotype needs. 93 failed
-# DeviceConfig writes per boot on build 72 without it. The file documents the
-# whole finding and how to reverse it; SystemConfig MERGES privapp-permissions
-# across files, so this adds to MindTheGapps' set rather than replacing it.
-PRODUCT_COPY_FILES += \
-    $(call find-copy-subdir-files,*,$(LOCAL_PATH)/configs/permissions,$(TARGET_COPY_OUT_PRODUCT)/etc/permissions)
+#   WRITE_DEVICE_CONFIG  protectionLevel="signature|verifier|configurator"
+#
+# It is NOT `privileged`, and a privapp-permissions allowlist only applies to
+# the `privileged` flag. The file was inert from the day it shipped. The
+# evidence looked like confirmation and was the opposite: PM emitted ZERO "not
+# in privapp allowlist" warnings — because there was no allowlist question to
+# answer — while GMS's genuinely privileged permissions (RECOVER_KEYSTORE,
+# SEND_SAFETY_CENTER_UPDATE) were granted normally.
+#
+# The real mechanism is the configurator role, now set in
+# overlay/frameworks/base/core/res/res/values/config.xml
+# (config_deviceConfiguratorPackageName). See that comment for the full trace.
 
 # Media
 PRODUCT_COPY_FILES += \

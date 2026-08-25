@@ -9,6 +9,7 @@
 # forever.
 type pnpmgr, domain;
 type pnpmgr_exec, exec_type, vendor_file_type, file_type;
+type pnpmgr_service, vndservice_manager_type;
 
 init_daemon_domain(pnpmgr)
 vndbinder_use(pnpmgr)
@@ -26,3 +27,11 @@ set_prop(pnpmgr, vendor_pnpmgr_prop)
 allow pnpmgr proc:file r_file_perms;
 allow pnpmgr cgroup:dir r_dir_perms;
 allow pnpmgr cgroup:file r_file_perms;
+
+# Publish its own vndbinder service. Without this pnpmgr runs, sets
+# vendor.sys.pnpmgr.state=running, and never registers PNPMGR -- the service
+# name falls to default_android_vndservice and the add is refused:
+#   avc: denied { add } name=PNPMGR scontext=u:r:pnpmgr:s0
+#     tcontext=u:object_r:default_android_vndservice:s0 tclass=service_manager
+# Labelled in sepolicy/vendor/vndservice_contexts, matching stock.
+add_service(pnpmgr, pnpmgr_service)
