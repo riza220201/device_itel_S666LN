@@ -121,27 +121,34 @@
         <item>255</item>
     </integer-array>
 
-    <!-- The package allowed to hold android.permission.WRITE_DEVICE_CONFIG.
-         AOSP leaves this EMPTY (core/res/res/values/config.xml:3400), so on a
-         stock-AOSP-derived build NOTHING can hold that permission and GMS
-         Phenotype fails every DeviceConfig.setProperties() push — measured on
-         build 72 as 93 SecurityExceptions in a single boot, and on build 74 as
-         128 "PhBaseOp ... EventCode: COMMIT_CONFIG" failures over 12 minutes.
+    <!-- config_deviceConfiguratorPackageName — DELIBERATELY NOT SET HERE.
+         Recorded so this is not attempted a third time.
 
-         🔴 THIS, NOT A PRIVAPP ALLOWLIST, IS THE MECHANISM. WRITE_DEVICE_CONFIG
-         is protectionLevel="signature|verifier|configurator" — it is NOT
-         `privileged`, so a privapp-permissions entry can never grant it. Build
-         73 shipped exactly such a file on that wrong premise; it was inert, and
-         it is deleted in the same commit as this line. The grant path is:
+         WRITE_DEVICE_CONFIG is protectionLevel="signature|verifier|configurator",
+         NOT `privileged`, so the privapp allowlist build 73 shipped for it was
+         inert (deleted 2026-08-25). The real grant is the configurator role:
              PermissionManagerServiceImpl:3525  bp.isConfigurator() &&
                  getKnownPackageNames(PACKAGE_CONFIGURATOR) contains pkg
-             PackageManagerService:2060         PACKAGE_CONFIGURATOR comes from
-                 R.string.config_deviceConfiguratorPackageName
-         A Google-certified device overlays this to GmsCore; we do the same.
+             PackageManagerService:2060         from R.string.config_deviceConfiguratorPackageName
 
-         ⚠ POLICY CHOICE, NOT A DEFECT FIX. It lets Google set platform
-         DeviceConfig flags remotely, which is what a Google-certified device
-         allows and is consistent with this ROM presenting the honest stock
-         identity. To reverse it, delete this string — nothing else depends on it. -->
-    <string name="config_deviceConfiguratorPackageName" translatable="false">com.google.android.gms</string>
+         🔴 BUT IT IS ALREADY TAKEN, AND NOT BY US. crDroid sets it at
+         vendor/lineage/overlay/common/frameworks/base/core/res/res/values/config.xml:125
+         to "org.protonaosp.deviceconfig" — the ProtonAOSP DeviceConfig app it
+         bundles. Verified with aapt2 against the SHIPPED framework-res of both
+         build 76 and build 77: the value is org.protonaosp.deviceconfig in each.
+
+         An override was tried here and DID NOT TAKE: this tree uses
+         DEVICE_PACKAGE_OVERLAYS (device.mk:1086), which loses to the product-level
+         overlay vendor/lineage supplies. It was removed rather than escalated,
+         because the escalation is a POLICY CHOICE and not ours to make silently:
+         the role is a single string, so granting it to GmsCore takes it AWAY from
+         crDroid's own flag app. That is an either/or, not an improvement.
+
+         The cost of leaving it as crDroid ships it, measured on build 76:
+         166 SecurityExceptions per boot from GMS Phenotype failing
+         DeviceConfig.setProperties(). Noisy, and Google's server-driven flags do
+         not apply. Nothing else breaks.
+
+         ⚠ The COMMIT_CONFIG counter is a red herring — it read 0 on build 76
+         while 166 SecurityExceptions were being thrown. Count the exceptions. -->
 </resources>
