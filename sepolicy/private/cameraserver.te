@@ -1,0 +1,42 @@
+# cameraserver reading vendor_default_prop, on camera OPEN.
+#
+# Measured on build 79, and ONLY while the camera was actually being used:
+#
+#   avc: denied { read } for comm="binder:947_C"
+#     name="u:object_r:vendor_default_prop:s0" dev="tmpfs"
+#     scontext=u:r:cameraserver:s0 tcontext=u:object_r:vendor_default_prop:s0
+#     tclass=file permissive=0
+#
+# 🔑 NO BOOT SWEEP COULD EVER HAVE FOUND THIS. Every denial audit this project
+# runs samples a boot; this one needs the feature EXERCISED. It first appeared
+# the moment org.lineageos.aperture opened camera 0, on a build whose boot sweep
+# had just reported ZERO denials. BLUEPRINT section 9 names the same blind spot
+# from the other side (a missing grant that produces NO avc record at all and
+# force-closed GameSpace in a public release); this is its mirror — a real
+# record that a boot-shaped test cannot see.
+#
+# Same class as the ro.vendor.smvr.p2batch.* denial handled in
+# sepolicy/private/system_server.te (build 72), and the reasoning carries over
+# unchanged:
+#
+#   system/sepolicy/private/domain.te:96
+#     get_prop({domain -coredomain -appdomain}, vendor_default_prop)
+#
+# Vendor domains may read it; coredomains may not, deliberately. cameraserver is
+# a coredomain (public/cameraserver.te:2) that loads the same vendor graphics
+# libraries surfaceflinger does, so it walks into a decision upstream made on
+# purpose. AOSP's own answer for exactly this is dontaudit, already applied to
+# appdomain (app.te:76), bootanim (:9) and surfaceflinger (:142) — cameraserver
+# and system_server are simply missing from that list.
+#
+# 🔴 A GRANT IS NOT AVAILABLE HERE EVEN IF IT WERE WANTED: reading
+# vendor_default_prop from a coredomain is NEVERALLOWED, as
+# sepolicy/vendor/mediacodec.te already records for mediaserver. dontaudit is
+# the only legal instrument, not the lazy one.
+#
+# ⚠ Silencing an audit is not fixing a behaviour: cameraserver still cannot read
+# the value and still falls back to its default. That is the intended outcome —
+# measured, not assumed: with this denied, camera 0 opened cleanly
+# (CameraDeviceClient 0: Opened), both sensors captured, and the resulting JPEGs
+# decode at 12.4 MP and 8.0 MP with real image content.
+dontaudit cameraserver vendor_default_prop:file read;
