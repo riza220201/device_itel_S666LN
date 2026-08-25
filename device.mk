@@ -1085,6 +1085,14 @@ PRODUCT_PACKAGES += \
 # Overlays
 DEVICE_PACKAGE_OVERLAYS += $(LOCAL_PATH)/overlay
 
+# PRODUCT-level overlay. Beats vendor/lineage's product overlay, which the
+# DEVICE overlay above structurally cannot -- package_internal.mk reverses the
+# combined list before aapt2, so PRODUCT_ entries win and the EARLIEST wins.
+# lineage_S666LN.mk inherits this file (44) before vendor/lineage (47), so this
+# lands first. Currently carries exactly one string: the DeviceConfig
+# configurator role. See overlay-product/.../config.xml for the full reasoning.
+PRODUCT_PACKAGE_OVERLAYS += $(LOCAL_PATH)/overlay-product
+
 # Init. rootdir/ carries the boot plumbing this tree owns and edits; every
 # other .rc on the vendor partition (the ~134 HAL service files, plus the
 # factory_init / meta_init / multi_init set) ships as a blob through the

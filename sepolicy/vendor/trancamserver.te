@@ -33,10 +33,56 @@
 #   with the find granted, `lshal` showed it serving (server-pid column Y),
 #     the camera HAL restarted clean, 2 camera devices still enumerated,
 #     the providers still registered, 0 FATAL and 0 tombstones
+# 🔴 BUILD 78 BROKE THE CAMERA WITH THIS FILE. Read this before touching it.
+#
+# The first version of this domain used init_daemon_domain + add_hwservice and
+# hand-written binder_call rules, derived by grepping stock's compiled CIL for
+# "trancamserver". That method can only see rules that name the domain DIRECTLY,
+# and it is BLUEPRINT section 9's documented trap verbatim:
+# **attribute-mediated grants are invisible to a grep for the domain name.**
+#
+# What it missed, all of it from ONE attribute (private/halserverdomain.te):
+#     hwbinder_use(halserverdomain)                     the call to hwservicemanager
+#     get_prop(halserverdomain, hwservicemanager_prop)  used to WAIT for it
+#     allow halserverdomain system_file:dir r_dir_perms
+#
+# So trancamserver started, could not read hwservicemanager_prop, could not call
+# hwservicemanager, and never registered -- while init.svc said `running`.
+#
+# 🔴 AND THAT WAS NOT COSMETIC, because the interface was now LABELLED.
+# Before build 78 camerahalserver's getService() on ITrancamserver was DENIED and
+# returned null, which the camera tolerated. With a label the find is PERMITTED,
+# so getService() instead entered a blocking retry:
+#     HidlServiceManagement: Waited one second for ...ITrancamserver/default
+#     hwservicemanager: ...not registered, trying to start it as a lazy HAL
+#     libc: Unable to set property "ctl.interface_start" ... error 0x20
+# camerahalserver never registered ICameraProvider ->
+#     dumpsys media.camera -> "Number of camera devices: 0"
+# RESUME says this exact thing about build 68: **a DECLARED interface that never
+# registers is a BOOT HANG, not a degraded feature.** A half-fixed HAL is worse
+# than an unfixed one; the label and a working server must land together.
+#
+# FIXED by joining the ATTRIBUTE stock joins, rather than copying the three rules
+# it currently expands to -- enumerating an attribute inherits nothing later.
+# Verified in stock's own CIL: typeattributeset halserverdomain (... trancamserver
+# ...), plus hal_trancamserver / hal_trancamserver_server.
+#
+# ✅ BOTH HALVES PROVEN ON HARDWARE (build 78, live via ksud sepolicy patch,
+# instrument controlled -- the hwservicemanager_prop denial rate went from ~110
+# per 12 s to 0, which is the control):
+#     trancamserver  ->  lshal server-pid Y, ITrancamserver/default REGISTERED
+#     camera         ->  "Number of camera devices: 2", providers @2.4/@2.5/@2.6
+#                        all registered and serving again
+hal_attribute(trancamserver)
+
 type trancamserver, domain;
 type trancamserver_exec, exec_type, vendor_file_type, file_type;
 
 init_daemon_domain(trancamserver)
+
+# halserverdomain + hal_trancamserver{,_server}. This is the line whose absence
+# broke the camera; do NOT replace it with the rules it happens to expand to.
+hal_server_domain(trancamserver, hal_trancamserver)
 
 # Publish its own HIDL interface. Without the hwservice type the name falls to
 # default_android_hwservice, which a vendor domain may neither add nor find —

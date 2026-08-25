@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  PRODUCT-level overlay. This directory exists for exactly one reason: to beat
+  vendor/lineage's own product overlay, which device/itel/S666LN/overlay/ cannot.
+
+  WHY A SECOND OVERLAY DIRECTORY
+    build/make/core/package_internal.mk:154,158,175
+        static_resource_overlays := $(product_package_overlays) $(device_package_overlays)
+        LOCAL_RESOURCE_DIR       := $(static_resource_overlays) $(LOCAL_RESOURCE_DIR)
+        # In aapt2 the last takes precedence.
+        my_resource_dirs         := $(call reverse-list,$(LOCAL_RESOURCE_DIR))
+    The list is REVERSED before aapt2 sees it, so the EARLIEST entry wins.
+    PRODUCT_PACKAGE_OVERLAYS therefore beats DEVICE_PACKAGE_OVERLAYS, always.
+    device.mk's overlay/ is a DEVICE overlay, so it loses to
+    vendor/lineage/overlay/common no matter what it contains — which is why the
+    build-77 attempt at the string below shipped DEAD and was retracted (5cd3863).
+    Ordering within the product list is safe: lineage_S666LN.mk inherits
+    device.mk (line 44) BEFORE vendor/lineage/config/common_full_phone.mk
+    (line 47), so this directory is appended first and wins the reverse.
+-->
+<resources>
+
+    <!-- The DeviceConfig "configurator" role.
+
+         WRITE_DEVICE_CONFIG is protectionLevel="signature|verifier|configurator"
+         and NOT `privileged`, so no privapp allowlist can grant it (build 73
+         shipped one; it was inert and is deleted). The only grant path is:
+             PermissionManagerServiceImpl:3525  bp.isConfigurator() &&
+                 getKnownPackageNames(PACKAGE_CONFIGURATOR) contains pkg
+             PackageManagerService:2060         R.string.config_deviceConfiguratorPackageName
+
+         AOSP ships this EMPTY (core/res/.../config.xml:3400) and crDroid
+         overlays it to its own bundled org.protonaosp.deviceconfig.
+
+         OPERATOR DECISION 2026-08-25 — give it to GMS. The reasoning is about
+         which BUILD this is, not about Google:
+           an empty/proton configurator is correct for a VANILLA build, because
+           that build is meant to be flashed with microG later. THIS IS A GAPPS
+           BUILD — MindTheGapps is baked in (apply-overlays-v2.sh step 12) and
+           the device carries com.google.android.gms + gsf. The role belongs to
+           whichever flag system is ACTUALLY IN USE, so here that is GMS.
+           Leaving it on the Proton app is the wrong owner, not a neutral default.
+
+         ⚠ THIS IS EITHER/OR. The role is a single string, so setting it here
+         TAKES it from org.protonaosp.deviceconfig, which is bundled and stays
+         installed. That trade is accepted deliberately, not overlooked.
+
+         ⚠ VERIFY BY VALUE, NEVER BY PRESENCE. A resource NAME is in
+         framework-res whether or not anyone sets it, so grepping resources.arsc
+         proves nothing — that is how build 77's dead override looked correct.
+         The check is:
+             aapt2 dump resources <SHIPPED framework-res.apk> |
+                 grep -A2 config_deviceConfiguratorPackageName
+         and on the device:
+             dumpsys package com.google.android.gms | grep WRITE_DEVICE_CONFIG
+                 -> granted=true, and the ~166/boot SecurityExceptions go to 0. -->
+    <string name="config_deviceConfiguratorPackageName" translatable="false">com.google.android.gms</string>
+
+</resources>

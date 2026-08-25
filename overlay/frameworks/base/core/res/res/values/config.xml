@@ -121,34 +121,25 @@
         <item>255</item>
     </integer-array>
 
-    <!-- config_deviceConfiguratorPackageName — DELIBERATELY NOT SET HERE.
-         Recorded so this is not attempted a third time.
+    <!-- config_deviceConfiguratorPackageName — SET, but NOT HERE. See
+         overlay-product/frameworks/base/core/res/res/values/config.xml.
 
-         WRITE_DEVICE_CONFIG is protectionLevel="signature|verifier|configurator",
-         NOT `privileged`, so the privapp allowlist build 73 shipped for it was
-         inert (deleted 2026-08-25). The real grant is the configurator role:
-             PermissionManagerServiceImpl:3525  bp.isConfigurator() &&
-                 getKnownPackageNames(PACKAGE_CONFIGURATOR) contains pkg
-             PackageManagerService:2060         from R.string.config_deviceConfiguratorPackageName
+         🔴 IT CANNOT BE SET IN THIS FILE, and that is structural rather than a
+         preference. This directory is a DEVICE overlay
+         (DEVICE_PACKAGE_OVERLAYS, device.mk). package_internal.mk builds
+             static_resource_overlays := $(product_package_overlays) $(device_package_overlays)
+         then REVERSES the list before aapt2 ("the last takes precedence"), so
+         the earliest entry wins and every PRODUCT overlay outranks every DEVICE
+         overlay. crDroid sets this string from
+         vendor/lineage/overlay/common/.../config.xml:125 — a product overlay —
+         so anything written here loses to it unconditionally.
 
-         🔴 BUT IT IS ALREADY TAKEN, AND NOT BY US. crDroid sets it at
-         vendor/lineage/overlay/common/frameworks/base/core/res/res/values/config.xml:125
-         to "org.protonaosp.deviceconfig" — the ProtonAOSP DeviceConfig app it
-         bundles. Verified with aapt2 against the SHIPPED framework-res of both
-         build 76 and build 77: the value is org.protonaosp.deviceconfig in each.
+         That is exactly how the build-77 attempt shipped DEAD: the string was
+         present in resources.arsc and the resolved value was still
+         org.protonaosp.deviceconfig. Retracted in 5cd3863, re-done properly as
+         a PRODUCT overlay for build 79 on the operator's decision.
 
-         An override was tried here and DID NOT TAKE: this tree uses
-         DEVICE_PACKAGE_OVERLAYS (device.mk:1086), which loses to the product-level
-         overlay vendor/lineage supplies. It was removed rather than escalated,
-         because the escalation is a POLICY CHOICE and not ours to make silently:
-         the role is a single string, so granting it to GmsCore takes it AWAY from
-         crDroid's own flag app. That is an either/or, not an improvement.
-
-         The cost of leaving it as crDroid ships it, measured on build 76:
-         166 SecurityExceptions per boot from GMS Phenotype failing
-         DeviceConfig.setProperties(). Noisy, and Google's server-driven flags do
-         not apply. Nothing else breaks.
-
-         ⚠ The COMMIT_CONFIG counter is a red herring — it read 0 on build 76
-         while 166 SecurityExceptions were being thrown. Count the exceptions. -->
+         🔑 The lesson worth keeping: a resource NAME is in framework-res whether
+         or not anyone sets it, so presence in the artifact proves nothing. Only
+         `aapt2 dump resources` resolves the VALUE. -->
 </resources>
