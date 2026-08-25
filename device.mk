@@ -491,9 +491,23 @@ endif
 #         apiVersion: 00020000
 # with zero EffectsFactory errors. The UUID must stay in step with
 # configs/audio/audio_effects.xml and james.dsp's HeadsetService.java:64.
+# 🔴 JamesDSPClassic REMOVED 2026-08-25 (v2 build 1). It was james34602's
+# DSPManager, versionName 9.1 -- a Nougat-era UI, and a notification the user
+# could not dismiss because HeadsetService called startForeground with
+# setOngoing(true). The CONTROL APP is now the modern upstream
+# (timschneeb/RootlessJamesDSP, rootFdroid flavor) built from source by
+# tools/build-jamesdsp.sh and staged into prebuilts/JamesDSP/, which installs as
+# module `JamesDSP` under the guard above.
+#
+# ⚠ THE EFFECT DID NOT CHANGE, and that is why the swap works: both apps drive
+# the SAME system effect, verified by UUID rather than assumed --
+#     configs/audio/audio_effects.xml         f27317f4-c984-4de6-9a90-545759495bf2
+#     old app HeadsetService.java:64          f27317f4-...
+#     new app JamesDspRemoteEngine.kt:300     f27317f4-...   (same, and it is the
+#                                             REMOTE engine, i.e. the system effect)
+# so `libjamesdsp` below stays exactly as it was.
 PRODUCT_PACKAGES += \
-    libjamesdsp \
-    JamesDSPClassic
+    libjamesdsp
 
 # Vendor variants of platform-built libraries.
 #

@@ -1,55 +1,49 @@
-JamesDSP (rootless) -- replaces AudioFX in this ROM.
+JamesDSP -- the CONTROL APP. Built from source, not fetched.
 
-The APK is NOT committed here. Run ../../fetch-jamesdsp.sh to fetch and verify
-it; that script also writes the Android.bp next to the APK. Until it is run this directory holds only this README, so the tree
-still builds and AudioFX stays in place.
+The APK and Android.bp here are BUILD OUTPUT and are gitignored. Produce them
+with:
+    bash tools/build-jamesdsp.sh
 
-Pinned artifact
-    me.timschneeberger.rootlessjamesdsp  1.6.14 (versionCode 51)
-    https://f-droid.org/repo/me.timschneeberger.rootlessjamesdsp_51.apk
-    sha256 4cdd6cbc57abb00b1ce28668dc29c021640bae8c4521ec592efc58c4239d83a1
-    38,647,450 bytes, minSdk 29, targetSdk 34, arm64-v8a + armeabi-v7a
+WHAT CHANGED (2026-08-25, v2 build 1)
+    Until now this directory held a FETCHED APK of the ROOTLESS upstream
+    (me.timschneeberger.rootlessjamesdsp), and the app that actually shipped was
+    jamesdsp-app/ -- james34602's classic DSPManager, versionName 9.1. That app
+    was ~7 years old in look and feel, and its notification could not be
+    dismissed: HeadsetService created its channel IMPORTANCE_NONE but called
+    startForeground with setOngoing(true), and Android floors FGS notifications
+    to LOW regardless. Both are now replaced by the modern upstream, built from
+    source in the `rootFdroid` flavor.
 
-Why F-Droid and not GitHub: the upstream GitHub releases carry no APK assets at
-all -- the project publishes through F-Droid, which builds from source and
-serves a stable, checksummable URL per versionCode.
+WHY BUILT AND NOT DOWNLOADED
+    A prebuilt root-full APK does exist on the author's nightly server, and it
+    is NOT shippable:
+        5 x libcrashlytics*.so + a live firebase-settings.crashlytics.com endpoint
+        REQUEST_INSTALL_PACKAGES + UPDATE_PACKAGES_WITHOUT_USER_ACTION, i.e. a
+          system app that can silently replace itself from a third-party server
+    Building lets us pick the flavor and patch out the rest.
 
-WHAT THIS CHANGES, AND THE HONEST TRADE-OFF
-    AudioFX drives the VENDOR audio effects (equalizer, bass boost, virtualizer)
-    through the platform AudioEffect API. JamesDSP rootless does not: it captures
-    playback with the AudioPlaybackCapture API, processes it, and re-renders.
+    ⚠ AND THE FLAVOR ALONE IS NOT ENOUGH. UpdateManager is split on the
+    "version" dimension, not "dependencies", so rootFdroid removes Firebase and
+    leaves the self-updater fully intact. tools/jamesdsp-patches/ stubs it and
+    drops the two install permissions. See that directory's RATIONALE.md.
 
-    Consequences, none of which are bugs:
-      - apps that set allowAudioPlaybackCapture="false" (most DRM video, some
-        streaming apps) CANNOT be processed, by Android design
-      - a small amount of added latency
-      - a persistent foreground-service notification
+WHY IT IS A DROP-IN
+    The rootFdroid flavor sets applicationId "james.dsp" -- the same package the
+    old in-tree app produced -- and drives the SAME system audio effect, checked
+    by UUID rather than assumed:
+        configs/audio/audio_effects.xml      f27317f4-c984-4de6-9a90-545759495bf2
+        JamesDspRemoteEngine.kt:300          f27317f4-...  (the REMOTE engine)
+    So configs/audio/audio_effects.xml and the libjamesdsp effect in the device
+    tree are untouched. Only the control app moved.
 
-    It is a far more capable DSP than AudioFX in exchange for those. If the
-    vendor effect chain matters more than the DSP, keep AudioFX and skip this.
+🔴 NOT YET PROVEN, AND IT MATTERS
+    The root flavor links topjohnwu libsu and shells out to `audioserver` and
+    `setprop`. That is the Magisk pattern -- the module installs the effect after
+    boot, so audioserver must be restarted -- and our ROM registers the effect at
+    boot, so there should be nothing to restart. That is an EXPECTATION.
+    Verify on the VANILLA kernel (no root), which is what releases ship; the
+    test device is rooted and would hide a hard dependency.
 
-NOT PRIVILEGED, AND WHAT THAT COSTS
-    Without android.permission.DUMP the app cannot see audio sessions on its
-    own, so the user must re-accept a MediaProjection capture dialog after EVERY
-    reboot. The app works; that is the cost.
-
-    It USED to ship privileged, with a generated privapp-permissions allowlist
-    granting exactly DUMP. 🔴 That combination boot-looped the device, measured
-    on hardware in build 51:
-
-        FATAL EXCEPTION IN SYSTEM PROCESS: main
-        java.lang.IllegalStateException: Signature|privileged permissions not in
-          privapp-permissions allowlist: {me.timschneeberger.rootlessjamesdsp
-          (/product/priv-app/JamesDSP): android.permission.DUMP}
-
-    system_server reached ~238 services -- effectively a complete boot -- then
-    threw and restarted, forever. It had been latent since the app was added on
-    2026-08-05, because every build until then was killed by Watchdog at the
-    audio HAL before PackageManagerService.systemReady() was reached.
-
-    🔴 Why the allowlist was ignored is UNEXPLAINED. It was present at
-    /product/etc/permissions/, 0644, u:object_r:system_file:s0, well-formed,
-    naming exactly that package and permission; SystemConfig logged reading it
-    on every boot; there was no parse warning; and bind-mounting a copy into
-    /system/etc/permissions as well did not help. Do not simply restore
-    privileged:true -- explain that first.
+    Also unverified: the APK is presigned (gradle's key), not platform-signed.
+    The old app was built in-tree with platform_apis. Confirm the effect still
+    attaches on a real build.
