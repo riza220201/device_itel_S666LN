@@ -518,7 +518,6 @@ vendor/etc/nnapi_powerhal.json
 vendor/etc/permissions/android.hardware.audio.low_latency.xml
 vendor/etc/permissions/android.hardware.bluetooth_le.xml
 vendor/etc/permissions/android.hardware.camera.xml
-vendor/etc/permissions/android.hardware.hardware_keystore.xml
 vendor/etc/permissions/android.hardware.faketouch.xml
 vendor/etc/permissions/android.hardware.fingerprint.xml
 vendor/etc/permissions/android.hardware.keystore.app_attest_key.xml
