@@ -38,9 +38,52 @@
          authored choice, not a recovered stock fact: without it AOSP settles
          at 60 and the 90/120 modes are never selected.
 
-         Deliberately no config_defaultRefreshRate — leaving it unset lets the
-         framework drop to 60 on static content instead of pinning a floor. -->
+         🔴 config_defaultRefreshRate MUST BE 0, AND THE REASON THIS LINE USED TO
+         BE ABSENT WAS WRONG IN BOTH HALVES. It used to read:
+
+             "Deliberately no config_defaultRefreshRate — leaving it unset lets
+              the framework drop to 60 on static content instead of pinning a
+              floor."
+
+         (a) There is no "unset". AOSP ships
+             core/res/res/values/config.xml:4882 <integer
+             name="config_defaultRefreshRate">60</integer>, so omitting the
+             override inherits 60.
+         (b) It is not a FLOOR, it is the MAXIMUM of the lowest-priority vote.
+             DisplayModeDirector turns it into PRIORITY_DEFAULT_REFRESH_RATE
+             with maxRefreshRate=60, which clamps primaryRefreshRateRange to
+             [0 60] — the panel then never leaves 60, no matter what the user
+             or the app asks for.
+
+         MEASURED ON HARDWARE 2026-08-26, with Mobile Legends in the foreground
+         and its own 120 Hz option enabled:
+
+             mDefaultPeakRefreshRate     120        <- this overlay worked
+             mDefaultRefreshRate          60        <- the inherited AOSP value
+             primaryRefreshRateRange    [0 60]      <- so the panel is capped
+             appRequestRefreshRateRange [0 120]     <- which is why the GAME
+                                                       correctly detects 120 and
+                                                       still renders 60
+             PRIORITY_DEFAULT_REFRESH_RATE -> max 60.0
+
+         Proven by adding a competing higher-priority vote live
+         (`settings put system min_refresh_rate 120`): the range moved to
+         [120 120] and SurfaceFlinger's activeModeId went 0 -> 1 (60 -> 120 Hz)
+         immediately, in-game. So the panel and the app were never the problem.
+
+         ⚠ That live setting is NOT the fix — it PINS 120 and burns battery on
+         static content, which is exactly what the old comment was trying to
+         avoid. Its instinct was right; only its mechanism was wrong. AOSP's own
+         resource comment gives the correct lever:
+
+             "config_defaultRefreshRate may be set to 0, in which case the value
+              set for config_defaultPeakRefreshRate will act as the default
+              frame rate."
+
+         So 0 hands the default to the peak (120), leaving the range [0 120]:
+         high when content asks for it, free to drop to 60 when it does not. -->
     <integer name="config_defaultPeakRefreshRate">120</integer>
+    <integer name="config_defaultRefreshRate">0</integer>
 
     <!-- FINGERPRINT SENSOR DECLARATION.
          Without this there is no fingerprint option in Settings at all, even
