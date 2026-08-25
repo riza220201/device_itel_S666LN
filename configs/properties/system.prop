@@ -72,3 +72,50 @@ mediatek.wlan.ctia=0
 # It has to live in a .prop file rather than PRODUCT_*_PROPERTIES because the
 # value contains a space, and entries there are whitespace-separated.
 ro.product.marketname=itel RS4
+
+# --- Bluetooth profiles ------------------------------------------------------
+#
+# 🔴 WITHOUT THESE, BLUETOOTH PAIRS AND THEN REFUSES TO CONNECT. Every profile
+# in packages/modules/Bluetooth is gated on one of these sysprops, and an UNSET
+# prop means DISABLED, not default-on:
+#
+#   a2dp/A2dpService.java:111    BluetoothProperties.isProfileA2dpSourceEnabled().orElse(false)
+#   hfp/HeadsetService.java:152  BluetoothProperties.isProfileHfpAgEnabled().orElse(false)
+#
+# Measured on hardware 2026-08-26, connecting a headset:
+#     W A2dpService:    getA2dpService(): service is null
+#     W HeadsetService: getHeadsetService(): service is NULL
+#     BondStateMachine: BOND_BONDING => BOND_BONDED      <- pairing SUCCEEDS
+#     l2c_link_timeout -> hci_btsnd_hcic_disconnect      <- 4s later, dropped
+# i.e. the device pairs, nothing exists to accept the profile connection, and
+# L2CAP times out. The adapter itself was healthy throughout: state ON, correct
+# MAC, all six BT HALs registered, and ZERO SELinux denials.
+#
+# 🔑 WHY WE HAD ONLY ONE. Stock carries these in its SYSTEM build.prop (14
+# entries); its VENDOR build.prop carries exactly one, sap.server. Our
+# extraction reads the VENDOR partition -- correctly, that is the clean-room
+# source -- so we inherited the single vendor-side entry and none of the
+# thirteen on system, because crDroid builds system itself. Nothing was done
+# wrong in the extraction; there was simply no source for these in it.
+#
+# ⚠ This is why "Bluetooth works" was believed for months: every check the
+# journal ever ran was ADAPTER-level (state ON, adapter MAC, HAL factories
+# registered, OFF->ON toggle). None of them connected a device. BLUEPRINT
+# section 8 lists "BT audio" as a criterion and it was never actually exercised
+# -- the same shape as OTG (verified in recovery, never in Android) and the
+# camera (registered, never captured).
+#
+# Values are stock's own, verbatim, from .build/work/system/system/build.prop.
+bluetooth.profile.a2dp.source.enabled=true
+bluetooth.profile.asha.central.enabled=true
+bluetooth.profile.avrcp.target.enabled=true
+bluetooth.profile.bas.client.enabled=true
+bluetooth.profile.gatt.enabled=true
+bluetooth.profile.hfp.ag.enabled=true
+bluetooth.profile.hid.device.enabled=true
+bluetooth.profile.hid.host.enabled=true
+bluetooth.profile.map.server.enabled=true
+bluetooth.profile.opp.enabled=true
+bluetooth.profile.pan.nap.enabled=true
+bluetooth.profile.pan.panu.enabled=true
+bluetooth.profile.pbap.server.enabled=true
