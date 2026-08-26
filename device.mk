@@ -1432,6 +1432,40 @@ PRODUCT_COPY_FILES += \
 # overlay/frameworks/base/core/res/res/values/config.xml
 # (config_deviceConfiguratorPackageName). See that comment for the full trace.
 
+# 🔴 configs/permissions/ EXISTS AGAIN as of v2 build 2, for a different file
+# and a different partition. The paragraph above is about
+# privapp-permissions-gms-deviceconfig.xml and still stands; it is not about
+# this.
+#
+# android.hardware.hardware_keystore — stock rev 28's own declaration, byte for
+# byte, version 100. This device serves KeyMint V1 through Trustonic
+# (IKeyMintDevice registered, keystore.app_attest_key already advertised), so
+# the capability is real and undeclared. It is what banking / e-KYC apps query.
+#
+# ⚠ IT GOES ON PRODUCT, NOT VENDOR, AND THAT IS THE WHOLE POINT.
+# Shipping it to /vendor/etc/permissions is a kati parse-time FATAL:
+#   hardware/interfaces/security/keymint/aidl/default/Android.bp:49
+#     prebuilt_etc { name: "android.hardware.hardware_keystore.xml",
+#                    sub_dir: "permissions", vendor: true }
+# claims that exact install path. A duplicate target definition is fatal EVEN
+# THOUGH NOTHING REQUESTS IT — the AOSP default keymint service is not built
+# here (we ship keymint-service.trustonic), so the platform file never installs
+# and the device does not have it. That is build 1's revert (3f1170a), and
+# re-landing it on /vendor would reproduce the same failure.
+#
+# ⚠ The platform's own copy is NOT a substitute: it declares version 200
+# (KeyMint 2.0) where stock declares 100, and this device serves V1. Using it
+# would declare a capability we do not have.
+#
+# SystemConfig reads /product/etc/permissions with ALLOW_ALL, so the feature is
+# declared identically from there. Verified on hardware BEFORE writing this, with
+# a positive control rather than from the source: three features already declared
+# in /product/etc/permissions on build 1 (android.software.sip,
+# android.software.sip.voip, android.sofware.nfc.beam — AOSP's own typo) all
+# appear in `pm list features`.
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/configs/permissions/android.hardware.hardware_keystore.xml:$(TARGET_COPY_OUT_PRODUCT)/etc/permissions/android.hardware.hardware_keystore.xml
+
 # Media
 PRODUCT_COPY_FILES += \
     $(call find-copy-subdir-files,*,$(LOCAL_PATH)/configs/media,$(TARGET_COPY_OUT_VENDOR)/etc)
