@@ -58,3 +58,42 @@ vendor.goodix.hardware.biometrics.fingerprint::IGoodixFingerprintDaemonFido     
 vendor.transsion.hardware.trancam.trancamserver::ITrancamserver                   u:object_r:hal_trancamserver_hwservice:s0
 vendor.nxp.nxpnfc::INxpNfc                                                      u:object_r:nxpnfc_hwservice:s0
 vendor.nxp.nxpnfclegacy::INxpNfcLegacy                                          u:object_r:nxpnfc_hwservice:s0
+
+# 🔴 Wi-Fi HOTSPOT. Stock's vendor_hwservice_contexts:91, byte for byte.
+#
+# Without this line the SoftAP is DEAD — not degraded, dead — and no gate this
+# project owns could see it, because hostapd is a lazy HAL that only starts when
+# a hotspot is requested. Measured on v2 build 1, clean install:
+#
+#   framework asks AIDL IHostapd -> absent -> falls back to HIDL @1.0
+#   hwservicemanager starts /vendor/bin/hw/hostapd as a lazy HAL
+#   avc: denied { find } for interface=vendor.transsion.hardware.wifi.hostapd
+#        ::IHostapd  tcontext=u:object_r:default_android_hwservice:s0
+#   HidlServiceManagement: ... must be in VINTF manifest in order to register/get
+#   hostapd: Failed to initialize HIDL interface
+#   F libc: Fatal signal 11 (SIGSEGV) in hostapd_hidl_deinit   <- its own cleanup
+#   WifiNative: Failed to start hostapd -> SoftApManager -> SAP failed to start
+#
+# Everything else was already right, checked one at a time rather than assumed:
+#   configs/vintf/manifest/android.hardware.wifi.hostapd.xml is BYTE-IDENTICAL
+#     to stock's and declares both this interface and android.hardware.wifi
+#     .hostapd@1.3, so the manifest half needs no change
+#   hal_wifi_hostapd_hwservice is an AOSP type (system/sepolicy/public/
+#     hwservice.te:55), so nothing new is declared here
+#   hal_attribute_hwservice(hal_wifi_hostapd, hal_wifi_hostapd_hwservice) in
+#     system/sepolicy/public/hal_wifi_hostapd.te:5 already grants ADD to the
+#     attribute hal_wifi_hostapd_default carries
+#   /vendor/bin/hw/hostapd ships and carries the Transsion V1_0 server symbols
+# The ONLY divergence from stock was this label. Same shape as the NXP pair above.
+#
+# ⚠ THIS CLASS CANNOT BE LIVE-TESTED ON THIS DEVICE, and two instruments were
+# spent proving that rather than the fix. hwservicemanager reads the
+# *_hwservice_contexts files before post-fs-data, so a meta-overlayfs module
+# carrying a patched file takes on /vendor and changes NOTHING (verified: the
+# line was present on /vendor after reboot, Enforcing, and the denial was
+# byte-identical). `ksud sepolicy patch` then reported rc=0 and the denial still
+# fired 3x — VOID, not negative, exactly as the 2026-08-25 NFC attempt.
+# `ksud sepolicy check` validates SYNTAX only: a check that cannot fail.
+# file_contexts, property_contexts and hwservice_contexts are all read before
+# the overlay mounts. They must be proven in a BUILD.
+vendor.transsion.hardware.wifi.hostapd::IHostapd                                u:object_r:hal_wifi_hostapd_hwservice:s0
