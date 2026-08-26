@@ -857,7 +857,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/hw/android.hardware.soundtrigger@2.3-impl.so
 -vendor/lib/hw/android.hardware.thermal@1.0-impl.so
 -vendor/lib/hw/android.hardware.thermal@2.0-impl.so
--vendor/lib/hw/audio.bluetooth.default.so
 -vendor/lib/hw/audio.primary.default.so
 -vendor/lib/hw/audio.primary.mediatek.so
 -vendor/lib/hw/audio.r_submix.default.so
@@ -1050,7 +1049,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libavservices_minijail_vendor.so
 -vendor/lib/libbessound_hd_mtk_vendor.so
 -vendor/lib/libblisrc32_vendor.so
--vendor/lib/libbluetooth_audio_session.so
 -vendor/lib/libbluetooth_audio_session_mediatek.so
 -vendor/lib/libbluetooth_hw_test.so
 -vendor/lib/libbluetooth_mtk.so
@@ -1430,7 +1428,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/hw/android.hardware.soundtrigger@2.3-impl.so
 -vendor/lib64/hw/android.hardware.thermal@1.0-impl.so
 -vendor/lib64/hw/android.hardware.thermal@2.0-impl.so
--vendor/lib64/hw/audio.bluetooth.default.so
 -vendor/lib64/hw/audio.primary.default.so
 -vendor/lib64/hw/audio.primary.mediatek.so
 -vendor/lib64/hw/audio.r_submix.default.so
@@ -1649,7 +1646,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libavservices_minijail_vendor.so
 -vendor/lib64/libbessound_hd_mtk_vendor.so
 -vendor/lib64/libblisrc32_vendor.so
--vendor/lib64/libbluetooth_audio_session.so
 -vendor/lib64/libbluetooth_audio_session_mediatek.so
 -vendor/lib64/libbluetooth_hw_test.so
 -vendor/lib64/libbluetooth_mtk.so

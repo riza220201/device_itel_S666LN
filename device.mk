@@ -243,9 +243,10 @@ PRODUCT_SHIPPING_API_LEVEL := 31
 #     instead"), and BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES is deliberately
 #     NOT set: it disables that check for the entire product.
 #
-# So they are 137 cc_prebuilt_library_shared modules in
-# prebuilts/vndk31-snapshot/ -- 131 carrying both ABIs plus the six per-arch
-# libclang_rt sanitizer runtimes, whose filenames differ by architecture. Each is
+# So they are 136 cc_prebuilt_library_shared modules in
+# prebuilts/vndk31-snapshot/ -- 130 carrying both ABIs plus the six per-arch
+# libclang_rt sanitizer runtimes, whose filenames differ by architecture.
+# (137/131 until libfmq was removed on 2026-08-26 -- see the block below.) Each is
 # named <lib>-vndk31 with `stem` set back to the real soname, because the
 # platform defines most of these names itself.
 #
@@ -254,12 +255,62 @@ PRODUCT_SHIPPING_API_LEVEL := 31
 # (vndk_sp_file exists for the vndk-sp case, where a SYSTEM process loads them
 # in-process, which is not what happens here.)
 #
-# ⚠ Provenance detail worth keeping: these are AOSP's snapshot, and 3 of the 134
+# ⚠ Provenance detail worth keeping: these are AOSP's snapshot, and 3 of the 133
 # per ABI (libexpat, libgui, libstagefright_omx) are NOT byte-identical to the
 # copies inside stock's own com.android.vndk.v31.apex -- itel built theirs from a
 # different AOSP checkout. Both are VNDK 31 and ABI-frozen, and the hardware
 # validation was re-run with THESE files rather than the apex ones, so what is
 # shipped is what was tested.
+#
+# 🔴 libfmq IS DELIBERATELY NOT IN THIS SET -- 133 per ABI, not 134. Removed
+# 2026-08-26; it is the one lib in the snapshot that was doing no work for the
+# pin's purpose and was actively breaking things.
+#
+# The pin exists so A12 blobs get the A12 ABI. Measured against the whole rev 28
+# vendor+odm dump (2,139 ELFs), libfmq fails that test in both directions:
+#
+#   symbols v31's libfmq has that v33's DROPPED, i.e. what the pin could protect:
+#       EventFlag::createEventFlag(int, off_t, EventFlag**)
+#       EventFlag::EventFlag(int, off_t, int*)          [C1 and C2]
+#     vendor/odm ELFs referencing any of them ............... 0 of 2,139
+#   positive controls, so that 0 is provably a real 0:
+#     EventFlag::createEventFlag(atomic<uint>*, EventFlag**) . 31 ELFs  (v33 has it)
+#     EventFlag::wake(uint) ................................. 11 ELFs  (v33 has it)
+#     android::hardware::details::check, either overload ..... 0 ELFs
+#
+#   symbol v33's libfmq has that v31's LACKS:
+#       android::hardware::details::check(bool, char const*)
+#     Added in A13. Every A13-built vendor library that instantiates the FMQ
+#     templates emits a reference to it, because MessageQueueBase's constructor
+#     calls it inline. With v31 pinned, such a library cannot dlopen:
+#       E vndksupport: dlopen failed: cannot locate symbol
+#         "_ZN7android8hardware7details5checkEbPKc" referenced by
+#         "/vendor/lib64/libbluetooth_audio_session_aidl.so"
+#     That is what kept AOSP's Bluetooth audio HAL off this device (see the
+#     Bluetooth section below), and it is a wall in front of ANY future
+#     A13-built vendor component, not just that one.
+#
+# So the swap is additive for every blob on the device: v33's libfmq is a
+# superset of what all 31 consumers actually reference. v33's own 27 undefined
+# symbols resolve against the v31 libbase/libcutils/libutils/liblog it now sits
+# beside (checked; the v31 control resolves the same 27).
+#
+# Dropping the module is enough -- nothing else is needed. The vendor namespace
+# searches /vendor/${LIB}/vndk BEFORE /apex/com.android.vndk.v33/${LIB}, so with
+# no file at the first path libfmq simply falls through to the apex. That
+# fallback was already in use before this change (wpa_supplicant loads
+# android.hardware.security.secureclock-V1-ndk.so from the apex), so it is a
+# proven path, not a hoped-for one.
+#
+# ✅ VERIFIED ON HARDWARE 2026-08-26, staged alone via meta-overlayfs before the
+# HAL change so the two could not be confused: boot clean in 25 s, 0 tombstones,
+# 0 restarting services, and all 8 vendor processes that load libfmq out of
+# vendor/lib64/vndk alive on the v33 copy -- camerahalserver (camera providers
+# @2.4/@2.5/@2.6 registered), graphics.composer@2.3, media.c2@1.2-mediatek
+# (IComponentStore @1.0/@1.1 registered), the audio HAL, sensors@2.0,
+# mtkpower@1.0, vtservice_hidl, neuralnetworks-shim. The audio_policy module
+# handles were byte-for-byte unchanged, which is the control: this change alone
+# does nothing to Bluetooth.
 PRODUCT_PACKAGES += \
     android.hardware.audio.common@2.0-vndk31 \
     android.hardware.authsecret-V1-ndk_platform-vndk31 \
@@ -340,7 +391,6 @@ PRODUCT_PACKAGES += \
     libevent-vndk31 \
     libexif-vndk31 \
     libexpat-vndk31 \
-    libfmq-vndk31 \
     libgatekeeper-vndk31 \
     libgralloctypes-vndk31 \
     libgui-vndk31 \
@@ -737,15 +787,30 @@ PRODUCT_PACKAGES += \
 # hardware/mediatek/bootctrl), NOT the generic AOSP one.
 #
 # android.hardware.bluetooth.audio@{2.0,2.1}-impl are deliberately NOT here.
-# They are taken from stock in proprietary-files.txt instead, because their
-# dependency libbluetooth_audio_session is a blob on this device. A
-# cc_prebuilt_library_shared exports no headers, so building the impl from
-# source fails on
+# They are taken from stock in proprietary-files.txt instead.
+#
+# ⚠ The REASON below is now stale in one particular and is kept because the
+# failure it describes is real and still applies to these two modules.
+# libbluetooth_audio_session is NO LONGER a blob -- it builds from source as of
+# 2026-08-26 (see the Bluetooth audio HAL block further down), so the header
+# export it was missing now exists. These two impls stay stock anyway: they are
+# ABI-matched to the providers stock ships and nothing needs them from source.
+# Building them would be a change with no symptom behind it. The original note:
+#
+# ...because their dependency libbluetooth_audio_session was a blob on this
+# device. A cc_prebuilt_library_shared exports no headers, so building the impl
+# from source fails on
 #     BluetoothAudioProvider.cpp:22:10: fatal error:
 #         'BluetoothAudioSessionReport.h' file not found
 # even though hardware/interfaces/bluetooth/audio/utils/ is present and its
 # Android.bp does export session/. Shipping the impl as a blob also keeps it
 # ABI-matched to the session library it is actually loaded against.
+#
+# ⚠ Not to be confused with audio.bluetooth.default, which IS built from source
+# here as of 2026-08-26 -- see the Bluetooth audio HAL block further down. The
+# providers stay stock and the HAL does not, and that asymmetry is the fix, not
+# an inconsistency: the providers are ABI-bound to the blob session library,
+# while the HAL had to move to the registry our Bluetooth stack writes into.
 PRODUCT_PACKAGES += \
     android.hardware.renderscript@1.0-impl
 
@@ -1475,6 +1540,107 @@ PRODUCT_COPY_FILES += \
 # Full reasoning, both call sites and the measurement, in the overlay's config.xml.
 PRODUCT_PACKAGES += \
     S666LNWifiOverlay
+
+# 🔴 Bluetooth audio HAL -- AOSP's, NOT stock's. This is the A2DP fix.
+#
+# Stock's vendor/lib*/hw/audio.bluetooth.default.so is dropped from
+# proprietary-files.txt so that this source module installs instead. That is the
+# whole change; everything else about Bluetooth audio stays stock.
+#
+# WHY. Both the AOSP and the MediaTek Bluetooth-audio stacks are present on this
+# device, and they keep their sessions in two different process-global
+# registries inside one process -- android.hardware.audio.service.mediatek:
+#
+#   android.hardware.bluetooth.audio@2.1-impl.so   -> libbluetooth_audio_session.so
+#     serves android.hardware.bluetooth.audio@2.0 / @2.1        (AOSP registry)
+#   vendor.mediatek.hardware.bluetooth.audio@2.2-impl.so
+#     -> libbluetooth_audio_session_mediatek.so
+#     serves vendor.mediatek.hardware.bluetooth.audio@2.1 / @2.2  (MTK registry)
+#
+# Our Bluetooth stack is AOSP's, so it opens the AOSP factory and the session
+# lands in the AOSP registry -- startSession_2_1 and OnSessionStarted both
+# succeed. But stock's audio.bluetooth.default.so is MediaTek's build of the same
+# AOSP source, relinked against the MTK interfaces (readelf DT_NEEDED:
+# vendor.mediatek.hardware.bluetooth.audio@2.1/@2.2 and
+# libbluetooth_audio_session_mediatek.so), so it polls the MTK registry, which
+# nothing ever writes to:
+#
+#   init_session_type "is not ready"  x~100  ->  wait for session type timeout
+#   -> open_output_stream fail -> -EINVAL -> APM: No output available for
+#      device 0080 -> STREAM_MUSIC falls back to Devices: speaker(2)
+#
+# The user-visible symptom that this explains exactly: with the headset picked in
+# the output chooser, its volume slider moves the SPEAKER volume, because the
+# stream really is bound to speaker. Stock does not have the bug because stock's
+# Bluetooth stack is MediaTek's and opens the MTK factory.
+#
+# AOSP's audio.bluetooth.default links libbluetooth_audio_session.so -- the
+# registry our stack actually writes into -- so swapping the HAL is the fix, and
+# the two -impl providers, both session libraries and the whole Bluetooth stack
+# stay exactly as they are.
+#
+# ⚠ THE PREREQUISITE, and why this could not be done before: AOSP's HAL pulls
+# libbluetooth_audio_session_aidl, which needs
+# android::hardware::details::check(bool, char const*) -- an A13 addition to
+# LIBFMQ (not to libhidlbase, which is where it was looked for first). The v31
+# VNDK pin was serving A12's libfmq to every vendor process, so the library could
+# not dlopen and the module loaded with Handle 0. Dropping libfmq from that pin
+# is what unblocks it; the full measurement is in the VNDK section above. These
+# two changes only work together.
+#
+# ⚠ libbluetooth_audio_session HAD TO COME WITH IT, and that was not a choice.
+# It is also dropped from proprietary-files.txt, so it too builds from source.
+# The blob cannot stay, because THE HAL WILL NOT COMPILE AGAINST IT:
+#
+#   device_port_proxy_hidl.cc:28:10: fatal error:
+#       'BluetoothAudioSessionControl_2_1.h' file not found
+#
+# audio.bluetooth.default gets those headers transitively, from
+# libbluetooth_audio_session's `export_include_dirs: ["session/"]`. A
+# cc_prebuilt_library_shared exports no headers at all, so while the blob has
+# prefer:true the include path does not exist. This is the identical failure
+# already recorded above for android.hardware.bluetooth.audio@{2.0,2.1}-impl --
+# same cause, same library, and the reason those two are still blobs.
+#
+# 🔴 So the A12 provider blobs now link OUR A13 session library. Checked by
+# symbol before building, both providers and both ABIs -- not assumed:
+#
+#   @2.0-impl needs  8 symbols from it  -> 8/8 present in our A13 build  (lib, lib64)
+#   @2.1-impl needs 12 symbols from it  -> 12/12 present                 (lib, lib64)
+#   and the 15 this A13 HAL needs       -> also present in the A12 blob, so the
+#                                          two are interchangeable in both directions
+#
+# The types crossing that boundary come from the frozen @2.0/@2.1 HIDL
+# interfaces, identical in both builds. Verified on hardware afterwards, because
+# a symbol table is not a running provider: all four factories still register
+# (android@2.0, android@2.1, and MediaTek's @2.1/@2.2), and A2DP plays.
+#
+# libbluetooth_audio_session_mediatek STAYS A BLOB -- there is no source for it,
+# and MediaTek's own @2.2-impl is the only thing that links it. Untouched.
+#
+# libbluetooth_audio_session_aidl is not listed here: it is a shared_libs
+# dependency of the two modules above and soong installs it automatically. Its
+# AIDL path is dead weight -- stock ships no AIDL Bluetooth-audio anything, and
+# the bluetooth_audio.xml VINTF fragment that once declared one was removed in
+# the 2026-08-10 remediation -- but it must still RESOLVE at dlopen, which is
+# exactly what the libfmq change buys.
+#
+# ✅ VERIFIED ON HARDWARE 2026-08-26, staged via meta-overlayfs on build
+# 20260826065107, headset "Lenovo ThinkPlus GM2 Pro":
+#   "bluetooth" module Handle non-zero      (0 = failed to load; the previous
+#                                            attempt's real failure, which read
+#                                            as success because the -EINVAL had
+#                                            merely stopped being reached)
+#   "is not ready"                    ~100 -> 0
+#   "No output available for device"       -> 0
+#   STREAM_MUSIC   Devices: speaker(2)     -> Devices: bt_a2dp(80)
+#   streamVolume 5, matching the bt_a2dp index (5), not the speaker index (14)
+#   playback: BTAudioHalDeviceProxyHIDL Start -> ReportControlStatus SUCCESS
+#             -> STARTED -> 187,264 frames written to the A2DP thread with a
+#             real signal-power history -> Suspend -> STANDBY at track end
+#   0 tombstones, 0 FATAL, 0 restarting services, no new denial class
+PRODUCT_PACKAGES += \
+    audio.bluetooth.default
 
 # Media
 PRODUCT_COPY_FILES += \

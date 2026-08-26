@@ -1339,22 +1339,6 @@ cc_prebuilt_library_shared {
 }
 
 cc_prebuilt_library_shared {
-    name: "libfmq-vndk31",
-    stem: "libfmq",
-    owner: "aosp",
-    vendor: true,
-    strip: { none: true },
-    relative_install_path: "vndk",
-    target: {
-        android_arm64: { srcs: ["lib64/libfmq.so"] },
-        android_arm: { srcs: ["lib/libfmq.so"] },
-    },
-    compile_multilib: "both",
-    check_elf_files: false,
-    prefer: false,
-}
-
-cc_prebuilt_library_shared {
     name: "libgatekeeper-vndk31",
     stem: "libgatekeeper",
     owner: "aosp",
