@@ -15,3 +15,20 @@ vendor.tee.                                 u:object_r:vendor_mtk_trustonic_tee_
 # itel's stock vendor_property_contexts:74 says. See property.te for the full
 # chain from this one line to a working SIM.
 vendor.service.nvram_restore                u:object_r:vendor_mtk_service_nvram_restore_prop:s0
+
+# The camera HAL's sensor-interface tuning knob. Stock's
+# vendor_property_contexts:847, byte for byte.
+#
+# mtk_hal_camera SETS this on every camera open and was denied 5x per session:
+#   avc: denied { set } for property=vendor.debug.seninf.hs_trail
+#        scontext=u:r:mtk_hal_camera:s0 tcontext=u:object_r:vendor_default_prop:s0
+#        tclass=property_service
+# Invisible to every boot sweep — it fires only when the camera is USED, the
+# same class as build 79's cameraserver->vendor_default_prop find.
+#
+# One line, and nothing else is needed: vendor_mtk_camera_prop is already
+# declared by device/mediatek/sepolicy_vndr (33 entries reference it here) and
+# bsp/non_plat/mtk_hal_camera.te:85 already carries
+# set_prop(mtk_hal_camera, vendor_mtk_camera_prop). Only the LABEL was missing,
+# so the property fell to vendor_default_prop, where set is neverallowed.
+vendor.debug.seninf.hs_trail                u:object_r:vendor_mtk_camera_prop:s0
