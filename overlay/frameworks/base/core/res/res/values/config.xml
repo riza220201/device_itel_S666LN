@@ -185,4 +185,40 @@
          🔑 The lesson worth keeping: a resource NAME is in framework-res whether
          or not anyone sets it, so presence in the artifact proves nothing. Only
          `aapt2 dump resources` resolves the VALUE. -->
+
+    <!-- 🔴 THE HEADPHONE JACK. Without this the jack is DEAD: the kernel detects
+         the plug and Android never hears about it.
+
+         AOSP's own comment on this resource says exactly what it does:
+           "When true use the linux /dev/input/event subsystem to detect the
+            switch changes on the headphone/microphone jack. When false use the
+            older uevent framework."
+         and AOSP's default is FALSE (core/res/res/values/config.xml:2902).
+
+         With it false, WiredAccessoryManager watches the LEGACY uevent path,
+         /sys/class/switch/h2w. Measured on v2 build 3:
+
+           /sys/class/switch/            0 entries — h2w does not exist here
+           /dev/input/event3             "mt6789-mt6366 Headset Jack",
+                                         Classes: KEYBOARD | SWITCH, Enabled: true
+           getevent -lp event3           SW_HEADPHONE_INSERT*   (* = currently SET)
+           dumpsys audio                 Connected devices: (empty)
+           audio-policy lines on plug-in 0   (control: 95 lines mentioning audio)
+
+         So the kernel reports the insertion on an input device nobody is
+         listening to, and the framework is never told: no setWiredDeviceConnection
+         State, no APM call, nothing. Audio stays on the speaker.
+
+         ⚠ This is a DIFFERENT bug from the Bluetooth one, despite the identical
+         symptom. Bluetooth reaches the audio layer and is REFUSED there
+         (checkOutputsForDevice -> -EINVAL); the jack never reaches it at all.
+         Do not assume one fix covers both.
+
+         🔑 Third inherited-AOSP-default defect in three builds, after
+         config_defaultRefreshRate (60, clamped a 120 Hz panel) and
+         config_wifi5ghzSupport (false, refused the 5 GHz hotspot). The pattern:
+         AOSP ships the conservative default, this device needs the override, and
+         nobody wrote one because nothing fails loudly. -->
+    <bool name="config_useDevInputEventForAudioJack">true</bool>
+
 </resources>
