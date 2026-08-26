@@ -1,0 +1,31 @@
+//
+// Runtime resource overlay for com.android.wifi.resources.
+//
+// The Wi-Fi resources live in an APEX (com.android.wifi), so DEVICE_PACKAGE_OVERLAYS
+// cannot reach them the way it reaches framework-res. An RRO is the only mechanism.
+// The target's overlayable is name="WifiCustomization" with policies
+// "product|system|vendor", so product is permitted.
+//
+// 🔴 product_specific, NOT vendor, and this was MEASURED rather than chosen.
+// The first attempt used `vendor: true`. Staged live at /vendor/overlay/ via
+// meta-overlayfs -- verified present in system_server's OWN mount namespace
+// (/proc/<pid>/root/vendor/overlay/) -- PackageManager never scanned it: no
+// package, no idmap, and no rejection in the log either. Moving the identical APK
+// to /product/overlay, unchanged, had it scanned and STATE_ENABLED on the next
+// boot, and the 5 GHz AP came up.
+// ⚠ The honest qualification: /product/overlay exists in the shipped image and
+// /vendor/overlay does not, so that A/B does not prove PMS ignores /vendor/overlay
+// in general -- only that product is the configuration that is PROVEN to work here.
+// There is precedent in this tree for the same reasoning: the hardware_keystore
+// declaration also ships on product, for its own measured reason.
+//
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+runtime_resource_overlay {
+    name: "S666LNWifiOverlay",
+    resource_dirs: ["res"],
+    product_specific: true,
+    sdk_version: "current",
+}

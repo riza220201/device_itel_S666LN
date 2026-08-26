@@ -1466,6 +1466,16 @@ PRODUCT_COPY_FILES += \
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/configs/permissions/android.hardware.hardware_keystore.xml:$(TARGET_COPY_OUT_PRODUCT)/etc/permissions/android.hardware.hardware_keystore.xml
 
+# Wi-Fi resource overlay -- the 5 GHz hotspot fix.
+#
+# com.android.wifi.resources lives in an APEX, so DEVICE_PACKAGE_OVERLAYS cannot
+# reach it the way it reaches framework-res; an RRO is the only mechanism. It sets
+# config_wifi5ghzSupport=true, whose AOSP default is false, and without which
+# ApConfigUtil refuses the 5 GHz band and SoftAP silently falls back to 2.4 GHz.
+# Full reasoning, both call sites and the measurement, in the overlay's config.xml.
+PRODUCT_PACKAGES += \
+    S666LNWifiOverlay
+
 # Media
 PRODUCT_COPY_FILES += \
     $(call find-copy-subdir-files,*,$(LOCAL_PATH)/configs/media,$(TARGET_COPY_OUT_VENDOR)/etc)

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2026 The LineageOS Project
+     SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+
+    <!-- 🔴 THE 5 GHz HOTSPOT FIX. Without this the SoftAP silently falls back to
+         2.4 GHz: the band saves in Settings and snaps back the moment the
+         hotspot starts.
+
+         AOSP's own default is FALSE
+         (packages/modules/Wifi/service/ServiceWifiResources/res/values/config.xml:31)
+         and a device with a 5 GHz radio is expected to overlay it. We never did,
+         so we inherited it — the same shape as config_defaultRefreshRate
+         inheriting 60 and clamping a 120 Hz panel (v2 build 1).
+
+         THE DEFECT IS AN ASYMMETRY, and it is why 5 GHz scanning has always
+         worked while the AP never has. Two consumers read this boolean and only
+         one of them has a fallback:
+
+           WifiServiceImpl:4392  is5GhzBandSupportedInternal()
+             if (config_wifi5ghzSupport) return true;
+             return mWifiNative.getChannelsForBand(WIFI_BAND_5_GHZ).length > 0;
+                                                   ^ ASKS THE DRIVER, so 5 GHz
+                                                     scanning has always worked
+
+           ApConfigUtil:1015     isSoftApBandSupported(BAND_5GHZ)
+             return config_wifi5ghzSupport (AND) config_wifiSoftap5ghzSupported;
+                    ^ FALSE                       ^ already true
+             no driver fallback at all
+
+         So the framework refuses the band before it ever asks the driver, while
+         the driver is at that same moment enumerating eight non-DFS 5 GHz
+         channels. Measured on v2 build 2:
+
+           wificond: 5Ghz non-DFS frequencies: 5180 5200 5220 5240 5745 5765 5785 5805
+           wificond: 5Ghz DFS frequencies:     5260 5280 5300 5320
+           E ApConfigUtil: Can not start softAp with band 5Ghz not supported.
+           SoftApInfo{... frequency= 2437 ...}          (channel 6)
+           D WifiTetherApBandPref: Updating band index to 0   (the UI snapping back)
+
+         Control, in the same log: 6 GHz emits the SAME message (both booleans
+         false, and correct, because there is no 6 GHz radio), and 2.4 GHz emits
+         nothing (both true). Three bands, three outcomes, one mechanism.
+
+         ⚠ Setting this true has exactly ONE behavioural consequence. The other
+         consumer, is5GHzBandSupported(), already returned true through its
+         driver fallback, so this only moves it to the fast path. Verified by
+         reading both call sites rather than assuming. -->
+    <bool name="config_wifi5ghzSupport">true</bool>
+
+    <!-- NOT changed, deliberately, so this is not re-litigated.
+         config_wifi6ghzSupport stays false: there is no 6 GHz radio, and its
+         "not supported" line in the log is CORRECT.
+         config_wifiSoftapAcsIncludeDfs stays false: DFS (5260-5320) needs radar
+         detection, so excluding it from auto channel selection is the safe
+         default and is not what was broken here. -->
+
+</resources>
