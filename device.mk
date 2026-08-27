@@ -559,6 +559,21 @@ endif
 PRODUCT_PACKAGES += \
     libjamesdsp
 
+# --- Mali r54p1 shim ---------------------------------------------------------
+#
+# 🔴 NOT optional. The vendor tree ships Mali r54p1 (Vulkan 1.3.303, 145 device
+# extensions) lifted from Samsung SM-A175F firmware, which is mt6789 — the same
+# SoC. Its userspace driver resolves against our A12 vendor stack except for six
+# symbols that no libc++ on this device exports (they are Android 14+
+# additions), plus two libged and one libgpu_aux entry point. libGLES_mali has
+# `--add-needed libr54shim.so` applied by tools/mali-r54p1-prepare.sh, so
+# WITHOUT this module the driver does not load and SurfaceFlinger crash-loops.
+#
+# Full reasoning, and why stubs are defensible here, in mali/libr54shim.c.
+# Every stub logs; on the validation boot none of them were ever called.
+PRODUCT_PACKAGES += \
+    libr54shim
+
 # Vendor variants of platform-built libraries.
 #
 # NOT optional. Without these the vendor partition contains HALs that cannot
@@ -640,6 +655,7 @@ PRODUCT_PACKAGES += \
     android.hardware.gnss@1.1.vendor \
     android.hardware.gnss@2.0.vendor \
     android.hardware.gnss@2.1.vendor \
+    android.hardware.graphics.allocator-V2-ndk.vendor \
     android.hardware.graphics.composer@2.1-resources.vendor \
     android.hardware.graphics.composer@2.1.vendor \
     android.hardware.graphics.composer@2.2-resources.vendor \

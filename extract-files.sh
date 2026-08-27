@@ -560,12 +560,23 @@ extract "${MY_DIR}/proprietary-files.txt" "${SRC}" "${KANG}" --section "${SECTIO
 # CLEAN_VENDOR defaults to true, so the run above WIPED the vendor directory and
 # re-extracted everything from stock -- including the GPU driver.
 #
-# The vendor repository carries Mali r38p1 (Vulkan 1.3) committed at
-#   proprietary/vendor/lib64/egl/mt6789/libGLES_mali.so
-#   proprietary/vendor/lib/egl/mt6789/libGLES_mali.so
-# and a clean extraction has just replaced both with itel's stock r32p1
-# (Vulkan 1.1). No error, no warning -- the build is perfectly valid, it is
-# simply two Khronos versions behind.
+# The vendor repository carries Mali r54p1 (Vulkan 1.3.303, 145 device
+# extensions) committed at, PER ABI:
+#   proprietary/vendor/lib{,64}/egl/mt6789/libGLES_mali.so   patchelf'd
+#   proprietary/vendor/lib{,64}/libgpud.so                   patchelf'd
+#   proprietary/vendor/lib{,64}/libc++_r54.so                patchelf'd, NEW
+#   proprietary/vendor/lib{,64}/libmtk_mali_user.so                     NEW
+#   proprietary/vendor/lib{,64}/vendor.mediatek.hardware.graphics-V1-ndk.so NEW
+# A clean extraction has just replaced libGLES_mali and libgpud with itel's
+# stock r32p1 copies (Vulkan 1.1), and left the three NEW files alone because
+# stock has no such files to extract. No error, no warning -- the build is
+# perfectly valid, it is simply three Khronos revisions behind, and the driver
+# will then be a stock one that does not need libr54shim.
+#
+# 🔴 The three NEW files are not extractable at all. If they are ever lost,
+# regenerate the whole set from the Samsung firmware with
+#   tools/mali-r54p1-prepare.sh <samsung-vendor-dir> <vendor-proprietary-dir>
+# which also re-applies the patchelf edits and verifies them.
 #
 # This is deliberately left VISIBLE rather than automated away. Those two paths
 # stay listed in proprietary-files.txt, so an extraction always produces a
@@ -577,10 +588,16 @@ if git -C "${ANDROID_ROOT}/vendor/${VENDOR}/${DEVICE}" rev-parse --git-dir >/dev
             proprietary/vendor/lib64/egl/mt6789/libGLES_mali.so 2>/dev/null; then
         echo
         echo "NOTE: the Mali driver is now stock r32p1 (Vulkan 1.1)."
-        echo "      The vendor repo has r38p1 committed. To restore Vulkan 1.3:"
+        echo "      The vendor repo has r54p1 committed. To restore Vulkan 1.3.303:"
         echo "          git -C vendor/${VENDOR}/${DEVICE} checkout -- \\"
         echo "              proprietary/vendor/lib64/egl/mt6789/libGLES_mali.so \\"
-        echo "              proprietary/vendor/lib/egl/mt6789/libGLES_mali.so"
+        echo "              proprietary/vendor/lib/egl/mt6789/libGLES_mali.so \\"
+        echo "              proprietary/vendor/lib64/libgpud.so \\"
+        echo "              proprietary/vendor/lib/libgpud.so"
+        echo "      libgpud MUST be restored with it: the committed one is bound to"
+        echo "      libc++_r54.so, and stock's is not. Restoring only the driver"
+        echo "      leaves r54p1 against an A12 libgpud that lacks 226 of its"
+        echo "      symbols, and SurfaceFlinger will crash-loop."
         echo "      Then wipe the shader caches on first boot:"
         echo "          rm -f /data/user_de/0/*/code_cache/com.android.*.shaders_cache"
     fi
