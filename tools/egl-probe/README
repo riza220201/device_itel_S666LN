@@ -1,0 +1,41 @@
+EGL capability probes — the instruments that found the 2026-08-27 r38p1 defect.
+
+WHY THESE EXIST
+  The vendor tree ships a Mali driver lifted from another vendor's firmware.
+  tools/mali_candidate_check.sh validates the BINARY (sdk, revision, allocator,
+  DT_NEEDED subset, symbol resolution). None of that can see a runtime
+  capability table, and r38p1 shipped publicly advertising
+  EGL_RECORDABLE_ANDROID on ZERO configs. Every camera/video GL pipeline got
+  zero matches from eglChooseConfig and died with EGL_BAD_CONFIG (0x3005).
+  It emits no avc record either — property-read refusals are dontaudit'd
+  (system/sepolicy/public/domain.te:146) — so no denial sweep can find it.
+
+  ⇒ After ANY change to the GPU driver, run ../egl-config-check.sh.
+
+  eglprobe    every EGLConfig with surface type, native visual, recordable,
+              framebuffer_target, and whether an ES2/ES3 context can be made.
+  eglchoose   eglChooseConfig with the attribute lists real apps use, showing
+              how many configs match. Zero matches is the failure mode.
+  ahbprobe    asks gralloc (via AHardwareBuffer) which format+usage pairs it
+              supports — the control that proves whether a config the driver
+              refuses is the driver's decision or gralloc's. In 2026-08-27 it
+              was the driver's, which ruled out a gralloc/companion-lib
+              transplant before anyone attempted one.
+
+BUILD (host, needs an NDK; no tree or lunch required)
+  CC=<ndk>/toolchains/llvm/prebuilt/linux-x86_64/bin/clang
+  for f in eglprobe eglchoose ahbprobe; do
+    $CC --target=aarch64-linux-android33 -O1 -o $f $f.c -ldl
+  done
+
+  They resolve EGL through dlopen/dlsym, so they run against whatever driver
+  /vendor is serving and need no link-time dependency on it.
+
+RUN
+  adb push eglprobe /data/local/tmp/ && adb shell chmod 755 /data/local/tmp/eglprobe
+  adb shell /data/local/tmp/eglprobe
+
+⚠ Run as an APP if you are testing property visibility. These run as shell/root,
+  which CAN read vendor_default_prop; app domains cannot. That difference is the
+  entire second half of the 2026-08-27 bug and a probe run as root will not show
+  it. Use the app's own crash as the app-domain measurement.

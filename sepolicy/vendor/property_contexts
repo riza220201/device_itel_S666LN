@@ -32,3 +32,39 @@ vendor.service.nvram_restore                u:object_r:vendor_mtk_service_nvram_
 # set_prop(mtk_hal_camera, vendor_mtk_camera_prop). Only the LABEL was missing,
 # so the property fell to vendor_default_prop, where set is neverallowed.
 vendor.debug.seninf.hs_trail                u:object_r:vendor_mtk_camera_prop:s0
+
+# ARM's EGL config table, read by libGLES_mali r38p1 in EVERY process that
+# touches EGL. Set in configs/properties/vendor.prop; see the long note there
+# for what they are and why the values are what they are.
+#
+# This line is HALF THE FIX and the half that is easy to miss. Unlabelled,
+# ro.vendor.arm.* falls through to vendor_default_prop, and no app domain can
+# read that — so the properties are set correctly, present in getprop, visible
+# to root, and INVISIBLE to the app that needs them. The driver then sees them
+# as unset and rebuilds the broken config table. Measured 2026-08-27: with the
+# values set and this label missing, WhatsApp's camera still force-closed and
+# logged, 100 times per property:
+#
+#   W libc: Access denied finding property
+#           "ro.vendor.arm.egl.configs.r8_g8_b8_a8_32bit_fixed.recordable"
+#
+# vendor_mtk_gpu_prop is the right type and needs no new grant: it is declared
+# by device/mediatek/sepolicy_vndr (basic/non_plat/property.te:107) and carries
+# mtk_core_property_type, and basic/non_plat/domain.te:8 has
+# get_prop(domain, mtk_core_property_type) — so every domain, apps included,
+# can read it. That grant is ATTRIBUTE-mediated, so it is invisible to a grep
+# for the type name (BLUEPRINT §9). vendor_restricted_prop restricts only
+# WRITING, which init does from /vendor/build.prop.
+#
+# ro.vendor.arm. rather than ro.vendor.arm.egl.configs. — the same prefix
+# Samsung uses on the same SoC, and it also covers the ro.vendor.arm.gralloc.*
+# keys the driver reads. Verified against the shipped contexts and MediaTek's:
+# nothing else claims this prefix, so there is no conflicting type to capture.
+#
+# 🔴 This class CANNOT be live-tested on this device — property_contexts is
+# read before post-fs-data, where KSU mounts (RESUME §"the method that
+# worked"). It was proven instead by granting the read directly under
+# Enforcing (ksud sepolicy patch, allow appdomain vendor_default_prop) and
+# re-testing: crash 1 -> 0, force-finish 2 -> 0, capture completing through to
+# MediaComposerActivity. The label must still be confirmed in a BUILD.
+ro.vendor.arm.                              u:object_r:vendor_mtk_gpu_prop:s0

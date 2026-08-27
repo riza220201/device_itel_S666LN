@@ -113,6 +113,80 @@ ro.hardware.paytrigger=trustonic
 ro.hardware.vulkan=mali
 
 # ---------------------------------------------------------------------------
+# Mali r38p1 EGL config table. 🔴 NOT tuning, and NOT optional.
+#
+# The vendor tree ships Mali r38p1 (Samsung XCover7, same Mali-G57 MC2). At
+# r38p1 ARM moved the per-format EGL config table OUT of the driver and into
+# these properties. r32p1 had it compiled in — MediaTek built that copy for
+# this platform — which is why stock sets none of these and why this tree
+# never did either. Nothing in the driver swap's acceptance checks (sdk,
+# revision, DT_NEEDED subset, 65 MTK symbols resolvable, no
+# gpudMaliSyncEventLog) can see a config table, so this shipped.
+#
+# Left unset, the driver rebuilds the table from its own defaults and gets it
+# wrong on this device. Measured on hardware 2026-08-27, same boot, one
+# variable, against stock r32p1 staged over /vendor via meta-overlayfs:
+#
+#   configs advertising EGL_RECORDABLE_ANDROID   r32p1  6   r38p1 unset   0
+#   configs advertising EGL_WINDOW_BIT           r32p1 21   r38p1 unset   6
+#
+# Zero recordable configs means eglChooseConfig returns ZERO matches for any
+# camera/video GL pipeline. The app then hands an uninitialised EGLConfig to
+# eglCreateContext and gets EGL_BAD_CONFIG (0x3005). WhatsApp's in-chat camera
+# force-closed on exactly that; its Status camera failed one call later at
+# eglCreateWindowSurface with the same 0x3005. Both reported by the operator
+# on the 27/08 HOTFIX release and reproduced live.
+#
+# VALUES ARE MEASURED ON THIS DEVICE, not copied from a donor: each is what
+# stock r32p1 reports for the same config, so these restore stock's table
+# exactly — 25 of 25 configs match on SURFACE_TYPE, RECORDABLE and
+# NATIVE_VISUAL_ID, and every eglChooseConfig case returns stock's count.
+# Only the SYNTAX (hex hal_format, true/false flags) came from Samsung's own
+# mt6789 vendor build.prop (Galaxy A17, SM-A175F) — same SoC, and its driver
+# reads these same keys.
+#
+# Deliberately NOT carried from that reference: its nv12/nv21/p010/yuv420/…
+# buckets. Those hal_format codes are ARM's PRIVATE gralloc format space
+# (0x200+) and this device's gralloc is MediaTek's, not ARM's. They are also
+# unmeasurable here — our config list is 25 RGB configs and the count never
+# moved — and dropping them was re-verified as still 25 of 25. Its two unused
+# RGB buckets (r8_g8_b8_a0_32bit_fixed, r8_g8_b8_a0_24bit_yuv_special) are
+# omitted for the same reason: no config on this device reads them.
+#
+# ⚠ The 8/8/8/0 configs on this device read the 24bit_fixed bucket, NOT the
+# 32bit one — setting 32bit alone changed nothing, setting 24bit moved them.
+# Its value is 0x2 (RGBX_8888) rather than the reference's 0x3 (RGB_888)
+# because that is what stock reports AND what gralloc can actually back:
+# AHardwareBuffer with VIDEO_ENCODE usage allocates for RGBX_8888 and FAILS
+# for RGB_888 on this device. 0x3 would advertise a config whose buffers no
+# encoder can consume.
+#
+# 🔴 THE LABEL MATTERS AS MUCH AS THE VALUE. Unlabelled these fall to
+# vendor_default_prop, which no app domain can read, so the driver sees them
+# as unset and rebuilds the broken table anyway — setting them alone fixes
+# nothing, which was measured before it was reasoned. See
+# sepolicy/vendor/property_contexts. And property-read refusals are
+# dontaudit'd (system/sepolicy/public/domain.te:146), so this whole class
+# produces NO avc record: no denial sweep here could ever have found it.
+#
+# hal_format values are Android HAL_PIXEL_FORMAT_* constants.
+ro.vendor.arm.egl.configs.r8_g8_b8_a8_32bit_fixed.hal_format=0x1
+ro.vendor.arm.egl.configs.r8_g8_b8_a8_32bit_fixed.recordable=true
+ro.vendor.arm.egl.configs.r8_g8_b8_a8_32bit_fixed.framebuffer_target=true
+ro.vendor.arm.egl.configs.r8_g8_b8_a0_24bit_fixed.hal_format=0x2
+ro.vendor.arm.egl.configs.r8_g8_b8_a0_24bit_fixed.recordable=false
+ro.vendor.arm.egl.configs.r8_g8_b8_a0_24bit_fixed.framebuffer_target=false
+ro.vendor.arm.egl.configs.r5_g6_b5_a0_16bit_fixed.hal_format=0x4
+ro.vendor.arm.egl.configs.r5_g6_b5_a0_16bit_fixed.recordable=false
+ro.vendor.arm.egl.configs.r5_g6_b5_a0_16bit_fixed.framebuffer_target=false
+ro.vendor.arm.egl.configs.r16_g16_b16_a16_64bit_float.hal_format=0x16
+ro.vendor.arm.egl.configs.r16_g16_b16_a16_64bit_float.recordable=false
+ro.vendor.arm.egl.configs.r16_g16_b16_a16_64bit_float.framebuffer_target=false
+ro.vendor.arm.egl.configs.r10_g10_b10_a2_32bit_fixed.hal_format=0x2b
+ro.vendor.arm.egl.configs.r10_g10_b10_a2_32bit_fixed.recordable=false
+ro.vendor.arm.egl.configs.r10_g10_b10_a2_32bit_fixed.framebuffer_target=false
+
+# ---------------------------------------------------------------------------
 # Display, SurfaceFlinger and composition.
 
 debug.renderengine.backend=skiagl
