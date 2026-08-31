@@ -114,3 +114,30 @@
 # "by-name/logo(_[ab])?" — but not on 20.0, which is what this tree targets.)
 /dev/block/by-name/logo_a                                                       u:object_r:logo_block_device:s0
 /dev/block/by-name/logo_b                                                       u:object_r:logo_block_device:s0
+
+# Mali r54p1 companion libraries — same_process_hal_file, not vendor_file.
+#
+# The whole GPU user-mode stack is dlopen'd INTO app and surfaceflinger
+# processes, and those domains may read/execute same_process_hal_file only.
+# MediaTek's sepolicy_vndr labels the libraries that existed when it was
+# written — libged, libgpu_aux, libgpud, libgralloc_metadata and the rest —
+# one filename at a time, so anything r54p1 ADDS to /vendor/lib{,64} lands on
+# the vendor_file default and cannot be loaded. There is no wildcard to
+# inherit; each new name needs its own line.
+#
+# 🔴 Measured 2026-09-01: all six of these have ZERO matches in the shipped
+# vendor_file_contexts. The KSU module that proved r54p1 on hardware chcon'd
+# them by hand in its installer, which is exactly the kind of workaround that
+# makes a build fail where an overlay succeeded (BLUEPRINT §9 / the 2026-08-19
+# genfs_contexts miss). The controls are the libraries MediaTek DOES label:
+# libged.so, libgpu_aux.so and libgralloc_metadata.so all read back
+# same_process_hal_file on the running device.
+#
+# libc++_r54.so is r54p1's private A16 libc++, bound to libgpud alone;
+# libr54shim.so is ours. Both are loaded by the same processes as the driver.
+/vendor/lib(64)?/libmtk_mali_user\.so                                           u:object_r:same_process_hal_file:s0
+/vendor/lib(64)?/libc\+\+_r54\.so                                               u:object_r:same_process_hal_file:s0
+/vendor/lib(64)?/libr54shim\.so                                                 u:object_r:same_process_hal_file:s0
+/vendor/lib(64)?/android\.hardware\.graphics\.allocator-V2-ndk\.so              u:object_r:same_process_hal_file:s0
+/vendor/lib(64)?/android\.hardware\.graphics\.common-V6-ndk\.so                 u:object_r:same_process_hal_file:s0
+/vendor/lib(64)?/vendor\.mediatek\.hardware\.graphics-V1-ndk\.so                u:object_r:same_process_hal_file:s0
