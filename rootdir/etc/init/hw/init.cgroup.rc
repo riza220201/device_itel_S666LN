@@ -44,3 +44,26 @@ on property:sys.boot_completed=1
     write /dev/cpuctl/top-app/cpu.uclamp.latency_sensitive 0
     write /dev/cpuctl/background/cpu.uclamp.min 0
     write /dev/cpuctl/background/cpu.uclamp.latency_sensitive 0
+
+# Game-scoped PELT ramp. KimelaZX's tree carried
+# sysctl.kernel.sched_pelt_multiplier=4 on the kernel cmdline; BLUEPRINT 6
+# recorded dropping it as clean-room policy ("a kernel tuning choice, not a
+# device fact"), which is right about AUTHORSHIP and was wrong about BEHAVIOUR.
+# Measured on hardware 2026-08-28, ZZZ, 6 alternating 2-minute blocks, scored on
+# the hwcomposer per-second frame record:
+#     pelt=1  329 s  26.4 fps  143 s with a >100ms frame (43%)
+#     pelt=4  307 s  29.5 fps   57 s with a >100ms frame (19%)
+# pelt=4 won 5 of 5 adjacent block comparisons. It also warmed the battery
+# faster (+1.50 C vs +0.33 C per block, n=2 vs 3 and the sensor quantises to
+# 1 C, so suggestive rather than established) -- which is why this is scoped to
+# games instead of set globally.
+#
+# sys.gamemode.active is set by GameManagerService at the same place it already
+# calls setPowerMode(Mode.GAME, ...). It needs NO new sepolicy: "sys." maps to
+# system_prop in system/sepolicy/private/property_contexts and
+# set_prop(system_server, system_prop) is granted upstream.
+on property:sys.gamemode.active=1
+    write /proc/sys/kernel/sched_pelt_multiplier 4
+
+on property:sys.gamemode.active=0
+    write /proc/sys/kernel/sched_pelt_multiplier 1

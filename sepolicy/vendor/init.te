@@ -38,3 +38,18 @@ allow vendor_init proc_dirty:file w_file_perms;
 # vendor_init, so labelling the node is not enough -- vendor_init needs the
 # write. init.mt6789.usb.rc's `on boot` sets it to 1.
 allow vendor_init sysfs_otg_ctl_file:file w_file_perms;
+
+# The write half of the genfs_contexts entry for
+# /proc/sys/kernel/sched_pelt_multiplier (the game-scoped PELT ramp,
+# init.cgroup.rc `on property:sys.gamemode.active`). Third instance of the same
+# trap in this file: labelling the node is not enough, because device.mk:1183
+# copies rootdir/etc/init/hw/*.rc to $(TARGET_COPY_OUT_VENDOR)/etc/init/hw, so
+# every command in it runs as vendor_init, whose proc access is read-only
+# (public/vendor_init.te:143) even though init itself may write proc_sched
+# (public/init.te:396). Without this the write is refused and the feature ships
+# DEAD -- and silently, because a refused sysctl write is not something any
+# boot or denial sweep of ours reads as a functional failure.
+#
+# No neverallow names proc_sched or restricts writing proc_type; checked across
+# system/sepolicy before writing this (BLUEPRINT section 9).
+allow vendor_init proc_sched:file w_file_perms;
