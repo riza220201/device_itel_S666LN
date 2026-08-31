@@ -48,3 +48,78 @@ genfscon sysfs /devices/platform/soc/11e00000.i2c/i2c-0/0-0058/leds/vibrator_sin
 #   sepolicy_vndr/basic/non_plat/genfs_contexts:125
 #     genfscon proc /sys/vm/swappiness u:object_r:proc_swappiness:s0
 genfscon proc /sys/vm/dirty_writeback_centisecs u:object_r:proc_dirty:s0
+
+# /proc/sys/kernel/sched_pelt_multiplier is an MTK addition, so AOSP's
+# genfs_contexts does not know it and it falls to the generic proc:s0 -- which
+# init cannot write. Every sysctl init writes has a dedicated type
+# (proc_sched, proc_watermark_scale_factor, proc_net ...); this gives ours the
+# one AOSP already grants:
+#   public/file.te:64   type proc_sched, fs_type, proc_type;
+#   public/init.te:396  allow init { ... proc_sched ... }:file w_file_perms;
+# Without this the init.cgroup.rc on property:sys.gamemode.active writes are
+# denied and the game-scoped PELT ramp ships DEAD -- silently, because it fails
+# as a refused write and not as anything a boot sweep reads.
+genfscon proc /sys/kernel/sched_pelt_multiplier u:object_r:proc_sched:s0
+
+# The four power_supply nodes nobody labels -- and the one that made Android
+# believe the phone was never plugged in.
+#
+# 🔴 Found 2026-08-31 from a user bug report ("it doesn't charge"), and the
+# phone WAS charging the whole time: the framework simply could not see the
+# charger. On the 45 W charger, before this:
+#     dumpsys battery -> AC powered: false   USB powered: false
+#                        Max charging current: 0   Max charging voltage: 0
+#                        status: 2 (Charging)
+# So the battery icon carries no bolt, Settings offers a DISCHARGE estimate,
+# and every third-party battery app reads "not plugged in" while the battery
+# is taking 4 A.
+#
+# Mechanism. system/core/healthd/BatteryMonitor.cpp:376-390 scans
+# /sys/class/power_supply ONCE in init() and enrols a supply as a charger only
+# if it can READ that supply's `type` file. AOSP's public/hal_health.te grants
+#     allow hal_health_server sysfs:dir r_dir_perms;   <- LIST the class dir
+#     r_dir_file(hal_health_server, sysfs_batteryinfo) <- READ the files
+# and says so in as many words: "Vendors should mark sysfs_batteryinfo on all
+# files read by health HAL service." The only supply on this device whose type
+# is ever USB/USB_DCP/Mains is `charger` -- the Southchip main charger at
+# i2c-6 0x6b -- and neither MediaTek's sepolicy_vndr (which labels 19 other
+# charger paths, basic/non_plat/genfs_contexts:173-191) nor stock's own
+# vendor_sepolicy.cil has an entry for it. It therefore falls to plain sysfs,
+# readPowerSupplyType() fails, and the supply is invisible for the life of the
+# process. mtk-master-charger IS labelled by sepolicy_vndr:173 but its type is
+# "Unknown", so it can never stand in.
+#
+# 🔴 THIS DEFECT EMITS NO DENIAL, FOR TWO INDEPENDENT REASONS, AND EITHER ONE
+# ALONE WOULD HAVE HIDDEN IT.
+#   1. readPowerSupplyType() returns UNKNOWN on ANY read failure and logs
+#      nothing -- a refused read is indistinguishable from "Unknown" here.
+#   2. sepolicy/vendor/dontaudit.te silenced the avc record itself on
+#      2026-08-11, reasoning "the battery UI is correct on the running build".
+#      It was not; nobody had looked at the PLUG state. That dontaudit is
+#      removed in the same change as this comment.
+#
+# ✅ VERIFIED ON HARDWARE 2026-08-31, both charger classes, by chcon on the
+# running device and a restart of health-hal-2-1 -- reverted and re-applied so
+# the A/B is a real A/B:
+#     PC USB (charger/type=USB)        -> USB powered: true
+#     45 W charger (type=USB_DCP)      -> AC  powered: true
+#                                         Max charging current 3,689,400 uA
+#                                         Max charging voltage 4,227,000 uV
+#
+# The other three entries are not needed for that fix; they are here so that
+# every entry under /sys/class/power_supply is readable and REMOVING the
+# dontaudit leaves a clean sweep. Neither of the two that carry an AC-ish type
+# changes what Android reports:
+#   primary_dvchg  type=Mains but has NO `online` file, and BatteryMonitor
+#                  enrols a supply only if access(online, R_OK) == 0.
+#   usb_switch     type=Mains, online=1 on the wall charger and 0 on a PC
+#                  port -- i.e. it agrees with `charger`. It has no
+#                  current_max/voltage_max, and this branch of BatteryMonitor
+#                  takes the max-power reading from the BATTERY's own
+#                  current_now/voltage_now anyway (:440-450), so it cannot
+#                  skew the reported charging rate either.
+#   mtk_charger_type  type=Unknown; never enrolled.
+genfscon sysfs /devices/platform/soc/1101a000.i2c/i2c-6/6-006b/power_supply u:object_r:sysfs_batteryinfo:s0
+genfscon sysfs /devices/platform/soc/11eb3000.i2c/i2c-9/9-006a/power_supply u:object_r:sysfs_batteryinfo:s0
+genfscon sysfs /devices/platform/odm/odm:usb_switch/power_supply u:object_r:sysfs_batteryinfo:s0
+genfscon sysfs /devices/platform/soc/10026000.pwrap/10026000.pwrap:mt6366/mt6358-chrdet/power_supply u:object_r:sysfs_batteryinfo:s0

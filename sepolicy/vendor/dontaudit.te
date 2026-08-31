@@ -17,7 +17,34 @@ dontaudit hal_power_default self:capability dac_override;
 #
 # Grant, do not dontaudit, if any of these ever turns out to gate a feature --
 # but measure that first. sysfs is a very wide type to open up.
-dontaudit hal_health_default sysfs:file r_file_perms;
+#
+# 🔴 REMOVED 2026-08-31 -- and the paragraph above was WRONG when it was
+# written. "the battery UI is correct on the running build" was never tested
+# against the PLUG state, and the health HAL's refused reads were the whole
+# reason `dumpsys battery` reported
+#     AC powered: false  USB powered: false  Max charging current: 0
+# on a phone drawing 4 A from a 45 W charger. Users reported it as "it doesn't
+# charge". Root cause and the hardware A/B are documented at the end of
+# sepolicy/vendor/genfs_contexts; the fix is four genfscon lines that give
+# every /sys/class/power_supply entry the sysfs_batteryinfo label AOSP's
+# public/hal_health.te explicitly asks vendors for.
+#
+# 🔑 The rule silenced a denial whose ONLY visible symptom was the denial. The
+# reader (BatteryMonitor::readPowerSupplyType) turns a failed read into
+# "Unknown" and logs nothing, so once the record was gone there was no signal
+# of any kind left. That is the property to test before writing the next
+# dontaudit: not "is this loud", but "if this access is genuinely needed, what
+# else would tell me?"
+#
+# dontaudit hal_health_default sysfs:file r_file_perms;   <- REMOVED, see above
+#
+# ⚠ system_server's twin STAYS, for now, and is now a suspect rather than a
+# settled call: it was written in the same breath, on the same reasoning, and
+# that reasoning has been falsified once. What it hides has NOT been measured
+# -- /sys/class/thermal is fully sysfs_therm on this device (33/33 zones) and
+# /sys/class/power_supply is fully labelled as of this change, so the 496
+# records were something else. Measure it on the next boot sweep and either
+# label the node or delete this line.
 dontaudit system_server sysfs:file r_file_perms;
 
 # --- boot 2026-08-19, build 71 ---

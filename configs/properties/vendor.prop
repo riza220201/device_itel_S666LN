@@ -87,6 +87,52 @@ ro.sf.lcd_density=273
 
 
 # ---------------------------------------------------------------------------
+# Panel backlight range. TAKEN FROM STOCK'S *PRODUCT* build.prop, not vendor's.
+#
+# 🔴 Its absence is what users reported as "max brightness is still low", and
+# it is a one-property fix that no denial or boot sweep could ever have found.
+#
+# /vendor/bin/hw/android.hardware.lights-service.mediatek is a stock blob and
+# reads exactly two properties, both defaulting to "0":
+#     ro.vendor.transsion.hbm_mode_hal.support
+#     ro.vendor.transsion.backlight_hal.optimization
+# Disassembled (36,104 B, offsets against the shipped binary):
+#     3b20   optimization != 0  ->  rgb_to_brightness, then multiply by the
+#            float at 0x41807878 = 16.058824 = 4095/255, and write 0..4095
+#     3e1c   optimization == 0  ->  write the raw 0..255 byte
+# The panel is 12-bit: /sys/class/leds/lcd-backlight/max_brightness = 4095,
+# and ro.vendor.transsion.backlight_12bit=1 is already carried below. So with
+# this property unset the framework's full-scale brightness lands on the panel
+# as 255 of 4095 -- 6% of the PWM range.
+#
+# Stock sets it, but in /product/build.prop, which is why extracting only
+# /vendor/build.prop (see the header) missed it:
+#     stock-props/product.build.prop:  ro.vendor.transsion.backlight_hal.optimization=1
+# The name is ro.vendor.*, its reader is a vendor HAL, and its context is
+# vendor_default_prop, so /vendor/build.prop is the right home for it here.
+#
+# ✅ VERIFIED ON HARDWARE 2026-08-31 (resetprop + restart of the HAL and the
+# framework, then a brightness ladder read back off /sys/class/leds/
+# lcd-backlight/brightness):
+#     settings screen_brightness    255    200    128     64     10
+#     HAL byte (= after / 16.0588)  255    200    128     26      1
+#     AFTER  (measured)            4095   3212   2056    418     16
+#     BEFORE (measured at 255)      255      -      -      -      -
+# Only the 255 point was measured before the change; every other BEFORE value
+# is the HAL-byte row by construction, because the unscaled branch writes that
+# byte verbatim. The ceiling is what matters and it moved 255 -> 4095.
+#
+# ⚠ Do NOT also add the other four properties from the "Fix Low Brightness"
+# Magisk module that circulated for this device. This HAL reads neither
+# ro.transsion.backlight.optimization nor ro.transsion.backlight.level nor
+# ro.tran_high_brightness_mode.support, and ro.vendor.transsion.hbm_mode_hal.
+# support is dead code once optimization=1 (the 3b20 branch never reads it).
+# Stock does not set any of them either -- and stock's own value for
+# ro.transsion.backlight.level is EMPTY, not the 0 the module writes.
+ro.vendor.transsion.backlight_hal.optimization=1
+
+
+# ---------------------------------------------------------------------------
 # Platform identification. MediaTek MT6789 (Helio G99); mgk/mgvi are the
 # names of the generic MediaTek kernel and vendor images this firmware is
 # built from.
