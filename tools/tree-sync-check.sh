@@ -57,8 +57,15 @@ if [ "${COMMON}" -lt 50 ]; then
     exit 2
 fi
 
+# Skip anything this repo gitignores. Those are build artifacts -- the compiled
+# egl-probe binaries, __pycache__ -- and they are deliberately absent from the
+# build tree, so reporting them as MISSING is noise that trains people to ignore
+# the section that matters.
+ignored() { git -C "${REPO}" check-ignore -q "$1" 2>/dev/null; }
+
 DRIFT=0; MISSING=0
 while read -r f; do
+    ignored "$f" && continue
     if [ ! -f "${BUILD}/${f}" ]; then
         echo "  MISSING FROM BUILD TREE : ${f}"; MISSING=$((MISSING + 1)); continue
     fi
@@ -79,6 +86,7 @@ done < <(cd "${REPO}" && find . -type f -not -path './.git/*' -not -path '*/__py
 EXTRA=0
 while read -r f; do
     [ -f "${REPO}/${f}" ] && continue
+    ignored "$f" && continue
     echo "  EXTRA IN BUILD TREE ONLY : ${f}   <- in no published tree"
     EXTRA=$((EXTRA + 1))
 done < <(cd "${BUILD}" && find . -type f -not -path './.git/*' -not -path '*/__pycache__/*' 2>/dev/null | sort)
