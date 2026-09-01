@@ -559,6 +559,11 @@ endif
 PRODUCT_PACKAGES += \
     libjamesdsp
 
+# --- Mali r54p1 shim (see mali/libr54shim.c; without it the driver will not
+# load and SurfaceFlinger crash-loops) --------------------------------------
+PRODUCT_PACKAGES += \
+    libr54shim
+
 # Vendor variants of platform-built libraries.
 #
 # NOT optional. Without these the vendor partition contains HALs that cannot

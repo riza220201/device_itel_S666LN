@@ -1,0 +1,32 @@
+//
+// Copyright (C) 2026 The LineageOS Project
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+// libr54shim -- see libr54shim.c for the full reasoning. In short: Mali r54p1's
+// userspace driver needs six symbols this device's Android 13 stack does not
+// export, and taking the A16 libraries that own them would cascade into a
+// newer libcutils and MediaTek's entire picture-quality stack.
+//
+// vendor: true is mandatory. libGLES_mali is loaded into every process that
+// touches EGL through the VENDOR namespace, so a system-side library would be
+// invisible to it.
+//
+// stl: "none" for the same reason jamesdsp uses it: this is pure C with no STL
+// of its own. That matters more than usual here -- the library DEFINES libc++
+// symbol names, and linking a real STL alongside would be circular.
+
+cc_library_shared {
+    name: "libr54shim",
+    vendor: true,
+    stl: "none",
+    srcs: ["libr54shim.c"],
+    shared_libs: ["liblog"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+        // The whole point is to export mangled C++ names from a C file; clang
+        // has no reason to like the identifiers and no reason to be right.
+        "-Wno-reserved-identifier",
+    ],
+}
