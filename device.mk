@@ -564,6 +564,15 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     libr54shim
 
+# --- MediaTek GPU KPI reporting (see prebuilts/gedkpi/Android.bp) -----------
+# ged's DVFS policy loop only runs when ged is told a frame happened. Stock does
+# that from a libgui which dlopens libged_kpi.so; AOSP's libgui does not, so
+# without these the GPU never leaves the OPP it powered on at. The matching hook
+# is apply-overlays-v2 step 41 (frameworks/native libs/gui).
+PRODUCT_PACKAGES += \
+    libged_kpi \
+    libged_sys
+
 # Vendor variants of platform-built libraries.
 #
 # NOT optional. Without these the vendor partition contains HALs that cannot

@@ -1,0 +1,45 @@
+// MediaTek's GPU-KPI reporting libraries, from stock revision 28's SYSTEM image.
+//
+// These are what make GPU DVFS work on this SoC. ged's DVFS policy loop only runs
+// when ged is told a frame happened, and on stock that reporting comes from a libgui
+// which dlopens libged_kpi.so. AOSP's libgui does not, so without these (and the
+// matching hook in libs/gui) the GPU stays at the OPP it powered on at -- measured on
+// v3.1: ged_dvfs_run 0 hits over 20 s of gameplay, GPU pinned at OPP 0 of 38.
+//
+// libged_kpi.so is a thin forwarder; libged_sys.so is its DT_NEEDED and holds the
+// actual implementation, which talks to ged over /proc/ged.
+//
+// SYSTEM libraries, so no `vendor:`/`soc_specific:` here -- they install to
+// /system/lib{,64}, which is where stock has them and where libgui's dlopen looks.
+// They are deliberately NOT added to public.libraries: stock does not list them
+// either. libgui lives in the default namespace and so may load its own private
+// dependency, even inside an app process; an app dlopening them by name cannot.
+//
+// PRODUCT_COPY_FILES cannot carry ELF prebuilts in this build -- see the long note
+// in device.mk -- hence cc_prebuilt_library_shared.
+
+cc_prebuilt_library_shared {
+    name: "libged_kpi",
+    owner: "mtk",
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libged_kpi.so"] },
+        android_arm: { srcs: ["lib/libged_kpi.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libged_sys",
+    owner: "mtk",
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libged_sys.so"] },
+        android_arm: { srcs: ["lib/libged_sys.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: true,
+}
