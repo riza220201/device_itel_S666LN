@@ -23,6 +23,8 @@ WHY THESE EXIST
               transplant before anyone attempted one.
 
 BUILD (host, needs an NDK; no tree or lunch required)
+  On this build box the NDK is at
+      /mnt/external_nvme/android-sdk/ndk/27.0.12077973        (r27, clang 18)
   CC=<ndk>/toolchains/llvm/prebuilt/linux-x86_64/bin/clang
   for f in eglprobe eglchoose ahbprobe; do
     $CC --target=aarch64-linux-android33 -O1 -o $f $f.c -ldl
@@ -34,6 +36,12 @@ BUILD (host, needs an NDK; no tree or lunch required)
 RUN
   adb push eglprobe /data/local/tmp/ && adb shell chmod 755 /data/local/tmp/eglprobe
   adb shell /data/local/tmp/eglprobe
+
+  ../egl-config-check.sh finds the binary here automatically. It compares
+  CAPABILITY TOTALS against the stock baseline as a FLOOR -- more configs than
+  stock is a pass, fewer is the 2026-08-27 defect. Set EGL_SHOW_DIFF=1 for the
+  row-level diff, which is informational only: IDs renumber between driver
+  generations, and diffing them row by row failed a perfectly good r54p1.
 
 ⚠ Run as an APP if you are testing property visibility. These run as shell/root,
   which CAN read vendor_default_prop; app domains cannot. That difference is the

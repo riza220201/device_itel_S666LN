@@ -7,3 +7,9 @@ prebuilts/JamesDSP/Android.bp
 # Python bytecode from tools/ (v31-delta-check.py imports nothing, but running it
 # from this directory still leaves a __pycache__ behind).
 tools/__pycache__/
+
+# Built EGL/gralloc probes. Sources are tracked; the aarch64 binaries are not --
+# rebuild them with the NDK recipe in tools/egl-probe/README.
+tools/egl-probe/eglprobe
+tools/egl-probe/eglchoose
+tools/egl-probe/ahbprobe
