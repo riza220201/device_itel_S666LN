@@ -494,6 +494,45 @@ BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX_LOCATION := 4
 # Display                                                              [V]
 TARGET_SCREEN_DENSITY := 273
 
+# OTA device assert -- PIN pre-device, DO NOT let it follow ro.product.device.
+#
+# 🔴 This line is a PREREQUISITE for the ro.product.property_source_order change,
+# and it must land FIRST, in its own build if need be. On its own it is a no-op:
+# pre-device already reads S666LN today. Its whole job is to still read S666LN
+# after the identity fix moves ro.product.device to itel-S666LN.
+#
+# The chain, read on the branch we build rather than assumed:
+#
+#   build/make/core/Makefile:5433   ota_override_device=$(TARGET_OTA_ASSERT_DEVICE)
+#                                   -> META/misc_info.txt
+#   releasetools/common.py:433      self._device = info_dict.get(
+#                                       "ota_override_device",
+#                                       self.GetOemProperty("ro.product.device"))
+#   releasetools/ota_utils.py:322   metadata_dict['pre-device'] = ...
+#
+# ⚠ And releasetools resolves ro.product.device through the SAME source order
+# init does -- common.py:536 reads ro.product.property_source_order -- so
+# without this line the identity change silently rewrites pre-device in the
+# generated package. It is not a runtime-only property.
+#
+# What that would cost: the recovery refuses a package whose pre-device it does
+# not recognise (installcommand.cpp:145-169, check_newer_ab_build), matching it
+# against its own ro.product.device / ro.product.model / ro.product.name /
+# ro.twrp.target.devices. Every user on an older or third-party recovery would
+# be locked out of the ROM entirely. The recovery half is already handled
+# (recovery_itel_S666LN/BoardConfig.mk:57 asserts all three names) but that only
+# helps users who update recovery FIRST -- which is why this side matters more.
+#
+# 🪤 The ROM zip is a pure A/B payload package with no update-binary and no edify
+# updater-script, so "there is no device assert" looks true and is not. The
+# assert lives in the recovery's AB path. And CheckPackageMetadata IS commented
+# out at twrpinstall/install.cpp:340 -- but that is the OTHER install path, so
+# checking only that one also misleads.
+#
+# Single value, not a list: pre-device is a join of this variable, so a
+# comma-separated list would produce a pre-device string matching nothing.
+TARGET_OTA_ASSERT_DEVICE := S666LN
+
 # Properties — a value containing a space must be set through these raw
 # .prop files, not PRODUCT_*_PROPERTIES.
 TARGET_SYSTEM_PROP += $(DEVICE_PATH)/configs/properties/system.prop

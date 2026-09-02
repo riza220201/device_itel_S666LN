@@ -119,3 +119,65 @@ bluetooth.profile.opp.enabled=true
 bluetooth.profile.pan.nap.enabled=true
 bluetooth.profile.pan.panu.enabled=true
 bluetooth.profile.pbap.server.enabled=true
+
+# --- Product identity source order -------------------------------------------
+#
+# Makes `system` the authority for ro.product.{name,device}, so Build.PRODUCT
+# and Build.DEVICE finally agree with the fingerprint this ROM presents.
+#
+# The defect this fixes: lineage_S666LN.mk sets
+#   PRODUCT_SYSTEM_NAME   := S666LN-OP
+#   PRODUCT_SYSTEM_DEVICE := itel-S666LN
+# and those two lines were effectively DEAD CODE. They write only partition
+# `system` (build/make/core/sysprop.mk:39-49), while init derives the bare
+# ro.product.* from the first partition in its source order that has a value
+# (property_service.cpp:803-860). The default order is
+#   product,odm,vendor,system_ext,system
+# -- system is consulted LAST. Measured on hardware, all five partitions:
+#
+#   ro.product.system.device = itel-S666LN     ro.product.system.name = S666LN-OP
+#   ro.product.{product,odm,vendor,system_ext}.device = S666LN
+#   ro.product.{product,odm,vendor,system_ext}.name   = lineage_S666LN
+#
+# so `product` won and the device reported Build.DEVICE=S666LN,
+# Build.PRODUCT=lineage_S666LN against a fingerprint reading
+# Itel/S666LN-OP/itel-S666LN -- a free tell for anything checking consistency.
+#
+# ⚠ BLAST RADIUS IS EXACTLY TWO PROPERTIES. brand / model / manufacturer are
+# byte-identical across all five partitions (Itel / itel S666LN / ITEL), so
+# reordering can only move `device` and `name`. Verified on hardware, not
+# reasoned about.
+#
+# ⚠ This lever fires ONLY because no build.prop declares a BARE ro.product.device
+# or ro.product.name. init skips the whole source-order block for any property
+# already set (property_service.cpp:838-841), which would make this a SILENT
+# no-op. Confirmed absent across all six build.prop files on the device, with
+# the per-partition form as the positive control (2 matches per file).
+#
+# The permutation is legal on both sides that validate it: init's
+# RO_PRODUCT_PROPS_ALLOWED_SOURCES and releasetools'
+# _RO_PRODUCT_PROPS_DEFAULT_SOURCE_ORDER_CURRENT are the same five names, and an
+# unrecognised entry makes init fall back to the default order rather than fail.
+#
+# 🔴 THIS LINE MOVES ro.product.device, AND THAT IS WHY
+# `TARGET_OTA_ASSERT_DEVICE := S666LN` EXISTS IN BoardConfig.mk. Do not ship one
+# without the other. releasetools resolves ro.product.device through this SAME
+# source order (common.py:536), so on its own this line rewrites the OTA
+# package's pre-device to itel-S666LN and every user on an older or third-party
+# recovery is locked out of the ROM.
+#
+# Proven before shipping, by running releasetools' own BuildInfo against the
+# signed target-files of v3build8 -- three cases, seconds instead of a build:
+#
+#   case                      OTA pre-device   Build.DEVICE   Build.PRODUCT
+#   as shipped today          S666LN           S666LN         lineage_S666LN
+#   this line, WITHOUT 1a     itel-S666LN      itel-S666LN    S666LN-OP     <- lockout
+#   this line, WITH 1a        S666LN           itel-S666LN    S666LN-OP     <- shipped
+#
+# The fingerprint is byte-identical in all three, which is the control that
+# matters: the identity presented to e-KYC and Play Integrity does not move.
+#
+# /system/build.prop is loaded FIRST and therefore has the LOWEST precedence for
+# duplicate keys (property_service.cpp:1110-1123). Safe only because nothing
+# else on the device declares this key -- confirmed, not assumed.
+ro.product.property_source_order=system,system_ext,product,odm,vendor
