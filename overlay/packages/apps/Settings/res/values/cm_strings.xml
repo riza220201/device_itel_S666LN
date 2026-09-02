@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2026 The LineageOS Project
+
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <!-- Title of the single refresh-rate control in Settings -> Display.
+
+         Upstream calls this "Peak refresh rate" because upstream's control only
+         ever writes PEAK_REFRESH_RATE. On this device it is the ONLY refresh
+         rate control (config_show_min_refresh_rate_switch is false beside this
+         file) and apply-overlays-v2 step 44 makes it write BOTH bounds, so
+         picking "90Hz" LOCKS the panel at 90 rather than capping it. "Peak"
+         would then be actively wrong, and "Smart" listed under a heading that
+         says "Peak" reads as nonsense.
+
+         🔑 THIS IS A PER-CONFIG OVERRIDE, NOT A GLOBAL ONE, and that is the
+         whole reason it is safe. DEVICE_PACKAGE_OVERLAYS on this product is a
+         STATIC overlay, not an RRO — PRODUCT_ENFORCE_RRO_TARGETS is unset, no
+         auto-generated RRO for Settings exists in the build output, and
+         package_internal.mk:154 therefore takes the static branch. aapt2 then
+         merges overlay resources by (name, CONFIG) pair, so replacing the
+         default-config entry leaves every other locale untouched.
+
+         Proven with aapt2 before shipping, not assumed — a throwaway target
+         with values/, values-in/ and values-fr/, overlaid by a values/ +
+         values-in/ pair, linked with aapt2's auto-add-overlay flag:
+
+             resource string/max_refresh_rate_title
+               ()   "Refresh rate"                       <- ours
+               (in) "Kecepatan refresh"                  <- ours
+               (fr) "Taux de rafraichissement maximal"   <- UPSTREAM, SURVIVED
+
+         ⚠ Stated honestly, because it is a real limitation: the ~30 locales
+         upstream already translates keep their own wording, which still says
+         "peak" or "maximum". That is imprecise for a locking control, but it is
+         localized and not broken, and inventing translations for 30 languages
+         is not something this project can verify. English and Indonesian — the
+         two locales this ROM's users actually run — are correct. If a
+         translation for another locale is ever contributed, it drops in here as
+         one more values-<lang>/ file with no code change. -->
+    <string name="max_refresh_rate_title">Refresh rate</string>
+</resources>

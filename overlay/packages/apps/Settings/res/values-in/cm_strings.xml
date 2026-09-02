@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2026 The LineageOS Project
+
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <!-- Indonesian title for the single refresh-rate control. See the values/
+         copy for why the string is overridden at all and why doing so does not
+         disturb the other locales.
+
+         This file exists because upstream has NO max_refresh_rate_title in
+         values-in/ at all — only min_refresh_rate_title
+         (packages/apps/Settings/res/values-in/cm_strings.xml:46). That gap IS
+         the mixed-language bug the operator reported: one control titled
+         "Kecepatan refresh minimum" sitting directly above one titled "Peak
+         refresh rate".
+
+         "Kecepatan refresh" is Google's own Indonesian rendering of "refresh
+         rate", not a coinage — values-in/strings.xml:1035 translates
+         show_refresh_rate as "Menampilkan kecepatan refresh". Keeping that
+         wording also keeps this control consistent with the rest of the
+         translated Display screen. -->
+    <string name="max_refresh_rate_title">Kecepatan refresh</string>
+</resources>
