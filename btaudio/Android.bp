@@ -1,0 +1,43 @@
+//
+// Copyright (C) 2026 The LineageOS Project
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+// libbtaudioaidlreg -- see btaudio_aidl_register.cpp for the full reasoning.
+// In short: Samsung's A16 Bluetooth stack drives A2DP through the AIDL
+// BluetoothAudio provider only, our vendor registers HIDL providers that its
+// stack has no client for, and AOSP's AIDL provider must live INSIDE the audio
+// HAL process because the session singleton is process-local. MediaTek's audio
+// HAL service is a prebuilt that never calls the provider's entry point, so
+// this library supplies the call and is injected as a DT_NEEDED.
+//
+// vendor: true is mandatory: it is loaded into the vendor audio HAL, so a
+// system-side library would be in the wrong linker namespace entirely.
+//
+// stl: "none" -- this is a C-shaped wrapper around one extern "C" entry point
+// and uses no STL of its own. The C++ runtime the provider needs comes in with
+// the provider, via its own DT_NEEDED on libc++.
+//
+// 🔴 NOT in device.mk, and that is deliberate. Installing it would ship it in
+// crDroid's vendor too, where Bluetooth audio WORKS over HIDL -- and where
+// registering an AIDL provider would flip audio.bluetooth.default.so onto its
+// AIDL proxy (IsAidlAvailable() is AServiceManager_checkService, so merely
+// existing is enough) and break a working path. It is built by name and
+// installed PORT-ONLY by tools/portrom/apply-port-fixups.sh, the same posture
+// as the port-only NFC feature removal in §15.
+
+cc_library_shared {
+    name: "libbtaudioaidlreg",
+    vendor: true,
+    stl: "none",
+    srcs: ["btaudio_aidl_register.cpp"],
+    shared_libs: [
+        "android.hardware.bluetooth.audio-impl",
+        "libbinder_ndk",
+        "liblog",
+    ],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}
