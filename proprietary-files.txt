@@ -2273,6 +2273,11 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/mt6789/s5kjn1_mipi_raw_IdxMgr.so
 -vendor/lib64/mt6789/s5kjn1_mipi_raw_tuning.so
 -vendor/lib64/mtkcam/mt6789/libmtkcam_streaminfo_plugin-p1stt.so
+# lineage-23.2: stock's ese_client. On lineage-20 a source build (hardware/nxp)
+# satisfied it; 23.2 has no module of that name, and the whole stock NFC stack
+# (nfc@1.2-service, nfc_nci_nxp, hal_libnfc, ese_spi_nxp-stock) links it --
+# soong analysis: "depends on undefined module ese_client".
+-vendor/lib64/ese_client.so
 -vendor/lib64/ese_spi_nxp.so:vendor/lib64/ese_spi_nxp-stock.so
 -vendor/lib64/nfc_nci_nxp.so
 -vendor/lib64/s5k2lqsx_mipi_raw_IdxMgr.so
