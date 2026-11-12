@@ -4,13 +4,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-# OPTIONAL: ship a kernel built by the separate custom-kernel project instead of
-# the GKI source this tree compiles by default.
+# REQUIRED on lineage-23.2: import the kernel built by the separate custom-kernel
+# project. This branch never compiles a kernel and has no from-source fallback
+# (BoardConfig.mk stops the build without the import).
 #
 # WHY TWO KERNELS EXIST, AND WHY THEY MUST STAY SEPARATE
 #   kernel/itel/S666LN   plain GKI android12-5.10-lts 5.10.260 + s666ln_defconfig.
-#                        What this tree builds by default, and what anyone who
-#                        clones it reproduces byte for byte.
+#                        On lineage-23.2 it is read for headers only; it is
+#                        never compiled into the ROM.
 #   itel-rs4-kernel      the custom kernel project. Applies BORE and NTSYNC
 #                        before building. Those patches belong ONLY there.
 #
@@ -32,7 +33,7 @@
 # not 0x7c24b32d, or which disagrees on any symbol CRC, is rejected here rather
 # than at flash time.
 #
-# To go back to the in-tree source build, delete the prebuilt directory.
+# The kernel package TRACKS prebuilt/ on lineage-23.2: commit it after an import.
 
 set -e
 
@@ -134,5 +135,5 @@ cp -f "${CONFIG}"  "${DEST}/kernel.config"
 echo
 echo "Imported to ${DEST}"
 echo "  BoardConfig.mk picks this up automatically (TARGET_FORCE_PREBUILT_KERNEL)."
-echo "  The ROM will now ship this kernel instead of building kernel/itel/S666LN."
-echo "  Delete ${DEST} to go back to the source build."
+echo "  On lineage-23.2 prebuilt/ is TRACKED in the kernel package: commit it there."
+echo "  There is no source build to go back to -- without prebuilt/ the build stops."
