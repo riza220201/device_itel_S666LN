@@ -331,6 +331,10 @@ PRODUCT_PACKAGES += \
 # in proprietary-files.txt. Verify against a CLEAN vendor tree, or let the build
 # answer: PRODUCT_PACKAGES entries that do not exist fail with
 #   includes non-existent modules in PRODUCT_PACKAGES
+# ⚠ lineage-23.2: ese_client and libmtkperf_client_vendor no longer come from
+# source -- 23.2 has no ese_client module, and LineageOS's perf-client stub is in
+# an unexported namespace. Both are stock blobs in proprietary-files.txt now, and
+# these two entries resolve to those prebuilts.
 PRODUCT_PACKAGES += \
     ese_client \
     libprotobuf-cpp-full.vendor \

@@ -1123,6 +1123,14 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libnvram.so
 -vendor/lib/libnvram_sec.so
 -vendor/lib/libnxp_extamp_intf.so
+# lineage-23.2: stock's real MTK perf client. lineage-20 built LineageOS's
+# hardware/mediatek stub instead (perf_lock_acq only logs and returns 233) to
+# avoid a make-level name clash; on 23.2 that stub sits in its own unexported
+# namespace (hardware/mediatek/libmtkperf_client), invisible to this vendor
+# namespace -- analysis: "libvcodec_oal depends on undefined module
+# libmtkperf_client_vendor". Stock's pairs with the stock perfctl/powerhalwrap
+# blobs listed beside it, and its perf locks are real.
+-vendor/lib/libmtkperf_client_vendor.so
 -vendor/lib/libperfctl_vendor.so
 -vendor/lib/libpixelflinger.so
 -vendor/lib/libpkm.so
@@ -1816,6 +1824,14 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libnvram_sec.so
 -vendor/lib64/libnxp_extamp_intf.so
 -vendor/lib64/liboemcrypto.so
+# lineage-23.2: stock's real MTK perf client. lineage-20 built LineageOS's
+# hardware/mediatek stub instead (perf_lock_acq only logs and returns 233) to
+# avoid a make-level name clash; on 23.2 that stub sits in its own unexported
+# namespace (hardware/mediatek/libmtkperf_client), invisible to this vendor
+# namespace -- analysis: "libvcodec_oal depends on undefined module
+# libmtkperf_client_vendor". Stock's pairs with the stock perfctl/powerhalwrap
+# blobs listed beside it, and its perf locks are real.
+-vendor/lib64/libmtkperf_client_vendor.so
 -vendor/lib64/libperfctl_vendor.so
 -vendor/lib64/libpixelflinger.so
 -vendor/lib64/libpkm.so
