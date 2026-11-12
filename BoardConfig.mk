@@ -557,7 +557,19 @@ BOARD_VENDOR_SEPOLICY_DIRS += $(DEVICE_PATH)/sepolicy/vendor
 # collisions appeared before this was noticed.
 BOARD_HAS_MTK_HARDWARE := true
 BOARD_HAVE_BLUETOOTH := true
-BOARD_WLAN_DEVICE := MediaTek
+# BOARD_WLAN_DEVICE is deliberately UNSET on lineage-23.2. 23.2's
+# frameworks/opt/net/wifi/libwifi_hal/Android.bp maps `MediaTek` to a cc_defaults
+# named libwifi-hal-mediatek that no repo defines (hardware/mediatek/wlan now
+# ships libwifi-hal-wrapper instead), and soong analysis of this product stopped
+# on it in 5 s ("depends on undefined module"). Its only other reader is
+# wpa_supplicant/hostapd's driver select(), where `MediaTek` already fell to
+# `default` -- so unset changes no compiled flag there, and libwifi-hal resolves
+# to libwifi-hal-fallback, which nothing on this device runs: the Wi-Fi HAL is
+# stock's (wifi@1.0-service-stock + libwifi-hal-stock, the A13-proven pair).
+# LineageOS 23.2's MediaTek pattern is the alternative if the A16 framework
+# turns the HIDL HAL away: AIDL android.hardware.wifi-service with
+# WIFI_MULTIPLE_VENDOR_HALS + libwifi-hal-wrapper, which dlopens stock's
+# libwifi-hal.so renamed libwifi-hal-mtk.so (pre-U-QPR2 struct flags).
 # 🔴 WPA_SUPPLICANT_VERSION, BOARD_WPA_SUPPLICANT_DRIVER, BOARD_HOSTAPD_DRIVER,
 # WPA_BUILD_HOSTAPD and WIFI_HIDL_UNIFIED_SUPPLICANT_SERVICE_RC_ENTRY were all
 # here and are all GONE. They existed to build wpa_supplicant and hostapd from
@@ -598,8 +610,8 @@ BOARD_WLAN_DEVICE := MediaTek
 # the tree are hardware/qcom/wlan and hardware/broadcom/wlan, neither of which is
 # this SoC.
 #
-# BOARD_WLAN_DEVICE stays -- it is what makes soong resolve libwifi-hal, and it
-# is unrelated to the supplicant.
+# (lineage-20.0 kept BOARD_WLAN_DEVICE to make soong resolve libwifi-hal; on
+# lineage-23.2 it is unset -- see the note at its old place above.)
 #
 # ⚠ The framework side is what makes this legal, and it was read on the branch we
 # build rather than assumed. packages/modules/Wifi
