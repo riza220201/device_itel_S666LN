@@ -39,33 +39,77 @@ set -e
 MY_DIR="$(cd "$(dirname "$0")" && pwd)"
 KERNEL_PROJECT="${KERNEL_PROJECT:-$HOME/itel-rs4-kernel}"
 VARIANT="${1:-vanilla}"
-SRC="${KERNEL_PROJECT}/out/${VARIANT}"
-DEST="${MY_DIR}/../S666LN-kernel/prebuilt"
+# Since v9 (2026-10-28) the kernel project builds with Neutron clang into
+# .build/out-<variant> (build.sh: KOUT) and keeps only the PUBLISHED artifacts in
+# out/<variant> (PUB_DIR): the flashable boot image and the AnyKernel3 zip. The
+# kernel is read from KOUT and then proven to be the published one (below).
+KOUT="${KOUT:-${KERNEL_PROJECT}/.build/out-${VARIANT}}"
+PUB_DIR="${PUB_DIR:-${KERNEL_PROJECT}/out/${VARIANT}}"
+IMAGE="${KOUT}/arch/arm64/boot/Image.gz"
+SYMVERS="${KOUT}/vmlinux.symvers"
+CONFIG="${KOUT}/.config"
+KPKG="${MY_DIR}/../S666LN-kernel"
+DEST="${KPKG}/prebuilt"
 KMI_LAYOUT="0x7c24b32d"
 
-if [ ! -d "${SRC}" ]; then
-    echo "!! no such build: ${SRC}" >&2
-    echo "!! build it first:  (cd ${KERNEL_PROJECT} && ./build.sh ${VARIANT})" >&2
-    echo "!! or set KERNEL_PROJECT=/path/to/itel-rs4-kernel" >&2
-    exit 1
-fi
-
-for f in Image.gz vmlinux.symvers; do
-    if [ ! -f "${SRC}/${f}" ]; then
-        echo "!! ${SRC}/${f} is missing -- incomplete kernel build?" >&2
+for f in "${IMAGE}" "${SYMVERS}" "${CONFIG}"; do
+    if [ ! -f "${f}" ]; then
+        echo "!! missing: ${f} -- incomplete kernel build?" >&2
+        echo "!! build it first:  (cd ${KERNEL_PROJECT} && ./build.sh ${VARIANT})" >&2
+        echo "!! or set KERNEL_PROJECT / KOUT" >&2
         exit 1
     fi
 done
 
-echo "Importing ${VARIANT} kernel from ${SRC}"
+# Ship the Image that was BOOTED, not a rebuild of it: a build in another out
+# dir is not byte-identical (objtree strings, build-id). So the Image must hash
+# equal to the kernel inside the published boot image (header v3/v4: kernel at
+# 4096, size at offset 8, header_version at 40).
+BOOTIMG=$(ls -t "${PUB_DIR}"/ItelRS4-boot-"${VARIANT}"-*.img 2>/dev/null | head -1)
+if [ -z "${BOOTIMG}" ]; then
+    if [ "${ALLOW_UNPUBLISHED:-0}" != 1 ]; then
+        echo "!! no published boot image in ${PUB_DIR} to prove this kernel against." >&2
+        echo "!! Set ALLOW_UNPUBLISHED=1 to import a kernel that was never released." >&2
+        exit 1
+    fi
+    echo "  !! importing an UNPUBLISHED kernel (ALLOW_UNPUBLISHED=1)"
+else
+    BOOT_SHA=$(python3 -I - "${BOOTIMG}" <<'PY'
+import hashlib, struct, sys
+d = open(sys.argv[1], 'rb').read()
+if d[:8] != b'ANDROID!':
+    sys.exit('not an Android boot image: ' + sys.argv[1])
+ksize, = struct.unpack_from('<I', d, 8)
+hver, = struct.unpack_from('<I', d, 40)
+if hver not in (3, 4):
+    sys.exit('boot header v%d: only v3/v4 are parsed here' % hver)
+print(hashlib.sha256(d[4096:4096 + ksize]).hexdigest())
+PY
+)
+    IMAGE_SHA=$(sha256sum "${IMAGE}" | cut -d' ' -f1)
+    if [ "${BOOT_SHA}" != "${IMAGE_SHA}" ]; then
+        echo "!! ${IMAGE} (${IMAGE_SHA:0:16}) is NOT the kernel inside" >&2
+        echo "!! ${BOOTIMG} (${BOOT_SHA:0:16}) -- rebuilt since publishing? Refusing." >&2
+        exit 1
+    fi
+    echo "  = the kernel inside $(basename "${BOOTIMG}") (${IMAGE_SHA:0:16})"
+fi
+
+BANNER=$(zcat "${IMAGE}" | strings -a | LC_ALL=C grep -a -m1 -E '^Linux version [0-9]' || true)
+echo "Importing ${VARIANT} kernel from ${KOUT}"
+echo "  ${BANNER:-!! no Linux banner found in the Image}"
 
 # Verify BEFORE installing, against both module sets. A kernel that fails here
-# would build a ROM that flashes cleanly and bootloops.
+# would build a ROM that flashes cleanly and bootloops. A missing module set is
+# a FAILURE, not a skip: a gate that silently does not run passes everything.
 for set in vendor_dlkm vendor_boot; do
-    dir="${MY_DIR}/../S666LN-kernel/modules/${set}"
-    [ -d "${dir}" ] || continue
+    dir="${KPKG}/modules/${set}"
+    if [ ! -d "${dir}" ]; then
+        echo "!! ${dir} is missing -- the KMI gate cannot run. Sync device/itel/S666LN-kernel first." >&2
+        exit 1
+    fi
     echo "  checking KMI against ${set}..."
-    if ! python3 "${MY_DIR}/kmi-check.py" "${SRC}/vmlinux.symvers" "${dir}" "${KMI_LAYOUT}"; then
+    if ! python3 "${MY_DIR}/kmi-check.py" "${SYMVERS}" "${dir}" "${KMI_LAYOUT}"; then
         echo "!! KMI check FAILED for ${set} -- refusing to import." >&2
         echo "!! This kernel cannot load the stock vendor modules and would not boot." >&2
         exit 1
@@ -73,16 +117,18 @@ for set in vendor_dlkm vendor_boot; do
 done
 
 mkdir -p "${DEST}"
-cp -f "${SRC}/Image.gz"        "${DEST}/Image.gz"
-cp -f "${SRC}/vmlinux.symvers" "${DEST}/vmlinux.symvers"
-[ -f "${SRC}/kernel.config" ] && cp -f "${SRC}/kernel.config" "${DEST}/kernel.config"
+cp -f "${IMAGE}"   "${DEST}/Image.gz"
+cp -f "${SYMVERS}" "${DEST}/vmlinux.symvers"
+cp -f "${CONFIG}"  "${DEST}/kernel.config"
 
 {
-    echo "variant:  ${VARIANT}"
-    echo "source:   ${SRC}"
-    echo "imported: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+    echo "variant:   ${VARIANT}"
+    echo "source:    ${KOUT}"
+    echo "published: ${BOOTIMG:-NONE (ALLOW_UNPUBLISHED=1)}"
+    echo "kernel:    ${BANNER}"
+    echo "imported:  $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
     echo "sha256:"
-    (cd "${DEST}" && sha256sum Image.gz vmlinux.symvers | sed 's/^/  /')
+    (cd "${DEST}" && sha256sum Image.gz vmlinux.symvers kernel.config | sed 's/^/  /')
 } > "${DEST}/IMPORTED"
 
 echo
