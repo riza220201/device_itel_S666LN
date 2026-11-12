@@ -60,8 +60,24 @@ namespace_imports = [
     'hardware/mediatek',
 ]
 
+def lib_fixup_vendor_suffix(lib: str, partition: str, *args, **kwargs):
+    return f'{lib}_{partition}' if partition == 'vendor' else None
+
+
+# Stock blobs whose module NAME is also an AOSP module that has a system
+# variant. Every generated prebuilt is `prefer: true`, and soong refuses to let
+# a vendor-only prebuilt replace a module with a system variant:
+#   system/media/alsa_utils/Android.bp:51:1: module "libalsautils" ...
+#     partition is different: system(libalsautils) != vendor(prebuilt_libalsautils)
+# So the blob is listed with ;MODULE_SUFFIX=_vendor (same filename, new module
+# name) and every stock consumer's dependency is mapped to it here -- stock's
+# A12 copy stays paired with stock's consumers, and nothing requests A16's
+# vendor variant onto the same path. Classified statically across all 50 name
+# collisions (notes/lineage23 JOURNAL 11-13 (f)): libalsautils is the only one
+# whose source module is not vendor-only.
 lib_fixups: lib_fixups_user_type = {
     **lib_fixups,
+    ('libalsautils',): lib_fixup_vendor_suffix,
 }
 
 
