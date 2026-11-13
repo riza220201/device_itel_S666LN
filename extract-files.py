@@ -38,7 +38,6 @@
 #     build runs check_elf on them, so a soname nothing provides is a BUILD error
 #     here, not a boot loop.
 
-import subprocess
 import sys
 from os import path
 
@@ -56,10 +55,6 @@ from extract_utils.fixups_lib import (
 from extract_utils.main import (
     ExtractUtils,
     ExtractUtilsModule,
-)
-from extract_utils.tools import (
-    DEFAULT_PATCHELF_VERSION,
-    patchelf_version_path_map,
 )
 from extract_utils.utils import file_path_sha1
 
@@ -327,20 +322,6 @@ def must_not_contain(text: str):
     return check
 
 
-def must_precede(first: str, second: str):
-    """Fail extraction unless NEEDED `first` comes before `second` (load order)."""
-
-    def check(ctx: BlobFixupCtx, file: File, file_path: str, *args, **kwargs):
-        out = subprocess.run(
-            [patchelf_version_path_map[DEFAULT_PATCHELF_VERSION], '--print-needed', file_path],
-            capture_output=True, text=True, check=True,
-        ).stdout.split()
-        if first not in out or (second in out and out.index(first) > out.index(second)):
-            raise AssertionError(f'{file.dst}: NEEDED {first} must precede {second}: {out}')
-
-    return check
-
-
 def shim(lib: str) -> blob_fixup:
     return blob_fixup().add_needed(lib)
 
@@ -371,15 +352,33 @@ ROUTE_L_FIXUPS = [
     (('vendor/lib64/libcodec2_hidl@1.0-stock.so',
       'vendor/lib64/libcodec2_hidl@1.1-stock.so',
       'vendor/lib64/libcodec2_hidl@1.2-stock.so'), shim('libshim_bqhelper.so')),
-    # libhidlbase: the goodix interface library writes details::gBnConstructorMap
-    # (data). The shim owns that map and interposes getBnConstructorMap(), which
-    # only works from AHEAD of libhidlbase in the service's load order; the goodix
-    # library NEEDs it too, so the map is constructed before goodix's initialisers.
+    # libhidlbase: the goodix interface library reads details::gBnConstructorMap
+    # (data), which A16 no longer exports; the shim exports it as an IFUNC that
+    # resolves to libhidlbase's real map (shims/hidlbase.cpp). The resolver runs
+    # while the goodix library is relocated, so the service executable NEEDs the
+    # shim: it is then linked at process start, before the HAL module's dlopen.
     ('vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-service',
-     shim('libshim_hidlbase.so')
-     .call(must_precede('libshim_hidlbase.so', 'libhidlbase.so'), need_tmp_dir=False)),
+     shim('libshim_hidlbase.so')),
     ('vendor/lib64/libvendor.goodix.hardware.biometrics.fingerprint@2.1.so',
      shim('libshim_hidlbase.so')),
+
+    # The stock composer generation. Stock's HWC service compiles the composer HAL's
+    # header-inline code (ComposerClientImpl, ComposerResources() = default) against
+    # A12's ComposerResources, which A16 changed: create() allocates 0x70 = 112 B in
+    # stock's composer@2.1-resources, 0x60 = 96 B in A16's. With A16's library the
+    # first boot died in addPhysicalDisplay (`__next_prime overflow`, an unordered_map
+    # rehash of garbage) and SurfaceFlinger never saw a display. Stock's two resources
+    # libraries ship as -stock and the service + stock 2.2-resources use them.
+    (('vendor/bin/hw/android.hardware.graphics.composer@2.3-service',
+      'vendor/lib64/android.hardware.graphics.composer@2.2-resources-stock.so'), blob_fixup()
+     .replace_needed('android.hardware.graphics.composer@2.1-resources.so',
+                     'android.hardware.graphics.composer@2.1-resources-stock.so')
+     .replace_needed('android.hardware.graphics.composer@2.2-resources.so',
+                     'android.hardware.graphics.composer@2.2-resources-stock.so')
+     .call(must_not_need('android.hardware.graphics.composer@2.1-resources.so',
+                         'android.hardware.graphics.composer@2.2-resources.so'), need_tmp_dir=False)),
+    (('vendor/lib64/android.hardware.graphics.composer@2.1-resources-stock.so',
+      'vendor/lib64/android.hardware.graphics.composer@2.2-resources-stock.so'), blob_fixup().fix_soname()),
 
     # soname = file name (check_elf; and a stock copy beside an A16 namesake must
     # not answer to the A16 name). Nothing NEEDs any of the old sonames.

@@ -183,13 +183,16 @@ the old symbol and forwards to the new function:
 | `libshim_bqhelper` | `getHGraphicBufferProducer()` | `getHGraphicBufferProducer_V1_0()` | codec2_hidl@1.0/1.1/1.2 |
 | `libshim_hidlbase` | `details::gBnConstructorMap` (a **data** symbol) | `getBnConstructorMap()` | the goodix fingerprint HIDL library |
 
-Data cannot be thunked, so `libshim_hidlbase` owns the map: it exports the old
-variable *and* `getBnConstructorMap()` returning it, and is loaded ahead of
-`libhidlbase` in the fingerprint service, so libhidlbase's own calls (which go
-through the PLT) land on the same map the goodix library writes into. The map's
-class body is identical in the Android 12 and 16 headers, which is what makes
-that legal. Every thunk is written against both headers, with the A12 symbol
-spelled out via `asm("<mangled name>")`.
+Data cannot be thunked, so `libshim_hidlbase` exports the old variable's name as
+a GNU IFUNC whose resolver returns the address of libhidlbase's *real* map —
+bionic calls an IFUNC's resolver for every relocation against it, data
+relocations included — so the goodix library and libhidlbase share one map. The
+first version owned a second map and interposed `getBnConstructorMap()`; on the
+phone that split in two (bionic's global group is the executable alone, so the
+`dlopen`ed goodix library resolved past the shim) and the service aborted. The
+map's class body is identical in the Android 12 and 16 headers. Every thunk is
+written against both headers, with the A12 symbol spelled out via
+`asm("<mangled name>")`.
 
 **2. A v31 copy**, where the fix is a whole Android 12 library: AOSP's own
 `prebuilts/vndk/v31` files, under a distinct name and soname (`libutils-v31`,
@@ -201,7 +204,11 @@ Android 14 — and so keeps its stock `_platform` AIDL libraries, from v31,
 unrenamed. That is what the Android 13 tree ran, too.
 
 **3. A `-stock` copy**, where stock's own vendor library is the only thing with
-the ABI: the Android 12 codec2 generation (eleven libraries moving as one),
+the ABI — or where the symbols match and the *layout* does not: the composer
+resources libraries (`ComposerResources` is 112 bytes in Android 12 and 96 in
+Android 16, and stock's HWC service bakes the old layout in through header-inline
+code; the first boot died there with no display), the Android 12 codec2
+generation (eleven libraries moving as one),
 `libpcap` (for `libpkm`), `libalsautils`, `libeffectsconfig`, the Wi-Fi HAL
 library, `ese_spi_nxp`, `libmtk_bsg` and the boot-control impl. Each carries its
 own file name as soname — otherwise the first one loaded wins the name for the

@@ -277,6 +277,15 @@ vendor/data/camera/watermark/watermark_640x480.yuyv
 vendor/data/camera/watermark/watermark_config
 
 # etc
+# libpowerhal configuration (stock mtkpower@1.0-service = IPower/default on this branch).
+# Without powercontable.xml its init() dereferences a NULL table and the service
+# crash-loops, so IPower never registers and system_server waits for it (first A16 boot).
+vendor/etc/fstb.cfg
+vendor/etc/gbe.cfg
+vendor/etc/power_app_cfg.xml
+vendor/etc/powercontable.xml
+vendor/etc/powerscntbl.xml
+vendor/etc/xgf.cfg
 vendor/etc/AbnormalDisplayLog_dynamic.xml
 vendor/etc/VideoLog_dynamic.xml
 vendor/etc/a2dp_audio_policy_configuration.xml
@@ -1426,6 +1435,9 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/egl/libMEOW_gift.so
 -vendor/lib64/egl/libMEOW_qt.so
 -vendor/lib64/egl/libMEOW_trace.so
+# Stock composer generation (A12 ComposerResources is 112 B, A16's 96 B; see extract-files.py).
+-vendor/lib64/android.hardware.graphics.composer@2.1-resources.so:vendor/lib64/android.hardware.graphics.composer@2.1-resources-stock.so
+-vendor/lib64/android.hardware.graphics.composer@2.2-resources.so:vendor/lib64/android.hardware.graphics.composer@2.2-resources-stock.so
 -vendor/lib64/android.hardware.media.c2@1.0.so:vendor/lib64/android.hardware.media.c2@1.0-stock.so
 -vendor/lib64/android.hardware.media.c2@1.1.so:vendor/lib64/android.hardware.media.c2@1.1-stock.so
 -vendor/lib64/android.hardware.media.c2@1.2.so:vendor/lib64/android.hardware.media.c2@1.2-stock.so

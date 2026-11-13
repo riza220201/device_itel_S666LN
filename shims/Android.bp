@@ -83,11 +83,10 @@ cc_library_shared {
 }
 
 // libhidlbase: details::gBnConstructorMap was a DATA symbol (pre-A12 hidl-gen
-// output still references it; A16 only has getBnConstructorMap()). Data cannot be
-// thunked, so this library owns the map, exports it under the old name AND
-// exports getBnConstructorMap() returning it. Loaded ahead of libhidlbase in the
-// fingerprint service, it interposes libhidlbase's own (PLT) calls, so the goodix
-// library and every A16 HIDL library register into one map.
+// output still references it; A16 only has getBnConstructorMap()). It is exported
+// here as a GNU IFUNC whose resolver returns the address of libhidlbase's REAL
+// map, which bionic honours for data relocations too -- one map per process, no
+// interposition (an interposing first version split it in two; hidlbase.cpp).
 cc_library_shared {
     name: "libshim_hidlbase",
     defaults: ["s666ln_shim_defaults"],
