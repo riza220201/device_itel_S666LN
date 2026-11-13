@@ -209,7 +209,15 @@ fi
 # list was never executed on the slot being tested.
 #
 # Compare against the ordered lists shipping with the kernel package, which are
-# the stock ones. Byte-for-byte: a diff of one line is a diff of the order.
+# the stock ones. Line for line, in order: a diff of one line is a diff of the
+# order. Each entry is compared as the device's modprobe reads it
+# (libmodprobe CanonicalizeModulePath: basename, a trailing ".ko" dropped,
+# '-' -> '_'; its parser skips blank and '#' lines), because the build writes
+# the same list in two spellings: build/make's rule keeps "x.ko", while a
+# kernel built from source (the generic GKI fallback) has kernel.mk rewrite
+# vendor_dlkm's list as bare "x" -- identical to modprobe, and a byte compare
+# failed it (2026-11-13).
+_canon_load() { sed -e '/^[[:space:]]*$/d' -e '/^[[:space:]]*#/d' -e 's|.*/||' -e 's|\.ko$||' -e 'y/-/_/' "$1"; }
 MODULES_BAD=0
 _out_root="$(dirname "${VENDOR_DIR}")"
 _kpkg="$(cd "$(dirname "$0")/../../S666LN-kernel" 2>/dev/null && pwd)"
@@ -229,10 +237,11 @@ if [ -n "${_kpkg}" ] && [ -d "${_kpkg}/modules" ]; then
             MODULES_BAD=$((MODULES_BAD + 1))
             continue
         fi
-        if ! cmp -s "${_built}" "${_want}"; then
+        if ! cmp -s <(_canon_load "${_built}") <(_canon_load "${_want}"); then
             echo "MODULE LOAD ORDER WRONG: ${_img}/lib/modules/${_name}"
-            echo "    built $(wc -l < "${_built}") entries, expected $(wc -l < "${_want}")"
-            echo "    first built: $(head -1 "${_built}")   first expected: $(head -1 "${_want}")"
+            echo "    built $(_canon_load "${_built}" | wc -l) entries, expected $(_canon_load "${_want}" | wc -l)"
+            echo "    first difference (built | expected):"
+            diff <(_canon_load "${_built}") <(_canon_load "${_want}") | head -4 | sed 's/^/      /'
             MODULES_BAD=$((MODULES_BAD + 1))
         fi
     done
