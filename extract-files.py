@@ -362,6 +362,24 @@ ROUTE_L_FIXUPS = [
     ('vendor/lib64/libvendor.goodix.hardware.biometrics.fingerprint@2.1.so',
      shim('libshim_hidlbase.so')),
 
+    # tinyxml2 8 -> 11: XMLDocument grew from 776 to 880 bytes. Stock code
+    # stack-allocates it with the old size and A16's constructor writes over the
+    # caller's saved registers (second A16 boot: libpowerhal returned from
+    # loadRscTable with x19/x21-x24 zeroed; the audio HAL returned to address 0).
+    # Every stock consumer gets the v31 library (prebuilts/vndk31).
+    (('vendor/lib/hw/audio.primary.mediatek.so',
+      'vendor/lib64/hw/audio.primary.mediatek.so',
+      'vendor/lib/hw/mt6789/vendor.mediatek.hardware.pq@2.15-impl.so',
+      'vendor/lib64/hw/mt6789/vendor.mediatek.hardware.pq@2.15-impl.so',
+      'vendor/lib/libeffectsconfig-stock.so',
+      'vendor/lib64/libeffectsconfig-stock.so',
+      'vendor/lib/libpowerhal.so',
+      'vendor/lib64/libpowerhal.so',
+      'vendor/lib/librt_extamp_intf.so',
+      'vendor/lib64/librt_extamp_intf.so'), blob_fixup()
+     .replace_needed('libtinyxml2.so', 'libtinyxml2-v31.so')
+     .call(must_not_need('libtinyxml2.so'), need_tmp_dir=False)),
+
     # The stock composer generation. Stock's HWC service compiles the composer HAL's
     # header-inline code (ComposerClientImpl, ComposerResources() = default) against
     # A12's ComposerResources, which A16 changed: create() allocates 0x70 = 112 B in

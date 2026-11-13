@@ -198,7 +198,10 @@ written against both headers, with the A12 symbol spelled out via
 `prebuilts/vndk/v31` files, under a distinct name and soname (`libutils-v31`,
 …) so they cannot be mistaken for Android 16's. Used for the MediaTek PQ
 service (an Android 12 libutils RefBase assertion, measured on hardware on
-lineage-20.0), and for the Trustonic KeyMint service, which subclasses
+lineage-20.0); for tinyxml2, whose `XMLDocument` grew from 776 to 880 bytes
+between versions 8 and 11 — stock's power, audio and PQ HALs allocate it on the
+stack with the old size, and Android 16's constructor zeroed their saved
+registers on the second boot; and for the Trustonic KeyMint service, which subclasses
 `IRemotelyProvisionedComponent` V1 — moved out of the keymint library in
 Android 14 — and so keeps its stock `_platform` AIDL libraries, from v31,
 unrenamed. That is what the Android 13 tree ran, too.

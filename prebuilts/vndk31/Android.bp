@@ -187,3 +187,27 @@ cc_prebuilt_library_shared {
     compile_multilib: "64",
     check_elf_files: false,
 }
+
+// tinyxml2: the A12 stock blobs that parse XML (the power HAL, the audio HAL, the
+// PQ impl, the stock effects config, the external-amp interface) stack-allocate
+// tinyxml2::XMLDocument with tinyxml2 8's size, 776 bytes; Android 16 ships
+// tinyxml2 11, whose XMLDocument is 880 (and XMLPrinter 328, not 312), measured
+// by compiling one probe against each header. Its constructor writes the extra
+// 104 bytes over the caller's saved registers: on the second A16 boot
+// libpowerhal returned from loadRscTable() with x19 and x21-x24 all zero, and the
+// audio HAL returned to address 0. Every symbol resolves, so no link-time check
+// sees it. tinyxml2 keeps no process-wide state, so this copy beside A16's is safe.
+cc_prebuilt_library_shared {
+    name: "libtinyxml2-v31",
+    stem: "libtinyxml2-v31",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libtinyxml2.so"] },
+        android_arm: { srcs: ["lib/libtinyxml2.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    prefer: false,
+}
