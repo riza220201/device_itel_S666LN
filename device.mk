@@ -306,7 +306,6 @@ PRODUCT_PACKAGES += \
     libsfplugin_ccodec_utils.vendor \
     libtextclassifier_hash.vendor \
     libvibratorutils.vendor \
-    vendor.lineage.touch@1.0.vendor \
     vendor.mediatek.hardware.mtkpower@1.0.vendor \
     vendor.mediatek.hardware.mtkpower@1.1.vendor \
     vendor.mediatek.hardware.mtkpower@1.2.vendor \
@@ -491,62 +490,29 @@ PRODUCT_PACKAGES += \
 # not zero. Written down because an exit code with a standing exception is
 # exactly the kind of thing that gets quietly ignored later.
 
-# ⚠ The RECOVERY variant below is deliberately untouched. It installs to
-# recovery/root/system/lib64/hw/, not to /vendor, and recovery has no VNDK
-# namespace at all -- so it is a different consumer of the same source module and
-# the v31 delta does not apply to it. Swapping it blind would put an A12 impl
-# against the A13 libraries in the recovery ramdisk and cost the sideload path.
-
-# android.hardware.boot@1.2-mtkimpl REQUIRES a build-tree patch. See
-# apply-overlays.sh step 35. Its 32-bit variant does not compile here:
-# LineageOS's generated_kernel_includes runs headers_install once, for
-# ARCH=$(KERNEL_ARCH) = arm64, and exports the result to every ABI through a
-# single cc_library_headers. asm/sigcontext.h then declares
-#     __uint128_t vregs[32];
-# in a compile targeting armv7a-linux-androideabi33, where that type does not
-# exist:  error: unknown type name '__uint128_t'.
+# Recovery's boot control, for `adb sideload`. Without one, update_engine_sideload
+# fails in 1.2 s having transferred nothing ("Error initializing the
+# BootControlInterface"). The A13 tree shipped hardware/mediatek/bootctrl's HIDL
+# impl to recovery/root/system/lib64/hw (module android.hardware.boot@1.2-mtkimpl
+# .recovery, found by the passthrough manager since recovery has no
+# hwservicemanager).
 #
-# It cannot be shipped as a blob instead. soong's prefer: only pairs a prebuilt
-# with a source module in the SAME namespace. hardware/mediatek is its own
-# namespace which this tree imports, so a vendor/itel/S666LN prebuilt never
-# displaces it -- both modules stay enabled and kati aborts with either
-#   "overriding commands for target .../android.hardware.boot@1.0-impl-1.2-mtkimpl.so"
-# (different module names, same install path) or
-#   "MODULE.TARGET.SHARED_LIBRARIES.android.hardware.boot@1.2-mtkimpl already
-#    defined by hardware/mediatek/bootctrl" (same module name).
-# The same rule is why vendor.mediatek.hardware.mtkpower@1.0 could not be
-# blobbed. Contrast libbluetooth_audio_session, whose source module IS in the
-# root namespace and IS displaced by its blob -- it emits zero make modules.
-
-# ...and the same implementation again, for recovery. Without this line
-# `adb sideload` fails in 1.2 seconds having transferred nothing:
-#
-#   [ERROR:boot_control_android.cc(65)] Error getting bootctrl HIDL module.
-#   [ERROR:sideload_main.cc(147)] Error initializing the BootControlInterface.
-#
-# i.e. users cannot install an update. That makes this line the last thing
-# standing between the ROM and an install path we own.
-#
-# There is no hwservicemanager in recovery, so `IBootControl::getService()`
-# falls through to the passthrough manager, which dlopens by scanning its
-# search paths for `android.hardware.boot@1.0-impl*.so`
-# (ServiceManagement.cpp openLibs). update_engine_sideload is a recovery
-# binary, not a vendor one, so __ANDROID_VNDK__ is undefined for it and
-# HAL_LIBRARY_PATH_SYSTEM stays in that path list -- which is why the recovery
-# copy belongs at system/lib64/hw and is still found there.
-#
-# Note what was NOT wrong, because the obvious diagnosis is misleading:
-# `recovery/root/vendor/lib64/hw/` being empty is not the defect, and
-# hardware/mediatek/bootctrl already carries `recovery_available: true`, so no
-# build-tree patch is needed here (contrast step 35 above). soong had even
-# emitted the install rule to
-# recovery/root/system/lib64/hw/android.hardware.boot@1.0-impl-1.2-mtkimpl.so
-# and the make module `...-mtkimpl.recovery` -- but no android_recovery_*
-# variant was ever built, because nothing requested it. Once more, and this
-# time in our favour: the existence of a build rule is not evidence of an
-# installed file.
+# lineage-23.2 has no hardware/mediatek/bootctrl (kati 11-13: "includes
+# non-existent modules in PRODUCT_PACKAGES"). Its replacement is the AIDL service
+# in hardware/mediatek/aidl/boot: 64-bit only (so the A13 HIDL impl's 32-bit
+# __uint128_t failure cannot arise), started in recovery by its own .rc with
+# `seclabel u:r:hal_bootctl_default:s0`, VINTF fragment installed to recovery.
+# update_engine's BootControlClient tries AIDL first and falls back to HIDL
+# (hardware/interfaces/boot/aidl/client/BootControlClient.cpp:405), so:
+#   normal boot  stock HIDL boot@1.2-service + impl-1.2-mtkimpl-stock (unchanged)
+#   recovery     Lineage AIDL android.hardware.boot-service.mediatek_recovery
+# Two implementations of ONE design: AOSP libboot_control's record in misc plus
+# MediaTek's boot-region switch (stock: BootControlExt::SetBootRegionSlot;
+# Lineage: MtkBootRegionControl, BootControl.cpp:117).
+# ⚠ UNPROVEN until a sideload sets the other slot active, the stock HAL boots it
+# and marks it successful. That is the test.
 PRODUCT_PACKAGES += \
-    android.hardware.boot@1.2-mtkimpl.recovery
+    android.hardware.boot-service.mediatek_recovery
 
 
 # Wi-Fi supplicant.
