@@ -151,10 +151,8 @@ endif
 # depending on that zip is what buys "after staging" without naming the
 # thousands of files individually.
 #
-# The zip is nameable this early only because FILE_NAME_TAG is assigned at
-# build/make/core/main.mk:63-67, before the subdir makefiles are included at
-# line 547. The name is built exactly as build/make/core/Makefile:5448-5455
-# builds it, _debug suffix included.
+# The zip is named here exactly as build/make/core/Makefile builds it, _debug
+# suffix included (lineage-20: with FILE_NAME_TAG; lineage-23.2: without, below).
 #
 # Both ways this can break are LOUD, which is the property the KMI gate lacked
 # through two silent "passes":
@@ -173,16 +171,17 @@ $(error S666LN: tools/vendor-deps-check.sh is missing. Restore it rather than \
         dropping this gate: without it a vendor partition whose HALs cannot \
         link builds, signs and flashes without complaint.)
 endif
-ifeq ($(FILE_NAME_TAG),)
-$(error S666LN: FILE_NAME_TAG is empty, so the target-files path below cannot \
-        be constructed and the vendor dependency gate would not run.)
-endif
-
+# lineage-23.2: the target-files name has no FILE_NAME_TAG any more -- reading
+# the variable is a kati error ("FILE_NAME_TAG is obsolete", Changes.md), and
+# build/make/core/Makefile:6277-6285 names the zip
+#     $(TARGET_PRODUCT)[_debug]-target_files.zip
+# BUILT_TARGET_FILES_PACKAGE itself cannot be used: that Makefile is read after
+# this one. A wrong name still fails loudly (No rule to make target ...).
 S666LN_VDEPS_NAME := $(TARGET_PRODUCT)
 ifeq ($(TARGET_BUILD_TYPE),debug)
 S666LN_VDEPS_NAME := $(S666LN_VDEPS_NAME)_debug
 endif
-S666LN_VDEPS_NAME := $(S666LN_VDEPS_NAME)-target_files-$(FILE_NAME_TAG)
+S666LN_VDEPS_NAME := $(S666LN_VDEPS_NAME)-target_files
 
 S666LN_VDEPS_TF    := $(PRODUCT_OUT)/obj/PACKAGING/target_files_intermediates/$(S666LN_VDEPS_NAME).zip
 S666LN_VDEPS_STAMP := $(PRODUCT_OUT)/vendor_deps_verified.stamp
