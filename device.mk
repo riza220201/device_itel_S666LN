@@ -746,6 +746,13 @@ PRODUCT_PACKAGE_OVERLAYS += $(LOCAL_PATH)/overlay-product
 PRODUCT_PACKAGES += \
     init.insmod.sh
 
+# Ours is init.mt6789.usb.rc (imported BY NAME from init.mt6789.rc). lineage-23.2's
+# hardware/mediatek/aidl/gadget generates init.$(TARGET_BOARD_PLATFORM).usb.rc
+# as a prebuilt_etc in an exported namespace, so its install rule exists whether
+# or not anything requests it, and kati refuses the second rule for the same
+# path. This is the switch the module offers for exactly that (JOURNAL 11-13 (l)).
+$(call soong_config_set,mediatek_gadget,use_custom_usb_gadget_rc,true)
+
 PRODUCT_COPY_FILES += \
     $(call find-copy-subdir-files,*.rc,$(LOCAL_PATH)/rootdir/etc/init/hw,$(TARGET_COPY_OUT_VENDOR)/etc/init/hw) \
     $(LOCAL_PATH)/rootdir/etc/init.insmod.mt6789.cfg:$(TARGET_COPY_OUT_VENDOR)/etc/init.insmod.mt6789.cfg

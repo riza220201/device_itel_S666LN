@@ -64,24 +64,16 @@ namespace_imports = [
     'hardware/mediatek',
 ]
 
-def lib_fixup_vendor_suffix(lib: str, partition: str, *args, **kwargs):
-    return f'{lib}_{partition}' if partition == 'vendor' else None
-
-
-# Stock blobs whose module NAME is also an AOSP module that has a system
-# variant. Every generated prebuilt is `prefer: true`, and soong refuses to let
-# a vendor-only prebuilt replace a module with a system variant:
-#   system/media/alsa_utils/Android.bp:51:1: module "libalsautils" ...
-#     partition is different: system(libalsautils) != vendor(prebuilt_libalsautils)
-# So the blob is listed with ;MODULE_SUFFIX=_vendor (same filename, new module
-# name) and every stock consumer's dependency is mapped to it here -- stock's
-# A12 copy stays paired with stock's consumers, and nothing requests A16's
-# vendor variant onto the same path. Classified statically across all 50 name
-# collisions (notes/lineage23 JOURNAL 11-13 (f)): libalsautils is the only one
-# whose source module is not vendor-only.
+# No lib_fixups of our own. lineage-23.2's first answer to libalsautils lived here
+# (;MODULE_SUFFIX=_vendor + lib_fixup_vendor_suffix): it cleared soong's
+# "partition is different: system(libalsautils) != vendor(prebuilt_libalsautils)"
+# but not kati -- A16's libalsautils is vendor_available, so its vendor variant
+# always gets an install rule at /vendor/lib*/libalsautils.so, and a renamed
+# MODULE still collided on the PATH ("overriding commands for target
+# .../vendor/lib64/libalsautils.so", JOURNAL 11-13 (l)). The blob is now
+# libalsautils-stock.so; see blob_fixups.
 lib_fixups: lib_fixups_user_type = {
     **lib_fixups,
-    ('libalsautils',): lib_fixup_vendor_suffix,
 }
 
 
@@ -272,6 +264,20 @@ blob_fixups: blob_fixups_user_type = {
     # one libgpu_aux symbol stock rev 28 lacks; libr54shim (device tree) has them.
     ('vendor/lib/egl/mt6789/libGLES_mali.so', 'vendor/lib64/egl/mt6789/libGLES_mali.so'):
         blob_fixup().add_needed('libr54shim.so'),
+
+    # ---- stock's A12 libalsautils as libalsautils-stock.so ---------------------
+    # A distinct filename + soname, the libeffectsconfig-stock pattern: stock's
+    # audio HALs and factory keep the alsa_device_profile ABI they were built
+    # against, and A16's own libalsautils keeps /vendor/lib*/libalsautils.so.
+    # Consumers enumerated by DT_NEEDED over the whole vendor tree (5 files).
+    ('vendor/lib/libalsautils-stock.so', 'vendor/lib64/libalsautils-stock.so'):
+        blob_fixup().fix_soname(),
+    ('vendor/bin/factory',
+     'vendor/lib/hw/audio.primary.mediatek.so', 'vendor/lib64/hw/audio.primary.mediatek.so',
+     'vendor/lib/hw/audio.usb.default.so', 'vendor/lib64/hw/audio.usb.default.so'):
+        blob_fixup()
+        .replace_needed('libalsautils.so', 'libalsautils-stock.so')
+        .call(must_not_need('libalsautils.so'), need_tmp_dir=False),
 
     # ---- the renamed A12 codec2 set, and the blobs that consume it ------------
     C2_STOCK_FILES: c2_stock_self,
