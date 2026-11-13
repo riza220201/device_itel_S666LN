@@ -74,3 +74,11 @@ PRODUCT_GMS_CLIENTID_BASE := android-transsion
 # Build fingerprint / description are deliberately NOT set here. They are a
 # ROM-level decision (they must match the signing posture), so they belong in
 # the build recipe, not in a device tree other ROMs are expected to reuse.
+
+# Panel size, 720 x 1612 (the same panel BoardConfig's TARGET_SCREEN_DENSITY and
+# vendor.prop's ro.sf.lcd_density describe). Read by the ROM's generated boot
+# animation (vendor/aicp/bootanimation, and LineageOS's equivalent), which falls
+# back to 1080 x 1080 when unset -- lineage-20 never needed it because crDroid
+# shipped its own animation. Square frames are sized by the SHORT side (720).
+TARGET_SCREEN_WIDTH := 720
+TARGET_SCREEN_HEIGHT := 1612
