@@ -64,8 +64,13 @@ fi
 # is guaranteed -- which is precisely how this gate passed vacuously on its
 # first two builds. Prefer the LLVM readelf that ships IN the tree, which is
 # reachable by absolute path and needs no PATH at all. Same output for -d.
+# lineage-23.2 has no clang-latest/; its stable entry point is llvm-binutils-stable/
+# (a symlink into the current clang-r*), tried first. clang-latest is the A13 path.
 if [ -z "${READELF:-}" ]; then
-    for _c in "${ANDROID_BUILD_TOP:-.}"/prebuilts/clang/host/linux-x86/clang-latest/bin/llvm-readelf \
+    for _c in "${ANDROID_BUILD_TOP:-.}"/prebuilts/clang/host/linux-x86/llvm-binutils-stable/llvm-readelf \
+              ./prebuilts/clang/host/linux-x86/llvm-binutils-stable/llvm-readelf \
+              ../../../prebuilts/clang/host/linux-x86/llvm-binutils-stable/llvm-readelf \
+              "${ANDROID_BUILD_TOP:-.}"/prebuilts/clang/host/linux-x86/clang-latest/bin/llvm-readelf \
               ./prebuilts/clang/host/linux-x86/clang-latest/bin/llvm-readelf \
               ../../../prebuilts/clang/host/linux-x86/clang-latest/bin/llvm-readelf; do
         [ -x "${_c}" ] && { READELF="${_c}"; break; }
