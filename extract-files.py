@@ -42,6 +42,7 @@ import sys
 from os import path
 
 from extract_utils.elf import file_needs_lib
+from extract_utils.elf_parser import ELFFile
 from extract_utils.file import File
 from extract_utils.fixups_blob import (
     BlobFixupCtx,
@@ -341,6 +342,18 @@ def shim(lib: str) -> blob_fixup:
     return blob_fixup().add_needed(lib)
 
 
+def needed_first(lib: str):
+    """Fail extraction unless `lib` is DT_NEEDED[0] (the lookup order is the fix)."""
+
+    def check(ctx: BlobFixupCtx, file: File, file_path: str, *args, **kwargs):
+        with open(file_path, 'rb') as f:
+            libs = list(ELFFile(f).get_libs())
+        if not libs or libs[0] != lib:
+            raise AssertionError(f'{file.dst}: NEEDED[0] is {libs[:1]}, expected {lib}')
+
+    return check
+
+
 ROUTE_L_FIXUPS = [
     # libbase: Trim / Basename / WriteStringToFd(const std::string&).
     (('vendor/bin/hw/android.hardware.sensors@2.0-service.multihal-mediatek',
@@ -404,6 +417,30 @@ ROUTE_L_FIXUPS = [
     # service is 64-bit; the 32-bit impl is not loaded by it.
     ('vendor/lib64/hw/android.hardware.thermal@2.0-impl.so', blob_fixup()
      .call(patch_bytes(0x11744, bytes.fromhex('001c8052'), bytes.fromhex('00218052')), need_tmp_dir=False)),
+
+    # libmtkutils.so is MediaTek's own fork of libutils, older than StaticString16:
+    # it defines 242 of A16 libutils' exported android:: symbols, and its
+    # String16(const String16&) refcounts unconditionally (SharedBuffer::acquire,
+    # ldadd) where A16's checks kIsSharedBufferAllocated first. On A13 that never
+    # mattered: libbinder/libutils lived in the VNDK namespace, a separate lookup
+    # scope that could not see a vendor-only library. Route L puts A16 libbinder
+    # and libutils in /vendor/lib64, the SAME namespace, so breadth-first DT_NEEDED
+    # order decides -- and mtkfusionrild reaches libmtkutils first (breadth-first
+    # position 13, libutils 36). A16 libbinder's static
+    # constructors then copy their StaticString16 descriptors through MTK's copy
+    # constructor, which writes into libbinder's .rodata: mtkfusionrild died with
+    # SEGV_ACCERR in libmtkutils SharedBuffer::acquire before main(), so the RIL
+    # never reached the modem and no SIM was ever detected.
+    # libutils.so as DT_NEEDED[0] puts A16's definitions first for everything
+    # loaded at startup. libmtkutils keeps binding to itself (its symbols are
+    # PROTECTED), and libmtk-ril.so, dlopen'ed later, still resolves in its own
+    # load group. Proven on hardware with this exact file (patchelf 0.18
+    # --add-needed, bind-mounted): SIM LOADED, by.U on LTE. (Stock's atcid has
+    # the same order, libmtkutils 1 vs libutils 19, but this tree does not ship it;
+    # if it is ever added to proprietary-files.txt it needs this fixup too.)
+    ('vendor/bin/hw/mtkfusionrild', blob_fixup()
+     .add_needed('libutils.so')
+     .call(needed_first('libutils.so'), need_tmp_dir=False)),
 
     # The stock composer generation. Stock's HWC service compiles the composer HAL's
     # header-inline code (ComposerClientImpl, ComposerResources() = default) against
