@@ -133,11 +133,14 @@
 # libged.so, libgpu_aux.so and libgralloc_metadata.so all read back
 # same_process_hal_file on the running device.
 #
-# libc++_r54.so is r54p1's private A16 libc++, bound to libgpud alone;
-# libr54shim.so is ours. Both are loaded by the same processes as the driver.
+# libr54shim.so is ours, loaded by the same processes as the driver.
+#
+# A16 (lineage-23.2): libc++_r54.so is gone (libgpud uses A16's libc++), and
+# android.hardware.graphics.{allocator-V2,common-V[0-9]+}-ndk -- plus libc++,
+# libbase, libcutils, libutils, libhidlbase, libion, libz, libdmabufheap and the
+# rest of what the driver links -- are labelled by system/sepolicy/vendor/
+# file_contexts' "Vendor libraries loaded from SP-HAL (former VNDK-SP)" block,
+# which is what makes route L (no VNDK apex) loadable from app processes.
 /vendor/lib(64)?/libmtk_mali_user\.so                                           u:object_r:same_process_hal_file:s0
-/vendor/lib(64)?/libc\+\+_r54\.so                                               u:object_r:same_process_hal_file:s0
 /vendor/lib(64)?/libr54shim\.so                                                 u:object_r:same_process_hal_file:s0
-/vendor/lib(64)?/android\.hardware\.graphics\.allocator-V2-ndk\.so              u:object_r:same_process_hal_file:s0
-/vendor/lib(64)?/android\.hardware\.graphics\.common-V6-ndk\.so                 u:object_r:same_process_hal_file:s0
 /vendor/lib(64)?/vendor\.mediatek\.hardware\.graphics-V1-ndk\.so                u:object_r:same_process_hal_file:s0
