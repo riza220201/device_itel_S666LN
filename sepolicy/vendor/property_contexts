@@ -64,4 +64,7 @@ vendor.debug.seninf.hs_trail                u:object_r:vendor_mtk_camera_prop:s0
 # Enforcing (ksud sepolicy patch, allow appdomain vendor_default_prop) and
 # re-testing: crash 1 -> 0, force-finish 2 -> 0, capture completing through to
 # MediaComposerActivity. The label must still be confirmed in a BUILD.
-ro.vendor.arm.                              u:object_r:vendor_mtk_gpu_prop:s0
+#
+# 2026-11-13, lineage-23.2: sepolicy_vndr maps ro.vendor.arm. itself, to the same
+# type (base/vendor/property_contexts:336), and property_info_checker refuses a
+# duplicate prefix -- so the mapping is upstream's now and not repeated here.

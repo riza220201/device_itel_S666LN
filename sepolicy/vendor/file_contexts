@@ -90,7 +90,8 @@
 # Inert today — vendor.gsm0710muxd is `disabled` with no trigger in our tree or
 # in stock's, so nothing opens it, and the SIM works without it. Carried because
 # the node exists on this hardware and the label is what stock gives it.
-/dev/ttyCMIPC5                                                                  u:object_r:gsm0710muxd_device:s0
+# 2026-11-13, lineage-23.2: sepolicy_vndr labels it itself, identically
+# (base/vendor/file_contexts:493); checkfc refuses a second identical spec.
 
 # Vendor data stores that stock gives their own types and sepolicy_vndr does
 # not know about at all, so they resolve to generic vendor_data_file and the
