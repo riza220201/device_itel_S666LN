@@ -28,13 +28,15 @@
 #     power-V1).
 #   * A stock blob whose former-VNDK ABI broke between A12 and A16 gets a
 #     `lib*-v31.so` (AOSP prebuilts/vndk/v31, soname rewritten, device tree
-#     prebuilts/vndk31). Which blobs, is measured -- v31-delta-check.py against
-#     the first build's vendor libs -- not copied from the A13 list. The pq group
-#     below is the one carried over: it was measured on hardware.
+#     prebuilts/vndk31) -- or, where A16 only renamed a symbol or changed an
+#     argument type, a thunk library (shims/). Which blobs, is measured --
+#     tools/route-l-abi-check.py over a built image -- not copied from the A13
+#     list. The pq group below is the one carried over: measured on hardware.
 #   * extract-utils now writes shared_libs from each blob's DT_NEEDED and the
 #     build runs check_elf on them, so a soname nothing provides is a BUILD error
 #     here, not a boot loop.
 
+import subprocess
 import sys
 from os import path
 
@@ -52,6 +54,10 @@ from extract_utils.fixups_lib import (
 from extract_utils.main import (
     ExtractUtils,
     ExtractUtilsModule,
+)
+from extract_utils.tools import (
+    DEFAULT_PATCHELF_VERSION,
+    patchelf_version_path_map,
 )
 from extract_utils.utils import file_path_sha1
 
@@ -181,15 +187,13 @@ blob_fixups: blob_fixups_user_type = {
     ('vendor/lib64/android.hardware.power-service-mediatek.so',
      'vendor/bin/hw/vendor.mediatek.hardware.mtkpower@1.0-service'):
         platform_to_ndk(('android.hardware.power', 2)),
-    # NEW on lineage-23.2. lineage-20 served these five from hardware/lineage/
-    # compat forwarding libraries (or the v31 set); A16 has neither. The keymint
-    # service is the Trustonic keybox's HAL: Play Integrity and e-KYC hang off it.
-    'vendor/bin/hw/android.hardware.security.keymint-service.trustonic':
-        platform_to_ndk(
-            ('android.hardware.security.keymint', 1),
-            ('android.hardware.security.secureclock', 1),
-            ('android.hardware.security.sharedsecret', 1),
-        ),
+    # NEW on lineage-23.2. lineage-20 served these from hardware/lineage/compat
+    # forwarding libraries (or the v31 set); A16 has neither.
+    # NOT the Trustonic KeyMint service (the keybox's HAL: Play Integrity and
+    # e-KYC hang off it): it subclasses IRemotelyProvisionedComponent V1, which
+    # A14 moved out of the keymint library, so a rewrite to keymint-V1-ndk leaves
+    # six symbols unresolved (tools/route-l-abi-check.py). It keeps its stock
+    # `_platform` NEEDED and gets the v31 files (prebuilts/vndk31), as on A13.
     'vendor/bin/hw/android.hardware.memtrack-service.mediatek':
         platform_to_ndk(('android.hardware.memtrack', 1)),
     'vendor/bin/hw/android.hardware.vibrator-service.mediatek-stock':
@@ -292,6 +296,153 @@ blob_fixups: blob_fixups_user_type = {
     C2_STOCK_FILES: c2_stock_self,
     C2_CONSUMERS: c2_stock_repoint(),
 }  # fmt: skip
+
+
+# ---- route L: A12 -> A16 ABI, measured ---------------------------------------
+# Every entry below comes from tools/route-l-abi-check.py over a built image (the
+# vendor namespace as linkerconfig makes it, real LLNDK libraries, DT_NEEDED
+# closures) and soong's check_elf on the same build. Classes:
+#   shims     A16 renamed a symbol or changed an argument type: the blob NEEDs a
+#             device-tree thunk library (shims/Android.bp), one generation per
+#             process instead of a second, A12 copy of a stateful library.
+#   soname    a `-stock` (or misnamed) file must declare its own file name, or
+#             soong's check_elf refuses it and every consumer's shared_libs.
+#   underlink stock blobs that use liblog/libcutils/libutils/... without NEEDing
+#             them (they work because the host process loaded it first); the
+#             NEEDED makes that explicit and lets check_elf pass.
+#   rc        host_init_verifier knows only interfaces with an hidl_interface
+#             module; vendor-only HIDL interfaces of disabled diagnostics are
+#             dropped (they lose lazy start, nothing else).
+
+def must_not_contain(text: str):
+    """Fail extraction if a regex removal of a text line did not land."""
+
+    def check(ctx: BlobFixupCtx, file: File, file_path: str, *args, **kwargs):
+        with open(file_path) as f:
+            if text in f.read():
+                raise AssertionError(f'{file.dst}: "{text}" still present -- pattern stale')
+
+    return check
+
+
+def must_precede(first: str, second: str):
+    """Fail extraction unless NEEDED `first` comes before `second` (load order)."""
+
+    def check(ctx: BlobFixupCtx, file: File, file_path: str, *args, **kwargs):
+        out = subprocess.run(
+            [patchelf_version_path_map[DEFAULT_PATCHELF_VERSION], '--print-needed', file_path],
+            capture_output=True, text=True, check=True,
+        ).stdout.split()
+        if first not in out or (second in out and out.index(first) > out.index(second)):
+            raise AssertionError(f'{file.dst}: NEEDED {first} must precede {second}: {out}')
+
+    return check
+
+
+def shim(lib: str) -> blob_fixup:
+    return blob_fixup().add_needed(lib)
+
+
+ROUTE_L_FIXUPS = [
+    # libbase: Trim / Basename / WriteStringToFd(const std::string&).
+    (('vendor/bin/hw/android.hardware.sensors@2.0-service.multihal-mediatek',
+      'vendor/bin/hw/android.hardware.usb@1.2-service-mediatekv2',
+      'vendor/bin/hw/vendor.mediatek.hardware.tranHwInfo@1.0-service',
+      'vendor/bin/meta_tst',
+      'vendor/lib64/ese_spi_nxp-stock.so',
+      'vendor/lib64/hw/android.hardware.boot@1.0-impl-1.2-mtkimpl-stock.so',
+      'vendor/lib/libavservices_minijail_vendor.so',
+      'vendor/lib64/libavservices_minijail_vendor.so',
+      'vendor/lib64/libcodec2_hidl@1.0-stock.so',
+      'vendor/lib64/libcodec2_hidl@1.1-stock.so',
+      'vendor/lib64/libcodec2_hidl@1.2-stock.so',
+      'vendor/lib/libnvram.so',
+      'vendor/lib64/libnvram.so',
+      'vendor/lib64/libsysenv.so'), shim('libshim_base.so')),
+    # libcrypto: sk_dup, CBS_init.
+    (('vendor/bin/hw/hostapd', 'vendor/bin/hw/wpa_supplicant'), shim('libshim_crypto.so')),
+    # libprocessgroup: C-linkage SetTaskProfiles.
+    ('vendor/lib64/hw/hwcomposer.mtk_common.so', shim('libshim_processgroup.so')),
+    # libui: GraphicBufferMapper::lock(..., int*, int*) and unlock(handle).
+    ('vendor/lib64/libcodec2_vndk-stock.so', shim('libshim_ui.so')),
+    # libstagefright_bufferqueue_helper: getHGraphicBufferProducer().
+    (('vendor/lib64/libcodec2_hidl@1.0-stock.so',
+      'vendor/lib64/libcodec2_hidl@1.1-stock.so',
+      'vendor/lib64/libcodec2_hidl@1.2-stock.so'), shim('libshim_bqhelper.so')),
+    # libhidlbase: the goodix interface library writes details::gBnConstructorMap
+    # (data). The shim owns that map and interposes getBnConstructorMap(), which
+    # only works from AHEAD of libhidlbase in the service's load order; the goodix
+    # library NEEDs it too, so the map is constructed before goodix's initialisers.
+    ('vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-service',
+     shim('libshim_hidlbase.so')
+     .call(must_precede('libshim_hidlbase.so', 'libhidlbase.so'), need_tmp_dir=False)),
+    ('vendor/lib64/libvendor.goodix.hardware.biometrics.fingerprint@2.1.so',
+     shim('libshim_hidlbase.so')),
+
+    # soname = file name (check_elf; and a stock copy beside an A16 namesake must
+    # not answer to the A16 name). Nothing NEEDs any of the old sonames.
+    (('vendor/lib64/hw/android.hardware.boot@1.0-impl-1.2-mtkimpl-stock.so',
+      'vendor/lib64/ese_spi_nxp-stock.so',
+      'vendor/lib/libeffectsconfig-stock.so',
+      'vendor/lib64/libeffectsconfig-stock.so',
+      'vendor/lib64/libmtk_bsg-stock.so',
+      'vendor/lib64/libwifi-hal-stock.so',
+      'vendor/lib64/hw/gf_fingerprint.default.so',
+      'vendor/lib/libspeech_enh_lib.so',
+      'vendor/lib64/libspeech_enh_lib.so',
+      'vendor/lib64/libnir_neon_driver_ndk.mtk.vndk.so',
+      'vendor/lib/libpcap-stock.so',
+      'vendor/lib64/libpcap-stock.so'), blob_fixup().fix_soname()),
+
+    # libpkm needs pcap_findalldevs_interfaces, which A16's libpcap dropped and
+    # stock's has: stock's ships as libpcap-stock (not a VNDK library, so no v31).
+    (('vendor/lib/libpkm.so', 'vendor/lib64/libpkm.so'), blob_fixup()
+     .replace_needed('libpcap.so', 'libpcap-stock.so')
+     .call(must_not_need('libpcap.so'), need_tmp_dir=False)),
+
+    # underlinked stock blobs
+    (('vendor/lib64/lib3a.ae.pipe.so',
+      'vendor/lib64/mt6789/lib3a.ae.stat.so',
+      'vendor/lib64/mt6789/lib3a.flash.so',
+      'vendor/lib64/mt6789/lib3a.sensors.color.so',
+      'vendor/lib64/mt6789/lib3a.sensors.flicker.so'), blob_fixup().add_needed('liblog.so')),
+    ('vendor/lib64/mt6789/libmnl.so', blob_fixup().add_needed('libcutils.so')),
+    ('vendor/lib64/mt6789/libmorpho_video_stabilizer.so', blob_fixup().add_needed('libutils.so')),
+    ('vendor/lib64/mt6789/libsegmention.so',
+     blob_fixup().add_needed('libtflite_native_gainference.so')),
+
+    # rc interface lines host_init_verifier cannot know (all four services are
+    # `disabled`). hostapd keeps its four android.hardware lines, which is what
+    # lazy-starts it for the hotspot; only Transsion's own interface goes.
+    ('vendor/etc/init/hostapd.android.rc', blob_fixup()
+     .regex_replace(r'(?m)^[ \t]*interface vendor\.transsion\.hardware\.wifi\.hostapd@1\.0::IHostapd default\n', '')
+     .call(must_not_contain('vendor.transsion.hardware.wifi.hostapd'), need_tmp_dir=False)
+     .call(must_contain('android.hardware.wifi.hostapd@1.3::IHostapd'), need_tmp_dir=False)),
+    (('vendor/etc/init/dmc_core.rc',
+      'vendor/etc/init/em_hidl_user.rc',
+      'vendor/etc/init/md_monitor.rc'), blob_fixup()
+     .regex_replace(r'(?m)^[ \t]*interface vendor\.mediatek\.hardware\.[^\n]*\n', '')
+     .call(must_not_contain('interface vendor.mediatek.hardware.'), need_tmp_dir=False)),
+]
+
+
+def per_file(fixups: blob_fixups_user_type, extra) -> blob_fixups_user_type:
+    """One FRESH blob_fixup per file, merging every entry that names it.
+
+    extract-utils' flatten_fixups merges a repeated file into the first fixup
+    object it saw -- an object a tuple key shares with every other file it names,
+    so the extra steps would leak onto those files too.
+    """
+    out: blob_fixups_user_type = {}
+    for files, fixup in [*fixups.items(), *extra]:
+        for f in (files,) if isinstance(files, str) else files:
+            if f not in out:
+                out[f] = blob_fixup()
+            out[f].merge(fixup)
+    return out
+
+
+blob_fixups = per_file(blob_fixups, ROUTE_L_FIXUPS)
 
 module = ExtractUtilsModule(
     'S666LN',

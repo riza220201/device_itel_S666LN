@@ -1015,6 +1015,27 @@ PRODUCT_PACKAGES += \
     libcutils-v31 \
     libbinder-v31
 
+# Route L thunks (shims/Android.bp): where A16 changed a former-VNDK library's ABI
+# only by a rename or an argument type, the stock blob gets a shim (add_needed in
+# extract-files.py) that forwards the A12 symbol to the A16 function, so the
+# process keeps one generation of the library. Requested here as well as through
+# the consumers' shared_libs, so a dropped consumer cannot silently drop a shim
+# another consumer still needs.
+PRODUCT_PACKAGES += \
+    libshim_base \
+    libshim_bqhelper \
+    libshim_crypto \
+    libshim_hidlbase \
+    libshim_processgroup \
+    libshim_ui
+
+# Trustonic KeyMint keeps its stock `_platform` AIDL V1 libraries (v31 files,
+# unrenamed; prebuilts/vndk31/Android.bp says why), as the lineage-20.0 tree did.
+PRODUCT_PACKAGES += \
+    android.hardware.security.keymint-V1-ndk_platform \
+    android.hardware.security.secureclock-V1-ndk_platform \
+    android.hardware.security.sharedsecret-V1-ndk_platform
+
 # AIDL NDK libraries that stock's blobs need under their Android 13 names.
 #
 # extract-files.sh renames the A12 `_platform` sonames on five stock binaries to

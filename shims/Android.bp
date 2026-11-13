@@ -1,0 +1,100 @@
+//
+// Copyright (C) 2026 The LineageOS Project
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+// Route L: stock Android 12 vendor blobs on an Android 16 system, no VNDK.
+// Where A16 changed a former-VNDK library's ABI only by renaming a symbol or
+// changing an argument type, a blob gets one of these shims (add_needed in
+// extract-files.py) instead of a second, Android 12 copy of the whole library:
+// each thunk exports the A12 symbol and forwards to the A16 function, so the
+// process keeps ONE generation of the library and its process-wide state.
+//
+// Every A12 symbol here was found unresolved by tools/route-l-abi-check.py over a
+// built image, and every A16 target was read from both the A12 (prebuilts/vndk/v31
+// include) and the A16 headers. The 64-bit-only shims serve 64-bit-only consumers.
+
+cc_defaults {
+    name: "s666ln_shim_defaults",
+    vendor: true,
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}
+
+// libbase: Trim / Basename / WriteStringToFd took `const std::string&` in A12,
+// std::string_view in A16. Consumers in both ABIs (libnvram, sensors, usb, codec2...).
+cc_library_shared {
+    name: "libshim_base",
+    defaults: ["s666ln_shim_defaults"],
+    srcs: ["base.cpp"],
+    shared_libs: ["libbase"],
+    compile_multilib: "both",
+}
+
+// libcrypto (BoringSSL): sk_dup became OPENSSL_sk_dup; CBS_init became an inline
+// function in the header. hostapd + wpa_supplicant.
+cc_library_shared {
+    name: "libshim_crypto",
+    defaults: ["s666ln_shim_defaults"],
+    srcs: ["crypto.c"],
+    shared_libs: ["libcrypto"],
+    compile_multilib: "64",
+}
+
+// libprocessgroup: A12 declared SetTaskProfiles(vector<string>) with C linkage;
+// A16 keeps the same overload with C++ linkage. hwcomposer + libutils-v31.
+cc_library_shared {
+    name: "libshim_processgroup",
+    defaults: ["s666ln_shim_defaults"],
+    srcs: ["processgroup.cpp"],
+    shared_libs: ["libprocessgroup"],
+    compile_multilib: "both",
+}
+
+// libui: GraphicBufferMapper::lock with bytes-per-pixel/stride outputs and the
+// fence-less unlock(handle). The stock codec2 stack (libcodec2_vndk-stock).
+cc_library_shared {
+    name: "libshim_ui",
+    defaults: ["s666ln_shim_defaults"],
+    srcs: ["ui.cpp"],
+    shared_libs: [
+        "libbase",
+        "libui",
+        "libutils",
+    ],
+    compile_multilib: "64",
+}
+
+// libstagefright_bufferqueue_helper: getHGraphicBufferProducer() became
+// getHGraphicBufferProducer_V1_0(). The stock libcodec2_hidl@1.x-stock.
+cc_library_shared {
+    name: "libshim_bqhelper",
+    defaults: ["s666ln_shim_defaults"],
+    srcs: ["bqhelper.cpp"],
+    shared_libs: [
+        "android.hardware.graphics.bufferqueue@1.0",
+        "libhidlbase",
+        "libstagefright_bufferqueue_helper",
+        "libutils",
+    ],
+    compile_multilib: "64",
+}
+
+// libhidlbase: details::gBnConstructorMap was a DATA symbol (pre-A12 hidl-gen
+// output still references it; A16 only has getBnConstructorMap()). Data cannot be
+// thunked, so this library owns the map, exports it under the old name AND
+// exports getBnConstructorMap() returning it. Loaded ahead of libhidlbase in the
+// fingerprint service, it interposes libhidlbase's own (PLT) calls, so the goodix
+// library and every A16 HIDL library register into one map.
+cc_library_shared {
+    name: "libshim_hidlbase",
+    defaults: ["s666ln_shim_defaults"],
+    srcs: ["hidlbase.cpp"],
+    shared_libs: [
+        "libhidlbase",
+        "libutils",
+    ],
+    compile_multilib: "64",
+}

@@ -17,6 +17,16 @@
 # names and a soong failure. That support exists only on newer branches.
 #
 ## itel/S666LN package version: S666LN-T-OP-251212V1661
+#
+# ;DISABLE_CHECKELF (route L, Android 16): only where soong's check_elf is too
+# narrow, never to hide a missing symbol. The arm32 codec libraries import
+# __aeabi_* / LIBC_PRIVATE and three lib64 blobs import AHardwareBuffer_* that
+# the LLNDK STUBS omit and the real apex libc / system libnativewindow export
+# (tools/route-l-abi-check.py checks against the real libraries). A lib/lib64
+# pair carries the flag on both lines: extract-utils takes it from the first.
+#
+# libpcap-stock: libpkm needs pcap_findalldevs_interfaces, which A16's libpcap
+# dropped; stock's own libpcap (not a VNDK library) ships under a distinct name.
 
 # app
 vendor/app/mcRegistry/020f0000000000000000000000000000.drbin
@@ -1007,7 +1017,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libCamera_s5kjn1mipiraw_Video_Zoom2.so
 -vendor/lib/libDefaultFpsActor.so
 -vendor/lib/libFrameRecord.so
--vendor/lib/libHEVCdec_sa.ca7.android.so
+-vendor/lib/libHEVCdec_sa.ca7.android.so;DISABLE_CHECKELF
 -vendor/lib/libJpgEncPipe.so
 -vendor/lib/libMcClient.so
 -vendor/lib/libMtkOmxAdpcmDec.so
@@ -1088,12 +1098,12 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libgz_gp_client.so
 -vendor/lib/libgz_uree.so
 -vendor/lib/libh264dec_customize.so
--vendor/lib/libh264dec_sa.ca7.so
--vendor/lib/libh264dec_sd.ca7.so
--vendor/lib/libh264dec_se.ca7.so
--vendor/lib/libh264enc_sa.ca7.so
+-vendor/lib/libh264dec_sa.ca7.so;DISABLE_CHECKELF
+-vendor/lib/libh264dec_sd.ca7.so;DISABLE_CHECKELF
+-vendor/lib/libh264dec_se.ca7.so;DISABLE_CHECKELF
+-vendor/lib/libh264enc_sa.ca7.so;DISABLE_CHECKELF
 -vendor/lib/libhdrvideo.so
--vendor/lib/libhevce_sb.ca7.android.so
+-vendor/lib/libhevce_sb.ca7.android.so;DISABLE_CHECKELF
 -vendor/lib/libhydra.so
 -vendor/lib/libhyperion_hap_ca.so
 -vendor/lib/libicd_decoder.so
@@ -1108,8 +1118,8 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libladder.so
 -vendor/lib/libmml.so
 -vendor/lib/libmp3dec_mtk.so
--vendor/lib/libmp4enc_sa.ca7.so
--vendor/lib/libmp4enc_xa.ca7.so
+-vendor/lib/libmp4enc_sa.ca7.so;DISABLE_CHECKELF
+-vendor/lib/libmp4enc_xa.ca7.so;DISABLE_CHECKELF
 -vendor/lib/libmsbc_mtk.so
 -vendor/lib/libmtkcutils.so
 -vendor/lib/libmtkhardware_legacy.so
@@ -1132,6 +1142,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libperfctl_vendor.so
 -vendor/lib/libpixelflinger.so
 -vendor/lib/libpkm.so
+-vendor/lib/libpcap.so:vendor/lib/libpcap-stock.so
 -vendor/lib/libpnpmgr.so
 -vendor/lib/libpower_timer.so
 -vendor/lib/libpqframework.so
@@ -1143,7 +1154,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libspeechparser_vendor.so
 -vendor/lib/libtinycompress.so
 -vendor/lib/libudf.so
--vendor/lib/libvcodec_oal.so
+-vendor/lib/libvcodec_oal.so;DISABLE_CHECKELF
 -vendor/lib/libvcodec_utility_plat.mt6789.so
 -vendor/lib/libvcodec_utility_plat.mt6855.so
 -vendor/lib/libvcodec_utility_plat.mt6895.so
@@ -1152,9 +1163,9 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libverno.so
 -vendor/lib/libvolte_core_shr.so
 -vendor/lib/libvolte_xdmc_shr.so
--vendor/lib/libvp8dec_sa.ca7.so
--vendor/lib/libvp8enc_sa.ca7.so
--vendor/lib/libvp9dec_sa.ca7.so
+-vendor/lib/libvp8dec_sa.ca7.so;DISABLE_CHECKELF
+-vendor/lib/libvp8enc_sa.ca7.so;DISABLE_CHECKELF
+-vendor/lib/libvp9dec_sa.ca7.so;DISABLE_CHECKELF
 -vendor/lib/libvpu5.so
 -vendor/lib/libvpud_vcodec.so
 -vendor/lib/libwo.so
@@ -1745,7 +1756,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libgz_uree.so
 -vendor/lib64/libhdrvideo.so
 -vendor/lib64/libheichal.so
--vendor/lib64/libhevce_sb.ca7.android.so
+-vendor/lib64/libhevce_sb.ca7.android.so;DISABLE_CHECKELF
 -vendor/lib64/libhfmanager.so
 -vendor/lib64/libhwm.so
 -vendor/lib64/libhydra.so
@@ -1831,6 +1842,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libperfctl_vendor.so
 -vendor/lib64/libpixelflinger.so
 -vendor/lib64/libpkm.so
+-vendor/lib64/libpcap.so:vendor/lib64/libpcap-stock.so
 -vendor/lib64/libpn557_fw.so
 -vendor/lib64/libpnpmgr.so
 -vendor/lib64/libpower_timer.so
@@ -1862,7 +1874,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libtrm.so
 -vendor/lib64/libudf.so
 -vendor/lib64/liburee_meta_drmkeyinstall.so
--vendor/lib64/libvcodec_oal.so
+-vendor/lib64/libvcodec_oal.so;DISABLE_CHECKELF
 -vendor/lib64/libvcodecdrv_header_stub.so
 -vendor/lib64/libvendor.goodix.hardware.biometrics.fingerprint@2.1.so
 -vendor/lib64/libverno.so
@@ -2163,7 +2175,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/mt6789/libdip_drv.so
 -vendor/lib64/mt6789/libdip_postproc.so
 -vendor/lib64/mt6789/libdpframework.so
--vendor/lib64/mt6789/libeffect_hal.so
+-vendor/lib64/mt6789/libeffect_hal.so;DISABLE_CHECKELF
 -vendor/lib64/mt6789/libeffecthal.base.so
 -vendor/lib64/mt6789/libeyedetector.so
 -vendor/lib64/mt6789/libfacesattribute.so
@@ -2251,7 +2263,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/mt6789/libmtkcam_sysutils.so
 -vendor/lib64/mt6789/libmtkcam_tuning_utils.so
 -vendor/lib64/mt6789/libmtkcam_ulog.so
--vendor/lib64/mt6789/libneuralnetworks_sl_driver_mtk_prebuilt.so
+-vendor/lib64/mt6789/libneuralnetworks_sl_driver_mtk_prebuilt.so;DISABLE_CHECKELF
 -vendor/lib64/mt6789/libneuron_adapter_mgvi.so
 -vendor/lib64/mt6789/libneuron_runtime.5.so
 -vendor/lib64/mt6789/libnir_neon_driver.so
@@ -2273,7 +2285,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/mt6789/libtflite_native_gainference.so
 -vendor/lib64/mt6789/libtflite_native_inference.so
 -vendor/lib64/mt6789/libtflite_native_seginference.so
--vendor/lib64/mt6789/libtranssion_bodybeauty.so
+-vendor/lib64/mt6789/libtranssion_bodybeauty.so;DISABLE_CHECKELF
 -vendor/lib64/mt6789/libvainr_model.so
 -vendor/lib64/mt6789/libyuvenhance.so
 -vendor/lib64/mt6789/pblcgc08a8_mipi_raw_IdxMgr.so
@@ -2404,7 +2416,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libapmonitor_vendor.so
 -vendor/lib/libpowerhalwrap_vendor.so
 -vendor/lib/libstrongswan.so
--vendor/lib/libthha.so
+-vendor/lib/libthha.so;DISABLE_CHECKELF
 -vendor/lib/vendor.mediatek.hardware.apmonitor@2.0.so
 -vendor/lib64/libCamera_pblchi5022qmipiraw_TikTok_Lite.so
 -vendor/lib64/libCamera_pblchi5022qmipiraw_TikTok_Lite_zoom.so
@@ -2413,7 +2425,7 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libhfmanagerwrapper.so
 -vendor/lib64/libpowerhalwrap_vendor.so
 -vendor/lib64/libstrongswan.so
--vendor/lib64/libthha.so
+-vendor/lib64/libthha.so;DISABLE_CHECKELF
 -vendor/lib64/vendor.mediatek.hardware.apmonitor@2.0.so
 -vendor/lib64/vendor.mediatek.hardware.lbs@1.0.so
 # Needed by libstrongswan.so (MediaTek's -md variants; no platform module).

@@ -53,6 +53,15 @@
 //   "libutils.so" and got v31, because v31 had already been loaded under that
 //   soname by the service binary.
 //
+//   On lineage-23.2 (route L) libutils and libcutils also carry one added NEEDED
+//   each, prepended by patchelf 0.18 (the version extract-utils uses):
+//
+//     patchelf --add-needed libshim_processgroup.so {lib,lib64}/libutils.so
+//     patchelf --add-needed libshim_base.so         {lib,lib64}/libcutils.so
+//
+//   Their own A12 imports (SetTaskProfiles, Trim) no longer exist in A16's
+//   libprocessgroup/libbase; the shims (device tree shims/) forward them.
+//
 //   With distinct sonames the two coexist: MTK blobs whose DT_NEEDED says
 //   libutils-v31.so get v31, everything else gets the platform's v33.
 //
@@ -81,6 +90,13 @@ cc_prebuilt_library_shared {
         android_arm64: { srcs: ["lib64/libutils.so"] },
         android_arm: { srcs: ["lib/libutils.so"] },
     },
+    // NEEDED libprocessgroup.so (A16's; nothing else installs its 32-bit vendor
+    // variant) and libshim_processgroup.so (added here with patchelf: A16's
+    // libprocessgroup no longer exports A12's C-linkage SetTaskProfiles).
+    shared_libs: [
+        "libprocessgroup",
+        "libshim_processgroup",
+    ],
     compile_multilib: "both",
     check_elf_files: false,
     prefer: false,
@@ -111,6 +127,9 @@ cc_prebuilt_library_shared {
         android_arm64: { srcs: ["lib64/libcutils.so"] },
         android_arm: { srcs: ["lib/libcutils.so"] },
     },
+    // NEEDED libshim_base.so (added here with patchelf): A16's libbase has no
+    // Trim(const std::string&).
+    shared_libs: ["libshim_base"],
     compile_multilib: "both",
     check_elf_files: false,
     prefer: false,
@@ -129,4 +148,42 @@ cc_prebuilt_library_shared {
     compile_multilib: "both",
     check_elf_files: false,
     prefer: false,
+}
+
+// Trustonic KeyMint: stock's service links the AIDL V1 `_platform` libraries.
+// A16 generates only `-V<N>-ndk`, and IRemotelyProvisionedComponent moved out of
+// the keymint library in A14, so the V1 classes the service subclasses exist
+// only in these. They are the v31 files UNRENAMED (their sonames are names A16
+// never uses), 64-bit only like the service, and need nothing but libbinder_ndk
+// and libc++ -- the same arrangement the lineage-20.0 tree ran on (device.mk,
+// measured 2026-08-18: the service resolved them from the v31 set).
+cc_prebuilt_library_shared {
+    name: "android.hardware.security.keymint-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    srcs: ["lib64/android.hardware.security.keymint-V1-ndk_platform.so"],
+    shared_libs: ["android.hardware.security.secureclock-V1-ndk_platform"],
+    compile_multilib: "64",
+    check_elf_files: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.security.secureclock-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    srcs: ["lib64/android.hardware.security.secureclock-V1-ndk_platform.so"],
+    compile_multilib: "64",
+    check_elf_files: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "android.hardware.security.sharedsecret-V1-ndk_platform",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    srcs: ["lib64/android.hardware.security.sharedsecret-V1-ndk_platform.so"],
+    compile_multilib: "64",
+    check_elf_files: false,
 }
