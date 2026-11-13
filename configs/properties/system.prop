@@ -181,3 +181,41 @@ bluetooth.profile.pbap.server.enabled=true
 # duplicate keys (property_service.cpp:1110-1123). Safe only because nothing
 # else on the device declares this key -- confirmed, not assumed.
 ro.product.property_source_order=system,system_ext,product,odm,vendor
+
+# --- BLASTBufferQueue frame-history size ---------------------------------------
+#
+# Without this line every window on this device deadlocks the first time it gets
+# a surface, and the screen stays dark: no boot animation, no SystemUI, and
+# system_server's watchdog kills it every ~90 s (android.ui "Blocked in handler").
+#
+# A16's BLASTBufferQueue::initialize() (frameworks/native libs/gui) holds its own
+# mMutex while it calls mProducer->setMaxDequeuedBufferCount(2). The BBQ producer
+# override then calls bbq->resizeFrameEventHistory(), which takes mMutex AGAIN --
+# a self-deadlock on a std::mutex -- but only when
+#   maxBufferCount + 2 > FrameEventHistory::INITIAL_MAX_FRAME_HISTORY
+# and INITIAL_MAX_FRAME_HISTORY is this property, default 8.
+#
+# maxBufferCount = maxAcquired + 2, and SurfaceFlinger derives maxAcquired from the
+# panel's top refresh rate and the late app + sf work durations. Stock vendor sets
+# debug.sf.late.app.duration=20000000 and debug.sf.late.sf.duration=27600000:
+#   ceil((20 + 27.6 ms) / 8.33 ms at 120 Hz) - 1 = 5  ->  5 + 2 + 2 = 9 > 8.
+# Nothing caps it (no ro.surface_flinger.max_acquired_buffers), so every BBQ takes
+# the resize branch inside its own lock. Android 13 had no lock on that path,
+# which is why the same stock durations were harmless there.
+#
+# Measured on hardware (2026-11-14, debuggerd -b): the BootAnimation thread,
+# SystemUI, launcher3 and Settings main threads all parked in
+# std::mutex::lock <- BLASTBufferQueue::resizeFrameEventHistory
+#                  <- BBQBufferQueueProducer::setMaxDequeuedBufferCount
+#                  <- BLASTBufferQueue::initialize.
+# Proven live before this line was written: stock durations kept, this property
+# set to 16 at runtime, SurfaceFlinger restarted -> frames presented (HWC fps
+# 54 / 116 / 30), boot completed, 0 threads left in the resize.
+#
+# 16 keeps the branch unreachable for any maxBufferCount up to 14. The only cost
+# is a few more FrameEvents entries per BufferQueue. The stock SF durations are
+# left alone: they are the vendor's tuning, and pipelining is not the bug.
+#
+# bq_config_prop is system_restricted_prop: it can only come from the system
+# partition, which is why it lives here and not in vendor.prop.
+ro.lib_gui.frame_event_history_size=16
