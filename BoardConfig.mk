@@ -43,7 +43,7 @@ TARGET_2ND_CPU_VARIANT := cortex-a55
 TARGET_2ND_CPU_VARIANT_RUNTIME := cortex-a55
 
 TARGET_BOARD_SUFFIX := _64
-TARGET_USES_64_BIT_BINDER := true
+# TARGET_USES_64_BIT_BINDER: removed on lineage-23.2 -- deprecated, 64-bit binder is the default.
 
 # Bootloader                                                            [V]
 TARGET_BOOTLOADER_BOARD_NAME := s666ln
