@@ -363,7 +363,19 @@ sort -u "${TMP}/vndkallow" -o "${TMP}/vndkallow"
 # unreachable and the report becomes thousands of false positives -- loud, but
 # for the wrong reason. Refuse instead, the same way the resolvable floor does.
 VNDKALLOW_N=$(grep -c . "${TMP}/vndkallow" 2>/dev/null || echo 0)
-if [ -d "${SYSTEM_DIR}" ] && [ "${VNDKALLOW_N}" -lt 50 ]; then
+# Route L (lineage-23.2, JOURNAL 11-13 (d)): no ro.vndk.version and no vendor
+# vndk/ or vndk-sp/ dir. A16's linkerconfig builds a vndk namespace ONLY when
+# ro.vndk.version is set, so there is no allowlist to find and nothing it would
+# admit -- an empty one is then the right answer, not a broken lookup. Both
+# conditions are required: a vendor that HAS vndk/ dirs but lost its version is
+# still refused below.
+NO_VNDK=0
+if [ -z "${VNDK_VER}" ] && [ -z "$(find "${VENDOR_DIR}"/lib "${VENDOR_DIR}"/lib64 -maxdepth 1 -type d \
+        \( -name vndk -o -name vndk-sp \) 2>/dev/null)" ]; then
+    NO_VNDK=1
+    echo "NOTE: no ro.vndk.version and no vendor vndk/ dirs -- no VNDK namespace (route L); VNDK allowlist not applicable"
+fi
+if [ -d "${SYSTEM_DIR}" ] && [ "${NO_VNDK}" -eq 0 ] && [ "${VNDKALLOW_N}" -lt 50 ]; then
     echo "!! REFUSING TO PASS: VNDK allowlist has ${VNDKALLOW_N} entries (expected ~160)" >&2
     echo "   looked for vndkcore/vndksp.libraries.${VNDK_VER}.txt under" >&2
     echo "     ${SYSTEM_DIR}/apex/com.android.vndk.current/etc/" >&2
@@ -382,13 +394,27 @@ cat "${TMP}/resolvable32" "${TMP}/resolvable64" >> "${TMP}/resolvable"
 # LLNDK: libraries /system exposes to vendor by contract (libEGL, libnativewindow,
 # libsync, libbinder_ndk, libmediandk, libselinux ...). They live in system/lib{,64}
 # and are NOT in the VNDK APEX's lib dirs, so they must be picked up from the
-# LLNDK manifest or ~200 legitimate references are reported as broken. On this
-# platform the list ships INSIDE the VNDK apex, not in system/etc.
+# LLNDK manifest or ~200 legitimate references are reported as broken. On the
+# A13 tree the list shipped INSIDE the VNDK apex, not in system/etc. On A16
+# (lineage-23.2, route L: no ro.vndk.version) it is the UNVERSIONED
+# system/etc/llndk.libraries.txt from system/core/rootdir -- with VNDK_VER empty
+# every versioned name above becomes "llndk.libraries..txt" and matches nothing.
+LLNDK_N=0
 for f in "${SYSTEM_DIR}/apex/com.android.vndk.current/etc/llndk.libraries.${VNDK_VER}.txt" \
          "${SYSTEM_DIR}/apex/com.android.vndk.v${VNDK_VER}/etc/llndk.libraries.${VNDK_VER}.txt" \
-         "${SYSTEM_DIR}/etc/llndk.libraries.${VNDK_VER}.txt"; do
-    [ -f "$f" ] && grep -oE '^[A-Za-z0-9_.+-]+\.so' "$f" >> "${TMP}/resolvable" 2>/dev/null
+         "${SYSTEM_DIR}/etc/llndk.libraries.${VNDK_VER}.txt" \
+         "${SYSTEM_DIR}/etc/llndk.libraries.txt"; do
+    [ -f "$f" ] || continue
+    LLNDK_N=$((LLNDK_N + $(grep -cE '^[A-Za-z0-9_.+-]+\.so' "$f")))
+    grep -oE '^[A-Za-z0-9_.+-]+\.so' "$f" >> "${TMP}/resolvable" 2>/dev/null
 done
+# Positive control: an empty LLNDK set reports ~200 false breaks (liblog,
+# libnativewindow, libbinder_ndk ...) -- loud, but for the wrong reason.
+if [ -d "${SYSTEM_DIR}" ] && [ "${LLNDK_N}" -lt 20 ]; then
+    echo "!! REFUSING TO PASS: LLNDK list has ${LLNDK_N} entries -- none of the llndk.libraries" >&2
+    echo "   files above exists under ${SYSTEM_DIR}" >&2
+    exit 2
+fi
 
 # Libraries /system explicitly exposes to vendor.
 if [ -f "${VENDOR_DIR}/etc/public.libraries.txt" ]; then
