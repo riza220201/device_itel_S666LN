@@ -127,6 +127,25 @@ while IFS= read -r bin; do
 done < "${TMP}/svc"
 [ "${SERVICE_MISSING}" -gt 0 ] && echo "init services with no binary: ${SERVICE_MISSING}"
 
+# --- init services defined twice -------------------------------------------
+# lineage-23.2 ships nine stock HAL .rc files as <name>-stock.rc (JOURNAL 11-13
+# (l)): A16 soong writes an install rule for a DISPLACED source module's own
+# init_rc at <name>.rc, and kati refuses a second rule on that path. The rename
+# is only safe while that orphaned rule never reaches the image -- if it ever
+# did, the same service would be defined twice and init keeps the FIRST file it
+# parses, which need not be stock's. Baseline 11-13 (source .rc set): 101 files,
+# 84 services, 0 defined twice.
+SERVICE_DUP=0
+for rc in "${VENDOR_DIR}"/etc/init/*.rc "${VENDOR_DIR}"/etc/init/hw/*.rc; do
+    [ -f "${rc}" ] || continue
+    awk -v f="${rc#${VENDOR_DIR}/}" '/^[[:space:]]*service[[:space:]]/ { n = $2; sub(/\r$/, "", n); print n "\t" f }' "${rc}"
+done > "${TMP}/svcdef"
+while IFS= read -r name; do
+    echo "SERVICE DEFINED TWICE: ${name} in $(awk -F'\t' -v n="${name}" '$1 == n { printf "%s ", $2 }' "${TMP}/svcdef")"
+    SERVICE_DUP=$((SERVICE_DUP + 1))
+done < <(cut -f1 "${TMP}/svcdef" | sort | uniq -d)
+[ "${SERVICE_DUP}" -gt 0 ] && echo "init services defined twice: ${SERVICE_DUP}"
+
 # --- vendor properties that must not be empty -----------------------------
 # ro.vendor.build.security_patch feeds Tag::VENDOR_PATCHLEVEL in the Trustonic
 # KeyMint HAL. Empty leaves the TA unconfigured, generateKey returns -49
@@ -632,11 +651,11 @@ else
 fi
 
 if [ ! -s "${TMP}/unresolved" ] && [ "${IMPL_MISSING}" -eq 0 ] && [ "${DANGLING}" -eq 0 ] \
-   && [ "${PROP_BAD}" -eq 0 ] && [ "${SERVICE_MISSING}" -eq 0 ] \
+   && [ "${PROP_BAD}" -eq 0 ] && [ "${SERVICE_MISSING}" -eq 0 ] && [ "${SERVICE_DUP}" -eq 0 ] \
    && [ "${MODULES_BAD}" -eq 0 ] && [ "${LABEL_BAD}" -eq 0 ]; then
     echo "OK: every DT_NEEDED resolves, no passthrough impl is missing vs stock,"
     echo "    no symlink dangles, no required vendor property is empty, every"
-    echo "    init service has its binary, every renamed executable kept its"
+    echo "    init service has its binary and is defined once, every renamed executable kept its"
     echo "    SELinux exec type, and every kernel module load list matches the"
     echo "    kernel package in both content and order"
     exit 0
@@ -671,6 +690,7 @@ if [ ! -s "${TMP}/unresolved" ]; then
     [ "${DANGLING}" -gt 0 ]        && echo "  * ${DANGLING} dangling symlink(s)"
     [ "${PROP_BAD}" -gt 0 ]        && echo "  * ${PROP_BAD} required vendor property empty"
     [ "${SERVICE_MISSING}" -gt 0 ] && echo "  * ${SERVICE_MISSING} init service(s) with no binary"
+    [ "${SERVICE_DUP}" -gt 0 ]     && echo "  * ${SERVICE_DUP} init service(s) defined twice"
     [ "${MODULES_BAD}" -gt 0 ]     && echo "  * ${MODULES_BAD} kernel module load list mismatch(es)"
     exit 1
 fi
