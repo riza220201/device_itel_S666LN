@@ -43,15 +43,26 @@ S666LN_KMI_STAMP := $(PRODUCT_OUT)/kmi_verified.stamp
 S666LN_KMI_SCRIPT := $(LOCAL_PATH)/kmi-check.py
 
 # Which symvers to verify against. KMI_SYMVERS is set by BoardConfig.mk only when
-# a custom kernel has been imported; otherwise the file comes from the in-tree
-# source build. $(KERNEL_OUT) is not defined this early, so the fallback stays
-# recursively expanded ('=') and resolves when the recipe runs.
+# a custom kernel has been imported; otherwise the kernel is the generic GKI
+# fallback, built from source by kernel.mk.
+#
+# 🔴 The source-build dependency must be spelled out HERE. A rule's prerequisites
+# expand when it is parsed, and kernel.mk (vendor/aicp/build/tasks) -- which
+# defines KERNEL_OUT and TARGET_PREBUILT_INT_KERNEL -- is parsed after this file,
+# so `$(TARGET_PREBUILT_INT_KERNEL)` as a prerequisite was EMPTY: the gate ran
+# before the kernel was compiled and failed on a missing symvers (2026-11-13). The
+# path below is kernel.mk's own (KERNEL_OUT := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ,
+# TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/$(BOARD_KERNEL_IMAGE_NAME)),
+# from variables that exist at this point; the recipe checks it still matches.
+#
+# vmlinux.symvers, not Module.symvers: modpost writes it at vmlinux link time,
+# whether or not a modules stage runs, and it is the same file the import supplies.
 ifneq ($(KMI_SYMVERS),)
 S666LN_KMI_SYMVERS := $(KMI_SYMVERS)
 S666LN_KMI_KERNEL_DEP := $(TARGET_PREBUILT_KERNEL)
 else
-S666LN_KMI_SYMVERS = $(KERNEL_OUT)/Module.symvers
-S666LN_KMI_KERNEL_DEP = $(TARGET_PREBUILT_INT_KERNEL)
+S666LN_KMI_KERNEL_DEP := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/arch/$(KERNEL_ARCH)/boot/$(BOARD_KERNEL_IMAGE_NAME)
+S666LN_KMI_SYMVERS := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/vmlinux.symvers
 endif
 
 # BOTH module sets are checked. vendor_dlkm is 198 modules and vendor_boot is
@@ -60,6 +71,7 @@ endif
 # vendor_dlkm, as this gate originally did, leaves 206 modules unverified.
 $(S666LN_KMI_STAMP): $(S666LN_KMI_KERNEL_DEP) $(S666LN_KMI_SCRIPT)
 	@echo "----- Verifying KMI against stock vendor modules -----"
+	$(hide) $(if $(KMI_SYMVERS),true,$(if $(filter $(S666LN_KMI_KERNEL_DEP),$(TARGET_PREBUILT_INT_KERNEL)),true,echo "KMI GATE: kernel.mk builds '$(TARGET_PREBUILT_INT_KERNEL)' but this gate waits on '$(S666LN_KMI_KERNEL_DEP)'" >&2; exit 1))
 	$(hide) python3 $(S666LN_KMI_SCRIPT) \
 	    $(S666LN_KMI_SYMVERS) \
 	    $(KMI_VENDOR_MODULES_DIR) \

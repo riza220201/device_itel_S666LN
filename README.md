@@ -131,11 +131,17 @@ unproven until you have seen it yourself on your own build.
 
 ### Kernel
 
-The tree builds plain GKI from `kernel/itel/S666LN` by default, and that is the
-reproducible path. Release builds ship a kernel from the separate custom-kernel
-project instead — `import-kernel.sh` installs it and refuses any kernel that
-fails the KMI check. See the comments in that script; the BORE and NTSYNC patches
-belong to that project and deliberately are not in the GKI fork.
+The tree ships the kernel from the separate custom-kernel project (v9 vanilla:
+Neutron clang, BORE, NTSYNC), committed in `device_itel_S666LN-kernel`'s `prebuilt/`.
+`import-kernel.sh` installs it and refuses any kernel that is not byte-identical
+to the published one or that fails the KMI check against the vendor modules.
+
+When the kernel package carries no import at all, the build falls back to plain
+GKI built from `kernel/itel/S666LN` (`s666ln_defconfig`, `clang-r416183b` from
+LineageOS's manifest) and says so loudly: the tree still builds from public
+sources alone. That kernel boots but has none of v9's additions; the BORE and
+NTSYNC patches belong to the kernel project and deliberately are not in the GKI
+fork. A partial import is an error, and the KMI gate checks either kernel.
 
 ## Vulkan 1.3
 

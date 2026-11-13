@@ -50,8 +50,9 @@ TARGET_BOOTLOADER_BOARD_NAME := s666ln
 TARGET_NO_BOOTLOADER := true
 TARGET_BOARD_PLATFORM := mt6789
 
-# Kernel — GKI. This device ships a PREBUILT kernel image; the ROM does not
-# compile it. See device/itel/S666LN-kernel.                             [V]
+# Kernel — GKI. This device ships the IMPORTED v9 kernel image (see
+# device/itel/S666LN-kernel); with no import, the generic GKI kernel is built
+# from source instead (the selection is below the KMI gate inputs).      [V]
 BOARD_USES_GENERIC_KERNEL_IMAGE := true
 BOARD_KERNEL_IMAGE_NAME := Image.gz
 BOARD_RAMDISK_USE_LZ4 := true
@@ -190,36 +191,51 @@ BOARD_KMI_MODULE_LAYOUT := 0x7c24b32d
 KMI_VENDOR_MODULES_DIR := $(TARGET_KERNEL_PACKAGE)/modules/vendor_dlkm
 KMI_RAMDISK_MODULES_DIR := $(TARGET_KERNEL_PACKAGE)/modules/vendor_boot
 
-# THE KERNEL IS IMPORTED, ALWAYS. On this branch (lineage-23.2) the ROM ships the
-# kernel built by the custom kernel project (itel-rs4-kernel, Neutron clang,
+# THE KERNEL IS IMPORTED, BY DESIGN. On this branch (lineage-23.2) the ROM ships
+# the kernel built by the custom kernel project (itel-rs4-kernel, Neutron clang,
 # BORE, ntsync, its stack-guard pin and gates), imported by import-kernel.sh,
-# which proves it is the published one and runs the KMI gate first. The ROM
-# never compiles a kernel.
+# which proves it is the published one and runs the KMI gate first. The kernel
+# package commits that import, so a normal sync always has it.
 #
-# There is deliberately NO from-source fallback (operator, 2026-11-12). On
-# lineage-20.0 a missing import made kernel.mk quietly build kernel/itel/S666LN
-# instead: plain GKI on r416183b, no BORE, no ntsync -- a kernel that boots, so
-# nothing would notice, and a massive downgrade from v9. A build without the
-# import must stop here, not ship that.
+# Reproducibility fallback (operator, 2026-11-13): when the package carries NO
+# import at all, kernel.mk builds kernel/itel/S666LN from source instead -- the
+# plain GKI android12-5.10 fork with s666ln_defconfig, on the r416183b toolchain
+# set above (prebuilts/clang/kernel, in LineageOS's manifest), so the tree builds
+# from public sources alone. That kernel boots but lacks everything v9 adds (BORE,
+# ntsync, the Neutron toolchain), so the build says so loudly, and the AICP recipe
+# still refuses to build a release without the published v9. The KMI gate covers
+# both paths: with no KMI_SYMVERS it reads the source build's Module.symvers.
 #
-# kernel/itel/S666LN stays in the manifest only because kernel.mk still reads
-# TARGET_KERNEL_SOURCE (headers); the TARGET_KERNEL_CLANG_* lines above serve
-# that, not a compile.
+# A PARTIAL import is still an error: that is a torn import, not a choice.
 S666LN_KERNEL_PREBUILT := $(TARGET_KERNEL_PACKAGE)/prebuilt
-S666LN_KERNEL_MISSING := $(filter-out $(wildcard $(addprefix $(S666LN_KERNEL_PREBUILT)/,Image.gz vmlinux.symvers IMPORTED)),\
-                                      $(addprefix $(S666LN_KERNEL_PREBUILT)/,Image.gz vmlinux.symvers IMPORTED))
-ifneq ($(S666LN_KERNEL_MISSING),)
-    $(error S666LN: no imported kernel ($(S666LN_KERNEL_MISSING) missing). Run device/itel/S666LN/import-kernel.sh vanilla -- this tree never builds the kernel from source)
+S666LN_KERNEL_IMPORT := $(addprefix $(S666LN_KERNEL_PREBUILT)/,Image.gz vmlinux.symvers IMPORTED)
+S666LN_KERNEL_PRESENT := $(wildcard $(S666LN_KERNEL_IMPORT))
+ifeq ($(words $(S666LN_KERNEL_PRESENT)),3)
+    S666LN_KERNEL_FROM := import
+    TARGET_PREBUILT_KERNEL := $(S666LN_KERNEL_PREBUILT)/Image.gz
+    # Required: without it kernel.mk still compiles from source, because
+    # TARGET_KERNEL_SOURCE exists (aicp kernel.mk: FULL_KERNEL_BUILD stays true
+    # unless TARGET_FORCE_PREBUILT_KERNEL is set).
+    TARGET_FORCE_PREBUILT_KERNEL := true
+    # FULL_KERNEL_BUILD is false in this mode, so $(KERNEL_OUT)/Module.symvers is
+    # never produced. The custom kernel project emits the equivalent as
+    # vmlinux.symvers; the KMI gate reads that instead, so the imported kernel is
+    # checked against all 404 vendor modules at build time as well as at import.
+    KMI_SYMVERS := $(S666LN_KERNEL_PREBUILT)/vmlinux.symvers
+else ifneq ($(S666LN_KERNEL_PRESENT),)
+    $(error S666LN: torn kernel import: $(filter-out $(S666LN_KERNEL_PRESENT),$(S666LN_KERNEL_IMPORT)) missing beside $(S666LN_KERNEL_PRESENT). Re-run device/itel/S666LN/import-kernel.sh vanilla, or remove $(S666LN_KERNEL_PREBUILT) entirely to build the generic GKI kernel)
+else ifeq ($(wildcard $(TARGET_KERNEL_SOURCE)/arch/$(TARGET_KERNEL_ARCH)/configs/$(TARGET_KERNEL_CONFIG)),)
+    $(error S666LN: no imported kernel in $(S666LN_KERNEL_PREBUILT), and no $(TARGET_KERNEL_SOURCE)/arch/$(TARGET_KERNEL_ARCH)/configs/$(TARGET_KERNEL_CONFIG) to fall back to)
+else
+    S666LN_KERNEL_FROM := gki-source
+    $(warning ************************************************************************)
+    $(warning * S666LN: NO IMPORTED KERNEL in $(S666LN_KERNEL_PREBUILT))
+    $(warning * Building the GENERIC GKI kernel from $(TARGET_KERNEL_SOURCE))
+    $(warning * ($(TARGET_KERNEL_CONFIG), clang-$(TARGET_KERNEL_CLANG_VERSION)): it boots, but it is NOT)
+    $(warning * the v9 kernel this device is released with (no BORE, no ntsync).)
+    $(warning * For v9: device/itel/S666LN/import-kernel.sh vanilla, commit prebuilt/.)
+    $(warning ************************************************************************)
 endif
-TARGET_PREBUILT_KERNEL := $(S666LN_KERNEL_PREBUILT)/Image.gz
-# Required: without it kernel.mk still compiles from source, because
-# TARGET_KERNEL_SOURCE exists (lineage-20 kernel.mk:128 vs :185; re-check on 23.2).
-TARGET_FORCE_PREBUILT_KERNEL := true
-# FULL_KERNEL_BUILD is false in this mode, so $(KERNEL_OUT)/Module.symvers is
-# never produced. The custom kernel project emits the equivalent as
-# vmlinux.symvers; the KMI gate reads that instead, so the imported kernel is
-# checked against all 404 vendor modules at build time as well as at import.
-KMI_SYMVERS := $(S666LN_KERNEL_PREBUILT)/vmlinux.symvers
 
 # Kernel modules. _LOAD is mandatory: if left unset the build defaults it to the
 # FULL module list, and neither partition loads all of what it carries
