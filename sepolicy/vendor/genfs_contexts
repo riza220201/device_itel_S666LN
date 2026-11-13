@@ -27,7 +27,10 @@ genfscon sysfs /devices/virtual/sub_torch/sub_torch/sub_torch_level u:object_r:s
 genfscon sysfs /devices/platform/soc/11e00000.i2c/i2c-0/0-0058/leds/vibrator_single u:object_r:sysfs_vibrator:s0
 
 # /proc/sys/vm/dirty_writeback_centisecs -- the third of three sibling knobs,
-# and the one AOSP forgot to label:
+# and the one AOSP forgot to label -- on A13. 2026-11-13, lineage-23.2: A16 labels it
+# itself (system/sepolicy/private/genfs_contexts:86, proc_dirty) and a second, identical
+# genfscon fails the neverallow compile as a duplicate, so the line below is gone. Kept
+# for the record of why it mattered:
 #   system/sepolicy/private/genfs_contexts:82  /sys/vm/dirty_background_ratio  -> proc_dirty
 #   system/sepolicy/private/genfs_contexts:83  /sys/vm/dirty_expire_centisecs  -> proc_dirty
 #   (no entry at all for dirty_writeback_centisecs)
@@ -47,7 +50,7 @@ genfscon sysfs /devices/platform/soc/11e00000.i2c/i2c-0/0-0058/leds/vibrator_sin
 # /proc/sys/vm node from vendor policy follows MediaTek's own precedent:
 #   sepolicy_vndr/basic/non_plat/genfs_contexts:125
 #     genfscon proc /sys/vm/swappiness u:object_r:proc_swappiness:s0
-genfscon proc /sys/vm/dirty_writeback_centisecs u:object_r:proc_dirty:s0
+# (was: genfscon proc /sys/vm/dirty_writeback_centisecs u:object_r:proc_dirty:s0)
 
 # /proc/sys/kernel/sched_pelt_multiplier is an MTK addition, so AOSP's
 # genfs_contexts does not know it and it falls to the generic proc:s0 -- which
