@@ -20,12 +20,14 @@
 #   /vendor/lib*/vndk. The vendor namespace resolves everything from /vendor/lib*,
 #   where the build installs A16's own vendor variants of the former-VNDK libs.
 #   Consequences here:
-#   * Every `-ndk_platform` AIDL soname must be rewritten: A16 has neither the
-#     spelling nor (unlike lineage-20's hardware/lineage/compat) a forwarding
-#     library for it. Nine are rewritten to the frozen `-V<N>-ndk` library A16
-#     still generates (aidl_api/<iface>/<N> present for all nine); four are
+#   * An `-ndk_platform` AIDL soname has no A16 library behind it: A16 has
+#     neither the spelling nor (unlike lineage-20's hardware/lineage/compat) a
+#     forwarding library for it. Six interfaces are rewritten to the frozen
+#     `-V<N>-ndk` library A16 still generates (light, gnss, power-V2, memtrack,
+#     vibrator, keystore2; aidl_api/<iface>/<N> present for each); four are
 #     stock's own files and stay (arm.graphics, libneuron_platform, trannet,
-#     power-V1).
+#     power-V1); the Trustonic KeyMint service keeps its three and gets the v31
+#     files (see below).
 #   * A stock blob whose former-VNDK ABI broke between A12 and A16 gets a
 #     `lib*-v31.so` (AOSP prebuilts/vndk/v31, soname rewritten, device tree
 #     prebuilts/vndk31) -- or, where A16 only renamed a symbol or changed an

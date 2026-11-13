@@ -228,11 +228,14 @@ else ifeq ($(wildcard $(TARGET_KERNEL_SOURCE)/arch/$(TARGET_KERNEL_ARCH)/configs
     $(error S666LN: no imported kernel in $(S666LN_KERNEL_PREBUILT), and no $(TARGET_KERNEL_SOURCE)/arch/$(TARGET_KERNEL_ARCH)/configs/$(TARGET_KERNEL_CONFIG) to fall back to)
 else
     S666LN_KERNEL_FROM := gki-source
+    # The shared s666ln_defconfig names the custom kernel (-Riza-vanilla); this
+    # one reports the GKI source's own default string instead (the fragment says why).
+    TARGET_KERNEL_CONFIG_EXT := $(DEVICE_PATH)/configs/kernel/gki-default-version.config
     $(warning ************************************************************************)
     $(warning * S666LN: NO IMPORTED KERNEL in $(S666LN_KERNEL_PREBUILT))
     $(warning * Building the GENERIC GKI kernel from $(TARGET_KERNEL_SOURCE))
-    $(warning * ($(TARGET_KERNEL_CONFIG), clang-$(TARGET_KERNEL_CLANG_VERSION)): it boots, but it is NOT)
-    $(warning * the v9 kernel this device is released with (no BORE, no ntsync).)
+    $(warning * ($(TARGET_KERNEL_CONFIG) + GKI default version string, clang-$(TARGET_KERNEL_CLANG_VERSION)):)
+    $(warning * it boots, but it is NOT the v9 kernel this device is released with (no BORE, no ntsync).)
     $(warning * For v9: device/itel/S666LN/import-kernel.sh vanilla, commit prebuilt/.)
     $(warning ************************************************************************)
 endif
