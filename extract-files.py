@@ -264,6 +264,15 @@ blob_fixups: blob_fixups_user_type = {
     # one libgpu_aux symbol stock rev 28 lacks; libr54shim (device tree) has them.
     ('vendor/lib/egl/mt6789/libGLES_mali.so', 'vendor/lib64/egl/mt6789/libGLES_mali.so'):
         blob_fixup().add_needed('libr54shim.so'),
+    # libgpud NEEDs graphics.common-V6-ndk but imports 0 of its 44 symbols (and 0 of
+    # its dependency common-V2-ndk's 9), both ABIs; control: the donor's
+    # allocator-V2-ndk imports ExtendableType read/writeToParcel from it. Kept, it
+    # is a DT_NEEDED soong turns into a dependency -- next to libgralloctypes'
+    # common-V7 that is "depends on multiple versions of the same aidl_interface"
+    # (analysis 10). Dropped rather than repointed: there is nothing to bind.
+    ('vendor/lib/libgpud.so', 'vendor/lib64/libgpud.so'): blob_fixup()
+        .remove_needed('android.hardware.graphics.common-V6-ndk.so')
+        .call(must_not_need('android.hardware.graphics.common-V6-ndk.so'), need_tmp_dir=False),
 
     # ---- stock's A12 libalsautils as libalsautils-stock.so ---------------------
     # A distinct filename + soname, the libeffectsconfig-stock pattern: stock's

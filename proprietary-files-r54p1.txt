@@ -17,12 +17,14 @@
 # Stays STOCK on purpose (proprietary-files.txt): hw/mt6789/vulkan.mali.so, the 10,368 B ICD
 # stub that shipped with r54p1 on crDroid and on the X678B graft; the donor's 133,512 B ICD was
 # only ever one of eight test substitutions. Built, not taken: android.hardware.graphics.
-# {allocator-V2,common-V6}-ndk (AOSP), libr54shim (device tree, 3 exports). Gone on A16:
-# libc++_r54.so (libgpud's 57 libc++ imports resolve against A16's own libc++).
+# allocator-V2-ndk (AOSP), libr54shim (device tree, 3 exports). Gone on A16: libc++_r54.so
+# (libgpud's 57 libc++ imports resolve against A16's own libc++) and graphics.common-V6-ndk
+# (libgpud NEEDs it but imports none of its symbols; the NEEDED is removed, see
+# extract-files.py -- A16 soong refuses V6 next to libgralloctypes' V7).
 -vendor/lib/egl/mt6789/libGLES_mali.so|63141d7a04a88b254f350736cbb3e08056a65d81|2249830f879ffd1f9eb1444e81693d8fda1cdda3
 -vendor/lib64/egl/mt6789/libGLES_mali.so|5231d2229a068c283c435376e6ec3ac656f05fdd|cf4ac7597bcc9e34d528fc2931a5277ed95bb3bf
--vendor/lib/libgpud.so|72012a89d04f1c99b5e6770399c3f0cfda7381e2
--vendor/lib64/libgpud.so|dd091d2e443ca2213e48b86e1b170e9459a0f57d
+-vendor/lib/libgpud.so|72012a89d04f1c99b5e6770399c3f0cfda7381e2|a465748e07deaf67ac167272cb3d00f1423e22bc
+-vendor/lib64/libgpud.so|dd091d2e443ca2213e48b86e1b170e9459a0f57d|7308f0076a336b6bf29a8e0c2c1f8d9120d9ef98
 -vendor/lib/mt6789/libmtk_mali_user.so:vendor/lib/libmtk_mali_user.so|6847fb43d5dd96258305db2ed919705462b39011
 -vendor/lib64/mt6789/libmtk_mali_user.so:vendor/lib64/libmtk_mali_user.so|c1d70c49b1064d4d947602e18f39699ba1a1ae8a
 -vendor/lib/vendor.mediatek.hardware.graphics-V1-ndk.so|852df5f8304ac8b4d85ee8d4aefa0f1c2a1b02d7
