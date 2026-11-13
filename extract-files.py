@@ -322,6 +322,21 @@ def must_not_contain(text: str):
     return check
 
 
+def patch_bytes(offset: int, old: bytes, new: bytes):
+    """Replace `old` with `new` at a fixed file offset; fail unless `old` is there."""
+
+    def patch(ctx: BlobFixupCtx, file: File, file_path: str, *args, **kwargs):
+        with open(file_path, 'r+b') as f:
+            f.seek(offset)
+            cur = f.read(len(old))
+            if cur != old:
+                raise AssertionError(f'{file.dst}: expected {old.hex()} at {offset:#x}, found {cur.hex()}')
+            f.seek(offset)
+            f.write(new)
+
+    return patch
+
+
 def shim(lib: str) -> blob_fixup:
     return blob_fixup().add_needed(lib)
 
@@ -379,6 +394,16 @@ ROUTE_L_FIXUPS = [
       'vendor/lib64/librt_extamp_intf.so'), blob_fixup()
      .replace_needed('libtinyxml2.so', 'libtinyxml2-v31.so')
      .call(must_not_need('libtinyxml2.so'), need_tmp_dir=False)),
+
+    # android::Looper grew from 224 to 264 bytes (arm64; the operator new sizes in
+    # v31's and A16's own Looper::prepare). Stock's thermal impl does
+    # `new Looper(false)` itself -- `mov w0, #0xe0` before operator new -- and A16's
+    # constructor then fills 264 bytes: a 40-byte heap overflow. A12's Looper.h
+    # inlines nothing that touches a field (pollOnce/pollAll forward to out-of-line
+    # methods), so allocating A16's size is the whole fix. arm64 only: the
+    # service is 64-bit; the 32-bit impl is not loaded by it.
+    ('vendor/lib64/hw/android.hardware.thermal@2.0-impl.so', blob_fixup()
+     .call(patch_bytes(0x11744, bytes.fromhex('001c8052'), bytes.fromhex('00218052')), need_tmp_dir=False)),
 
     # The stock composer generation. Stock's HWC service compiles the composer HAL's
     # header-inline code (ComposerClientImpl, ComposerResources() = default) against
