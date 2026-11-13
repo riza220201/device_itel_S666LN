@@ -35,6 +35,9 @@
 #     build runs check_elf on them, so a soname nothing provides is a BUILD error
 #     here, not a boot loop.
 
+import sys
+from os import path
+
 from extract_utils.elf import file_needs_lib
 from extract_utils.file import File
 from extract_utils.fixups_blob import (
@@ -50,6 +53,7 @@ from extract_utils.main import (
     ExtractUtils,
     ExtractUtilsModule,
 )
+from extract_utils.utils import file_path_sha1
 
 # The device tree imports this vendor namespace and this one imports it back:
 # blobs depend on the device tree's lib*-v31 modules (prebuilts/vndk31). Soong
@@ -264,6 +268,11 @@ blob_fixups: blob_fixups_user_type = {
         .regex_replace(r'(?m)(/vendor/bin/hw/android\.hardware\.media\.c2@1\.2-mediatek)$', r'\1-64b')
         .call(must_contain('mediatek-64b'), need_tmp_dir=False),
 
+    # Mali r54p1 (proprietary-files-r54p1.txt): the driver imports two libged and
+    # one libgpu_aux symbol stock rev 28 lacks; libr54shim (device tree) has them.
+    ('vendor/lib/egl/mt6789/libGLES_mali.so', 'vendor/lib64/egl/mt6789/libGLES_mali.so'):
+        blob_fixup().add_needed('libr54shim.so'),
+
     # ---- the renamed A12 codec2 set, and the blobs that consume it ------------
     C2_STOCK_FILES: c2_stock_self,
     C2_CONSUMERS: c2_stock_repoint(),
@@ -276,7 +285,43 @@ module = ExtractUtilsModule(
     lib_fixups=lib_fixups,
     namespace_imports=namespace_imports,
 )
+R54P1_LIST = 'proprietary-files-r54p1.txt'
+module.add_proprietary_file(R54P1_LIST)
+
+
+def r54p1_pins_hold() -> bool:
+    """Every r54p1 file in the vendor tree must equal its pin.
+
+    extract-utils only warns when a pinned file is missing from the backup and
+    the source's copy hashes differently -- and it then skips the fixups and
+    keeps that copy. Re-extracting from stock would so put stock's r38p1
+    libGLES_mali/libgpud back over the r54p1 kbase, with exit status 0
+    (ExtractUtils.run() also returns normally after "Some files failed").
+    """
+    ok, n = True, 0
+    with open(path.join(module.device_path, R54P1_LIST)) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            spec, *pins = line.split('|')
+            dst = spec.lstrip('-').split(';')[0].split(':')[-1]
+            n += 1
+            if not pins:
+                print(f'r54p1 gate: {dst} is not pinned')
+                ok = False
+                continue
+            p = path.join(module.vendor_path, 'proprietary', dst)
+            got = file_path_sha1(p) if path.isfile(p) else 'missing'
+            if got != pins[-1]:
+                print(f'r54p1 gate: {dst} is {got}, pin {pins[-1]}')
+                ok = False
+    print(f'r54p1 gate: {n} files, {"all match their pins" if ok else "FAILED"}')
+    return ok and n > 0
+
 
 if __name__ == '__main__':
     utils = ExtractUtils.device(module)
     utils.run()
+    if not r54p1_pins_hold():
+        sys.exit(1)

@@ -1,0 +1,29 @@
+# Mali r54p1 userspace driver: SM-A175F firmware A175FXXS5CZF1, vendor partition
+#
+# NOT stock rev 28. The kernel package's mali_kbase_mt6789.ko is r54p1 (UK 11.46), which
+# stock's r38p1 UMD cannot drive. Source: the operator's SAMFW.COM_SM-A175F_XID_
+# A175FXXS5CZF1_fac.zip -> AP super.img -> vendor (EROFS), unpacked 2026-11-13 to
+# /mnt/external_nvme/a175f/fw-CZF1. libGLES_mali (64) sha256 0a68d23d..., Build ID 5f2913fd;
+# libgpud (64) sha256 c00ab3f0...: the donor binaries crDroid v3build2 shipped.
+#
+# Every line is PINNED (|sha1[|fixup sha1]). A pinned file survives a re-extract from stock
+# (restored from the backup taken before cleanup). extract-files.py's r54p1 gate fails the
+# run when a file here no longer matches its pin: extract-utils alone only WARNS on a
+# mismatch, skips the fixups and keeps stock's copy -- a silent r38p1 downgrade for the two
+# names stock also has (libGLES_mali, libgpud).
+#
+# Refresh from the donor:  ./extract-files.py -k -s 'Mali r54p1*' <dir holding its vendor/>
+#
+# Stays STOCK on purpose (proprietary-files.txt): hw/mt6789/vulkan.mali.so, the 10,368 B ICD
+# stub that shipped with r54p1 on crDroid and on the X678B graft; the donor's 133,512 B ICD was
+# only ever one of eight test substitutions. Built, not taken: android.hardware.graphics.
+# {allocator-V2,common-V6}-ndk (AOSP), libr54shim (device tree, 3 exports). Gone on A16:
+# libc++_r54.so (libgpud's 57 libc++ imports resolve against A16's own libc++).
+-vendor/lib/egl/mt6789/libGLES_mali.so
+-vendor/lib64/egl/mt6789/libGLES_mali.so
+-vendor/lib/libgpud.so
+-vendor/lib64/libgpud.so
+-vendor/lib/mt6789/libmtk_mali_user.so:vendor/lib/libmtk_mali_user.so
+-vendor/lib64/mt6789/libmtk_mali_user.so:vendor/lib64/libmtk_mali_user.so
+-vendor/lib/vendor.mediatek.hardware.graphics-V1-ndk.so
+-vendor/lib64/vendor.mediatek.hardware.graphics-V1-ndk.so

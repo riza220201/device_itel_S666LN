@@ -1,70 +1,47 @@
 /*
- * libr54shim - the six symbols Mali r54p1's userspace driver needs that this
- * device's Android 13 stack does not export.
+ * libr54shim - the three symbols Mali r54p1's userspace driver needs that this
+ * device's stock (A12) vendor libraries do not export.
  *
  * SPDX-License-Identifier: Apache-2.0
  * Copyright (C) 2026 The LineageOS Project
  *
  * WHY THIS EXISTS
- *   The vendor tree ships Mali r54p1, lifted from Samsung SM-A175F firmware
- *   (mt6789 -- the same SoC). Its userspace driver resolves cleanly against our
- *   A12 vendor stack except for six symbols, measured 2026-08-27:
+ *   The vendor tree ships Mali r54p1 from Samsung SM-A175F firmware
+ *   A175FXXS5CZF1 (mt6789, the same SoC): libGLES_mali sha256 0a68d23d...,
+ *   Build ID 5f2913fd. Measured 2026-11-13 against stock rev 28's libged,
+ *   libgpu_aux, libgralloc_extra, libgralloc_metadata, libgralloctypes_mtk and
+ *   A16's libc++ (clang-r563880c), its undefined symbols leave exactly three:
  *
- *     libc++      std::__1::bad_function_call::~bad_function_call()
- *                 vtable for std::__1::bad_function_call
- *                 std::__1::__libcpp_verbose_abort(char const*, ...)
- *     libgpu_aux  GpuAuxBlitAHardwareBuffer
  *     libged      ged_fr_swd_mark_frame / ged_fr_swd_frame_destroy
+ *     libgpu_aux  GpuAuxBlitAHardwareBuffer
  *
- *   Every one of them is absent from EVERY libc++ on this device -- the v31
- *   pin, the v33 apex and /system all export 2162 symbols and none of these;
- *   the A16 libc++ exports 2344 and has them. They are Android 14+ additions.
+ *   (positive control: the donor's own libged + libgpu_aux define all three.)
+ *
+ * 🔁 ANDROID 16 (lineage-23.2): THE THREE libc++ STUBS ARE GONE.
+ *   On the A13 tree this file also defined std::__1::bad_function_call's vtable
+ *   and destructor and std::__1::__libcpp_verbose_abort, because no libc++ on
+ *   that device exported them. A16's does (all three, 2333 exports), and it is
+ *   the libc++ /vendor gets now (no VNDK, route L). This library is a DT_NEEDED
+ *   of libGLES_mali, so keeping the stubs would SHADOW the real definitions --
+ *   exactly what the old header warned: "if a future platform bump adds them to
+ *   the system libc++, this library must be re-measured and probably deleted."
+ *   Re-measured; deleted. Same reason libgpud no longer needs libc++_r54.so:
+ *   its 57 libc++ imports all resolve against A16's libc++. (The Infinix X678B
+ *   graft, LineageOS 23 on the same driver, landed on the same three exports.)
  *
  * WHY STUBS RATHER THAN THE REAL LIBRARIES
- *   Taking A16's libged costs a newer libcutils (it needs
- *   atrace_async_for_track_begin_body, absent before A14). Taking A16's
- *   libgpu_aux cascades into libdpframework and MediaTek's whole picture-quality
- *   stack at AIDL V7 -- for ONE symbol, because our A12 libgpu_aux already
- *   provides 9 of the 10 GpuAux* symbols r54p1 wants. Stubbing avoids both.
+ *   Taking A16's libgpu_aux cascades into libdpframework and MediaTek's whole
+ *   picture-quality stack at AIDL V7 -- for ONE symbol, because our A12
+ *   libgpu_aux already provides 9 of the 10 GpuAux* symbols r54p1 wants. A16's
+ *   libged: see the ged section below.
  *
- *   The libc++ symbols are handled DIFFERENTLY and deliberately: libgpud gets a
- *   private A16 libc++ (libc++_r54.so) instead, because ITS libc++ needs are
- *   iostreams -- real constructed objects whose vtables cannot be faked. Only
- *   bad_function_call is stubbed here, and it is an error-path type: reaching it
- *   means std::function was invoked while empty, which is a bug either way.
- *
- * 🔴 EVERY STUB LOGS. On the validation boot, zero of them were ever called --
- *   which is the only reason stubbing is defensible. If that ever changes, the
- *   log says so instead of the path silently doing nothing. Grep `r54shim`.
- *
- * ⚠ This library exports libc++ symbol NAMES. That is safe only because nothing
- *   else on this device defines them -- it shadows no real implementation. If a
- *   future platform bump adds them to the system libc++, this library must be
- *   re-measured and probably deleted.
+ * 🔴 EVERY STUB LOGS. If one is ever reached in a way that matters, the log
+ *   says so instead of the path silently doing nothing. Grep `r54shim`.
  */
 
 #include <log/log.h>
 
 #define EXPORT __attribute__((visibility("default"), used))
-
-/* std::__1::bad_function_call -- vtable + destructor. Error-path type. */
-EXPORT void *_ZTVNSt3__117bad_function_callE[4] = { 0, 0, 0, 0 };
-EXPORT void _ZNSt3__117bad_function_callD1Ev(void *self)
-{
-    (void)self;
-    ALOGW("r54shim: bad_function_call dtor STUB");
-}
-
-/*
- * std::__1::__libcpp_verbose_abort(char const*, ...). libc++ calls this on a
- * hardened-mode contract violation, so reaching it is a real defect. Make it
- * loud and stop, rather than returning into undefined behaviour.
- */
-EXPORT void _ZNSt3__122__libcpp_verbose_abortEPKcz(const char *fmt, ...)
-{
-    ALOGE("r54shim: __libcpp_verbose_abort: %s", fmt ? fmt : "(null)");
-    __builtin_trap();
-}
 
 /*
  * ged_fr_swd_mark_frame / ged_fr_swd_frame_destroy -- MediaTek libged, A14+.
@@ -90,8 +67,11 @@ EXPORT void _ZNSt3__122__libcpp_verbose_abortEPKcz(const char *fmt, ...)
  *                     and invisible because this file lived only in the build
  *                     tree and never in this repo.
  *
- * ⏭ THE A16 libged PATH IS STILL THE RIGHT ONE, and it is blocked on exactly
- * one thing: A16's libged needs four std::__1::basic_filebuf<char> symbols
+ * ⏭ THE A16 libged PATH (A13-era note below). On lineage-23.2 its libc++
+ * blocker is gone -- /vendor's libc++ IS A16's -- but libged is also the
+ * userspace half of our kernel's ged.ko ioctl ABI, and an A16 libged against
+ * the 5.10 ged module is unmeasured. Not taken; the stubs stay. Was blocked on
+ * exactly one thing: A16's libged needs four std::__1::basic_filebuf<char> symbols
  * (open, close, ctor, dtor) that NO libc++ on this device exports -- measured,
  * zero hits across the v31 pin, the v33 apex and /system, while libc++_r54.so
  * has 23. The precedent for fixing that already ships in this tree: libgpud.so

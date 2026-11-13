@@ -846,7 +846,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/egl/libMEOW_gift.so
 -vendor/lib/egl/libMEOW_qt.so
 -vendor/lib/egl/libMEOW_trace.so
--vendor/lib/egl/mt6789/libGLES_mali.so
 -vendor/lib/hw/android.hardware.audio.effect@6.0-impl.so
 -vendor/lib/hw/android.hardware.audio.effect@7.0-impl.so
 -vendor/lib/hw/android.hardware.bluetooth.audio@2.0-impl.so
@@ -1083,7 +1082,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib/libfp_ext_svc2.so
 -vendor/lib/libged.so
 -vendor/lib/libgpu_aux.so
--vendor/lib/libgpud.so
 -vendor/lib/libgralloc_extra.so
 -vendor/lib/libgralloc_metadata.so
 -vendor/lib/libgralloctypes_mtk.so
@@ -1417,7 +1415,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/egl/libMEOW_gift.so
 -vendor/lib64/egl/libMEOW_qt.so
 -vendor/lib64/egl/libMEOW_trace.so
--vendor/lib64/egl/mt6789/libGLES_mali.so
 -vendor/lib64/android.hardware.media.c2@1.0.so:vendor/lib64/android.hardware.media.c2@1.0-stock.so
 -vendor/lib64/android.hardware.media.c2@1.1.so:vendor/lib64/android.hardware.media.c2@1.1-stock.so
 -vendor/lib64/android.hardware.media.c2@1.2.so:vendor/lib64/android.hardware.media.c2@1.2-stock.so
@@ -1741,7 +1738,6 @@ vendor/lib/egl/egl.cfg
 -vendor/lib64/libgf_hal.so
 -vendor/lib64/libgoodixhwfingerprint.so
 -vendor/lib64/libgpu_aux.so
--vendor/lib64/libgpud.so
 -vendor/lib64/libgralloc_extra.so
 -vendor/lib64/libgralloc_metadata.so
 -vendor/lib64/libgralloctypes_mtk.so
