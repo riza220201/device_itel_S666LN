@@ -1,5 +1,13 @@
 # MediaTek's sensors multihal, measured on hardware 2026-08-11 (build 34).
 #
+# 2026-11-13, lineage-23.2: the domain is hal_sensors_default now. sepolicy_vndr
+# labels bin/hw/android.hardware.sensors@2.0-service.multihal-mediatek
+# hal_sensors_default_exec (base/vendor/file_contexts:867); mtk_hal_sensors no
+# longer exists and every rule naming it failed the build. The measurements
+# below were taken under the lineage-20 name and are kept as recorded.
+# Upstream's base/vendor/hal_sensors_default.te still has the same gap: no
+# read_fstab, no devicetree read, and the nvdata grant stops at mnt_vendor_file.
+#
 # Without these two rules the service does not merely log noise -- it ABORTS,
 # every five seconds, 75 times in one boot. Its own log names the first one:
 #
@@ -39,16 +47,17 @@
 # metadata_file and gsi_metadata_file_type dir search, gsi_public_metadata_file,
 # and proc_bootconfig/proc_cmdline. It does NOT cover the devicetree node, so
 # that stays explicit.
-read_fstab(mtk_hal_sensors)
-allow mtk_hal_sensors sysfs_dt_firmware_android:dir search;
-allow mtk_hal_sensors sysfs_dt_firmware_android:file r_file_perms;
+read_fstab(hal_sensors_default)
+allow hal_sensors_default sysfs_dt_firmware_android:dir search;
+allow hal_sensors_default sysfs_dt_firmware_android:file r_file_perms;
 
 # Build 40, the layer after the fstab read succeeded:
 #
 #   mtk_hal_sensors -> nvdata_file : dir { search }    dev=sdc8, /mnt/vendor/nvdata
 #
 # Upstream describes this caller precisely and then stops one directory short.
-# `sepolicy_vndr/basic/non_plat/mtk_hal_sensors.te:69`:
+# `sepolicy_vndr/basic/non_plat/mtk_hal_sensors.te:69` (lineage-20; on 23.2 the
+# same rule is base/vendor/hal_sensors_default.te:49):
 #
 #   # Purpose: Allow to search /mnt/vendor/nvdata for fstab when using NVM_Init()
 #   allow mtk_hal_sensors mnt_vendor_file:dir search;
@@ -70,5 +79,5 @@ allow mtk_hal_sensors sysfs_dt_firmware_android:file r_file_perms;
 # through sensor_data_file and nvcfg_file (both create_file_perms, lines 59-65).
 # nvdata here is a lookup, not a store. If a write denial ever appears, that is
 # new information and belongs measured, not pre-granted.
-allow mtk_hal_sensors nvdata_file:dir r_dir_perms;
-allow mtk_hal_sensors nvdata_file:file r_file_perms;
+allow hal_sensors_default nvdata_file:dir r_dir_perms;
+allow hal_sensors_default nvdata_file:file r_file_perms;

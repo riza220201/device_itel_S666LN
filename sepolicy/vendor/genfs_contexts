@@ -59,7 +59,9 @@ genfscon proc /sys/vm/dirty_writeback_centisecs u:object_r:proc_dirty:s0
 # Without this the init.cgroup.rc on property:sys.gamemode.active writes are
 # denied and the game-scoped PELT ramp ships DEAD -- silently, because it fails
 # as a refused write and not as anything a boot sweep reads.
-genfscon proc /sys/kernel/sched_pelt_multiplier u:object_r:proc_sched:s0
+# 2026-11-13, lineage-23.2: sepolicy_vndr labels it itself, same type
+# (base/vendor/genfs_contexts:52), and checkpolicy refuses a duplicate genfs
+# entry even with an identical context -- so the line is upstream's now.
 
 # The four power_supply nodes nobody labels -- and the one that made Android
 # believe the phone was never plugged in.

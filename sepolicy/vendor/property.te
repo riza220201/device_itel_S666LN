@@ -10,7 +10,14 @@ vendor_internal_prop(vendor_pnpmgr_prop)
 
 # 🔴 vendor.service.nvram_restore — THE PROPERTY THE SIM DEPENDS ON.
 #
-# Upstream device/mediatek/sepolicy_vndr covers the sibling and forgets this
+# 2026-11-13, lineage-23.2: NOT declared here any more. sepolicy_vndr now has
+# it itself -- base/vendor/property.te:99 (the type), :310 (mtk_core_property_type),
+# property_contexts:77 (the mapping), nvram_daemon.te:97 (set_prop) -- and a
+# second declaration fails the build ("Duplicate declaration of type"). Our
+# ccci_mdinit.te get_prop is still needed: upstream has no ccci_mdinit grant.
+# The history below is why the property matters.
+#
+# Upstream device/mediatek/sepolicy_vndr covered the sibling and forgot this
 # one. On lineage-20.0 it has the complete set for nvram_init:
 #
 #   basic/non_plat/property.te:88        vendor_restricted_prop(vendor_mtk_service_nvram_init_prop)
@@ -47,7 +54,6 @@ vendor_internal_prop(vendor_pnpmgr_prop)
 #
 # Note the failure is completely silent: nvram_daemon exits 0, init reports
 # success, and nothing downstream says "no modem" — it says "no SIM".
-vendor_restricted_prop(vendor_mtk_service_nvram_restore_prop)
 
 # NOTE: nothing is declared here for the power HAL's tunables, on purpose.
 # device/mediatek/sepolicy_vndr on lineage-20.0 already declares
