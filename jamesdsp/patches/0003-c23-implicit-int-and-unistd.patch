@@ -1,0 +1,31 @@
+--- a/jamesdsp.c
++++ b/jamesdsp.c
+@@ -7,6 +7,7 @@
+ #include "MemoryUsage.h"
+ #endif
+ #include <string.h>
++#include <unistd.h> /* getpid(); see patches/0003 */
+ #include <math.h>
+ #include "essential.h"
+ // Effect section
+--- a/jdsp/jdspController.c
++++ b/jdsp/jdspController.c
+@@ -3,6 +3,7 @@
+ #include <string.h>
+ #include <math.h>
+ #include <time.h>
++#include <unistd.h> /* usleep(); see patches/0003 */
+ #include <float.h>
+ #include "Effects/eel2/dr_flac.h"
+ #include "Effects/eel2/ns-eel.h"
+--- a/jdsp/Effects/eel2/nseel-compiler.c
++++ b/jdsp/Effects/eel2/nseel-compiler.c
+@@ -1646,7 +1646,7 @@
+  ---------------------------------------------------------------------------*/
+ float kth_smallest(float a[], int n, int k)
+ {
+-	register i, j, l, m;
++	register int i, j, l, m; /* implicit int is gone in C23; see patches/0003 */
+ 	register float x;
+ 
+ 	l = 0; m = n - 1;

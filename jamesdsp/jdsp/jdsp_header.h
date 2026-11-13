@@ -437,6 +437,11 @@ int BS2BCalculateflevel(unsigned int fcut, unsigned int gain);
 void BS2BInit(t_bs2bdp *bs2bdp, unsigned int samplerate, int flevel);
 /* sample poits to double floats native endians */
 void BS2BProcess(t_bs2bdp *bs2bdp, double *sampleL, double *sampleR);
+/* Forward declaration: without it the `struct dspsys` in Crossfeed.process below is a
+   NEW struct scoped to that prototype, not the dspsys defined further down, and the
+   assignments in crossfeed.c become incompatible function pointers (an error since
+   clang 16). See patches/0002-forward-declare-struct-dspsys.patch. */
+struct dspsys;
 typedef struct
 {
 	int mode; // 0: BS2B Lv 1, 1: BS2B Lv 2, 2: HRTF crossfeed, 2: HRTF surround 1, 2: HRTF surround 2, 2: HRTF surround 3

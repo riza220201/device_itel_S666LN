@@ -7,6 +7,7 @@
 #include "MemoryUsage.h"
 #endif
 #include <string.h>
+#include <unistd.h> /* getpid(); see patches/0003 */
 #include <math.h>
 #include "essential.h"
 // Effect section

@@ -1646,7 +1646,7 @@ static float NSEEL_CGEN_CALL  eel_mean(float *blocks, float *start, float *lengt
  ---------------------------------------------------------------------------*/
 float kth_smallest(float a[], int n, int k)
 {
-	register i, j, l, m;
+	register int i, j, l, m; /* implicit int is gone in C23; see patches/0003 */
 	register float x;
 
 	l = 0; m = n - 1;
