@@ -864,7 +864,7 @@ DEVICE_MATRIX_FILE := $(LOCAL_PATH)/configs/vintf/compatibility_matrix.xml
 #
 # With PRODUCT_ENFORCE_VINTF_MANIFEST=true, check_vintf rejects every device
 # manifest instance that no framework matrix mentions -- all 75 non-AOSP HALs
-# here (MediaTek, Transsion, NXP, Trustonic, fpsensor, lineage.touch, plus
+# here (MediaTek, Transsion, NXP, Trustonic, fpsensor, plus
 # MediaTek's extra android.hardware.radio instances). The build then fails at
 # "Package OTA", 99% in, with target-files already built.
 DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE := \
