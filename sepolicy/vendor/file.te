@@ -65,7 +65,7 @@ type sysfs_otg_ctl_file, fs_type, sysfs_type;
 #   live device                 both nodes exist, both generic u:object_r:sysfs:s0
 #   wide_torch                  does NOT exist on this unit, so no label is
 #                               written for it — a label matching nothing is
-#                               dead weight (BLUEPRINT §9)
+#                               dead weight
 type sysfs_torch_file, fs_type, sysfs_type;
 type sysfs_sub_torch_file, fs_type, sysfs_type;
 

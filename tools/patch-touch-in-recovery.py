@@ -36,7 +36,7 @@ so there is none to invalidate.
 PROVENANCE
 
 Derived by disassembling itel's own stock module -- stock content plus our own
-modification, which BLUEPRINT §2 permits. The banned tree also patches this
+modification, which the clean-room rule permits. The banned tree also patches this
 module (36 bytes, against stock's 131368-byte original), and that copy was read
 only to establish that the gate was bypassable at all. Not one of its bytes is
 used here, and it is vermagic 5.10.226 against our 5.10.237 in any case.

@@ -82,7 +82,7 @@ dontaudit hal_wifi_supplicant_default self:global_capability_class_set { dac_ove
 #
 # In sepolicy/vendor/ and not private/ because sysfs_usb_nonplat is MediaTek's
 # type (sepolicy_vndr/basic/non_plat/file.te:199), and vendor policy is the only
-# side that may name it -- BLUEPRINT section 9.
+# side that may name it.
 #
 # Silenced rather than granted for the same reason as the capability set in
 # private/dontaudit.te: fsck_untrusted is deliberately minimal, and the exFAT

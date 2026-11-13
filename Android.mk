@@ -143,8 +143,8 @@ endif
 #                  it at the same point and it reads a half-populated directory
 #                  and fails on files that were about to be written.
 #
-# So it has to run after staging and still be inside `bacon`'s graph, and the
-# journal already established that bacon reaches no image target at all
+# So it has to run after staging and still be inside `bacon`'s graph, and it
+# was already established that bacon reaches no image target at all
 # (bacon -> OTA -> target-files -> staged files; add_img_to_target_files builds
 # the .img files itself at packaging time). What bacon DOES reach is the
 # target-files zip, and everything staged is a prerequisite of it -- so
@@ -172,7 +172,7 @@ $(error S666LN: tools/vendor-deps-check.sh is missing. Restore it rather than \
         link builds, signs and flashes without complaint.)
 endif
 # lineage-23.2: the target-files name has no FILE_NAME_TAG any more -- reading
-# the variable is a kati error ("FILE_NAME_TAG is obsolete", Changes.md), and
+# the variable is a kati error ("FILE_NAME_TAG is obsolete", build/make's change log), and
 # build/make/core/Makefile:6277-6285 names the zip
 #     $(TARGET_PRODUCT)[_debug]-target_files.zip
 # BUILT_TARGET_FILES_PACKAGE itself cannot be used: that Makefile is read after

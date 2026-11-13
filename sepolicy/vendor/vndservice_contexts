@@ -12,7 +12,7 @@
 #
 # 🔑 AND IT IS THE "A SERVICE RUNNING IS NOT A SERVICE SERVING" CLASS AGAIN.
 # vendor.sys.pnpmgr.state reads `running` and the process is alive (pid 2352),
-# which is exactly what BLUEPRINT section 8 checks for — so every acceptance
+# which is exactly what the acceptance checks look for — so every acceptance
 # criterion this project has for pnpmgr passed while its binder service was
 # never actually published. Stock labels it:
 #     .build/work/vendor/etc/selinux/vndservice_contexts:4

@@ -50,7 +50,7 @@ vendor.debug.seninf.hs_trail                u:object_r:vendor_mtk_camera_prop:s0
 # mtk_core_property_type, and basic/non_plat/domain.te:8 has
 # get_prop(domain, mtk_core_property_type) — so every domain, apps included,
 # can read it. That grant is ATTRIBUTE-mediated, so it is invisible to a grep
-# for the type name (BLUEPRINT §9). vendor_restricted_prop restricts only
+# for the type name. vendor_restricted_prop restricts only
 # WRITING, which init does from /vendor/build.prop.
 #
 # ro.vendor.arm. rather than ro.vendor.arm.egl.configs. — the same prefix
@@ -59,8 +59,8 @@ vendor.debug.seninf.hs_trail                u:object_r:vendor_mtk_camera_prop:s0
 # nothing else claims this prefix, so there is no conflicting type to capture.
 #
 # 🔴 This class CANNOT be live-tested on this device — property_contexts is
-# read before post-fs-data, where KSU mounts (RESUME §"the method that
-# worked"). It was proven instead by granting the read directly under
+# read before post-fs-data, where KSU mounts.
+# It was proven instead by granting the read directly under
 # Enforcing (ksud sepolicy patch, allow appdomain vendor_default_prop) and
 # re-testing: crash 1 -> 0, force-finish 2 -> 0, capture completing through to
 # MediaComposerActivity. The label must still be confirmed in a BUILD.

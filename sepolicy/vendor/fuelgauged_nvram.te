@@ -1,8 +1,8 @@
 # fuelgauged_nvram cannot read the device-tree fstab it is told to read.
 #
 # 4 denials on every boot of build 71 -- new, because this daemon had never
-# actually run until the `on charger` block was restored from stock (BLUEPRINT
-# §7): the old tree gated it behind a property nothing ever set:
+# actually run until the `on charger` block was restored from stock --
+# the old tree gated it behind a property nothing ever set:
 #
 #   avc: denied { search } for comm="fuelgauged_nvra" name="android" dev="sysfs"
 #     scontext=u:r:fuelgauged_nvram:s0

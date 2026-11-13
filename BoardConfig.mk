@@ -5,7 +5,7 @@
 #
 # Values marked [V] were re-derived from itel stock firmware revision 28
 # (build 251212V1661) and/or the live device. Values marked [C] are carried
-# forward and still want an independent check — see notes/ for status.
+# forward and still want an independent check.
 #
 
 DEVICE_PATH := device/itel/S666LN
@@ -225,7 +225,7 @@ KMI_SYMVERS := $(S666LN_KERNEL_PREBUILT)/vmlinux.symvers
 # FULL module list, and neither partition loads all of what it carries
 # (vendor_dlkm ships 198 and loads 177; vendor_boot ships 206 and loads 171).
 # Orders are stock's, recovered from the rev 28 vendor_boot ramdisk and
-# vendor_dlkm image — see notes/kernel-modules-2026-08-04.md for both lists.
+# vendor_dlkm image.
 #
 # That paragraph was written on 2026-08-04. The assignments below were not, and
 # for two days the tree documented the trap directly above the code falling into

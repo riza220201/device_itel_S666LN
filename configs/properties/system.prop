@@ -98,10 +98,10 @@ ro.product.marketname=itel RS4
 # thirteen on system, because crDroid builds system itself. Nothing was done
 # wrong in the extraction; there was simply no source for these in it.
 #
-# ⚠ This is why "Bluetooth works" was believed for months: every check the
-# journal ever ran was ADAPTER-level (state ON, adapter MAC, HAL factories
-# registered, OFF->ON toggle). None of them connected a device. BLUEPRINT
-# section 8 lists "BT audio" as a criterion and it was never actually exercised
+# ⚠ This is why "Bluetooth works" was believed for months: every check ever
+# run was ADAPTER-level (state ON, adapter MAC, HAL factories
+# registered, OFF->ON toggle). None of them connected a device. The acceptance
+# criteria list "BT audio" and it was never actually exercised
 # -- the same shape as OTG (verified in recovery, never in Android) and the
 # camera (registered, never captured).
 #

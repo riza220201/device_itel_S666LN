@@ -91,8 +91,8 @@ dontaudit adbroot self:global_capability_class_set { dac_override dac_read_searc
 # fsck_untrusted/blkid_untrusted no capability rules at all -- these domains are
 # deliberately minimal because they run on UNTRUSTED removable media. Silencing
 # is therefore the right instrument; granting would widen exactly the domains
-# upstream keeps narrow. Their neverallows were checked first (BLUEPRINT section
-# 9): public/fsck_untrusted.te:33 constrains block devices and process
+# upstream keeps narrow. Their neverallows were checked first:
+# public/fsck_untrusted.te:33 constrains block devices and process
 # transitions, not capabilities, so this is legal as well as correct.
 #
 # BOTH capabilities on each, per the standing lesson: write the rule for one

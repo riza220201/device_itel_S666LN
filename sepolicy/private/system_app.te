@@ -15,7 +15,7 @@
 # It fails SILENTLY: the reader is wrapped in catch (IOException), which clears
 # mPageTypeNodes/Zones/Labels/Sizes, so the screen simply shows no fragmentation
 # data and nothing logs an error. A denial with no visible failure is exactly the
-# class BLUEPRINT section 9 warns about in the other direction -- worth grepping
+# silent class, seen from the other direction -- worth grepping
 # for the consumer before deciding it is noise.
 #
 # GRANTED rather than dontaudit'd, because upstream's own posture is that this
@@ -27,7 +27,7 @@
 #                                  "settings app reads /proc/version" -- the same
 #                                  Settings-reads-a-/proc-node shape, already granted
 #
-# Neverallow checked first (BLUEPRINT section 9): private/app_neverallows.te:186
+# Neverallow checked first: private/app_neverallows.te:186
 # forbids this type to `all_untrusted_apps`, and that macro (:5) is exactly
 # { ephemeral_app isolated_app mediaprovider mediaprovider_app untrusted_app
 #   untrusted_app_25/27/29/30 untrusted_app_all }. system_app is not a member, so

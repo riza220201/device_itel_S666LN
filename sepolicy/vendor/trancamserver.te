@@ -38,7 +38,7 @@
 # The first version of this domain used init_daemon_domain + add_hwservice and
 # hand-written binder_call rules, derived by grepping stock's compiled CIL for
 # "trancamserver". That method can only see rules that name the domain DIRECTLY,
-# and it is BLUEPRINT section 9's documented trap verbatim:
+# and it is the documented trap verbatim:
 # **attribute-mediated grants are invisible to a grep for the domain name.**
 #
 # What it missed, all of it from ONE attribute (private/halserverdomain.te):
@@ -58,7 +58,7 @@
 #     libc: Unable to set property "ctl.interface_start" ... error 0x20
 # camerahalserver never registered ICameraProvider ->
 #     dumpsys media.camera -> "Number of camera devices: 0"
-# RESUME says this exact thing about build 68: **a DECLARED interface that never
+# Build 68 taught this exact thing: **a DECLARED interface that never
 # registers is a BOOT HANG, not a degraded feature.** A half-fixed HAL is worse
 # than an unfixed one; the label and a working server must land together.
 #

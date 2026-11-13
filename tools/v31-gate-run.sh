@@ -76,7 +76,7 @@ if [ -d "${APEX_DIR}/lib64" ]; then
 elif [ -f "${APEX_FILE}" ]; then
     unzip -o -q "${APEX_FILE}" apex_payload.img -d "${TMP}"
     # debugfs lives in /sbin, off a normal user's PATH on Debian -- the same trap
-    # notes/kernel-modules-2026-08-04.md records for modprobe.
+    # that bites modprobe.
     DEBUGFS=/sbin/debugfs; [ -x "${DEBUGFS}" ] || DEBUGFS="$(command -v debugfs)" || \
         die "debugfs not found (try /sbin/debugfs)"
     mkdir -p "${TMP}/v33"

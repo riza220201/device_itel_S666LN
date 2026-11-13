@@ -58,7 +58,7 @@ fi
 # neither, so the interposer refuses it outright:
 #
 #   Disallowed PATH tool "readelf" used
-#   "readelf" is not allowed to be used. See .../Changes.md#PATH_Tools
+#   "readelf" is not allowed to be used. See build/make's change log, PATH_Tools
 #
 # With no readelf there are no DT_NEEDED entries to resolve, so "0 unresolved"
 # is guaranteed -- which is precisely how this gate passed vacuously on its
@@ -128,8 +128,8 @@ done < "${TMP}/svc"
 [ "${SERVICE_MISSING}" -gt 0 ] && echo "init services with no binary: ${SERVICE_MISSING}"
 
 # --- init services defined twice -------------------------------------------
-# lineage-23.2 ships nine stock HAL .rc files as <name>-stock.rc (JOURNAL 11-13
-# (l)): A16 soong writes an install rule for a DISPLACED source module's own
+# lineage-23.2 ships nine stock HAL .rc files as <name>-stock.rc
+# (2026-11-13): A16 soong writes an install rule for a DISPLACED source module's own
 # init_rc at <name>.rc, and kati refuses a second rule on that path. The rename
 # is only safe while that orphaned rule never reaches the image -- if it ever
 # did, the same service would be defined twice and init keeps the FIRST file it
@@ -363,7 +363,7 @@ sort -u "${TMP}/vndkallow" -o "${TMP}/vndkallow"
 # unreachable and the report becomes thousands of false positives -- loud, but
 # for the wrong reason. Refuse instead, the same way the resolvable floor does.
 VNDKALLOW_N=$(grep -c . "${TMP}/vndkallow" 2>/dev/null || echo 0)
-# Route L (lineage-23.2, JOURNAL 11-13 (d)): no ro.vndk.version and no vendor
+# Route L (lineage-23.2, 2026-11-13): no ro.vndk.version and no vendor
 # vndk/ or vndk-sp/ dir. A16's linkerconfig builds a vndk namespace ONLY when
 # ro.vndk.version is set, so there is no allowlist to find and nothing it would
 # admit -- an empty one is then the right answer, not a broken lookup. Both

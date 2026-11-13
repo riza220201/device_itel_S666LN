@@ -131,7 +131,7 @@
        re-sync restored crDroid's frozen branches, and builds 68-73 all shipped
        a 17-month-old SPL with every other gate green.
 
-       RESUME section 10's rule was "everything in a repo survived". The real
+       The earlier rule was "everything in a repo survived". The real
        rule is: work is durable only where it can be PUSHED to something we
        control. So the merges now live at riza220201/&lt;repo&gt; on branch
        13.0-rs4, and repo syncs them from there.

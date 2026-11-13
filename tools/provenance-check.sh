@@ -32,7 +32,7 @@
 # 1.1 GB stock extraction. This check needs the stock dump, so it belongs on the
 # workstation. Do not "fix" that by making the build gate skip when the dump is
 # absent: a check that silently skips is the failure mode this project has been
-# bitten by three times (see notes/JOURNAL.md on the KMI gate).
+# bitten by three times (the KMI gate among them).
 set -euo pipefail
 
 # Default assumes the workspace layout (device_itel_S666LN/ beside .build/).

@@ -10,7 +10,7 @@
 # 🔑 NO BOOT SWEEP COULD EVER HAVE FOUND THIS. Every denial audit this project
 # runs samples a boot; this one needs the feature EXERCISED. It first appeared
 # the moment org.lineageos.aperture opened camera 0, on a build whose boot sweep
-# had just reported ZERO denials. BLUEPRINT section 9 names the same blind spot
+# had just reported ZERO denials. That is the same blind spot, seen
 # from the other side (a missing grant that produces NO avc record at all and
 # force-closed GameSpace in a public release); this is its mirror — a real
 # record that a boot-shaped test cannot see.

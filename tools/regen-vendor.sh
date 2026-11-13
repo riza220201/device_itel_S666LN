@@ -28,8 +28,8 @@
 # nfc_nci_nxp.so, libdtsaudio.so. Those files are produced by extract-files.sh's
 # `src:dst` renames and blob_fixup at EXTRACTION time; on the VM they existed
 # only in that machine's working tree and were never pushed. So the published
-# vendor tree cannot build the published device tree, which is BLUEPRINT §1's own
-# defect inside our own repos.
+# vendor tree cannot build the published device tree, which is the
+# reproducibility defect, inside our own repos.
 #
 # ⚠ Do NOT "fix" that by hand-copying the ten missing files out of the stock
 # dump. Seven are `-stock` renames that ALSO need blob_fixup's 58 patchelf edits
@@ -80,7 +80,7 @@ if [ "${VERIFY_ONLY}" = "1" ]; then SRC="${SRC:-skip}"; fi
 [ -n "${SRC}" ] || die "usage: regen-vendor.sh [--verify-only] <stock-vendor-dump>
    The path is REQUIRED and has no default. gen_proprietary_files.py once
    defaulted to a path and generated the whole blob list from a crDroid build
-   output for every published revision of this tree (notes/AUDIT-2026-08-10.md)."
+   output for every published revision of this tree (audit, 2026-08-10)."
 if [ "${VERIFY_ONLY}" = "0" ]; then
 [ -d "${SRC}" ] || die "not a directory: ${SRC}"
 SRC="$(cd "${SRC}" && pwd)"
@@ -89,12 +89,12 @@ SRC="$(cd "${SRC}" && pwd)"
 case "${SRC}" in
     *shipped*) die "refusing a path containing 'shipped': ${SRC}
    That is a ROM build's own vendor partition, not stock. Reading it is the
-   defect notes/AUDIT-2026-08-10.md §A exists to describe." ;;
+   defect the 2026-08-10 audit found." ;;
 esac
 # 🪤 extract-utils PREPENDS the path from proprietary-files.txt, and those paths
 # begin `vendor/`. So the argument must be the directory CONTAINING vendor/, not
 # the vendor partition itself. Both spellings are accepted here and normalised,
-# because RESUME §3 names the source as ".build/work/vendor" -- which is the right
+# because the source is usually named ".build/work/vendor" -- which is the right
 # DUMP and the wrong ROOT, and the two are easy to conflate.
 #
 # 🔴 The first version of this check tested `${SRC}/build.prop`, which is the
@@ -119,7 +119,7 @@ fi
 SDK="$(grep -m1 '^ro.vendor.build.version.sdk=' "${ROOT}/vendor/build.prop" | cut -d= -f2 || true)"
 INC="$(grep -m1 '^ro.vendor.build.version.incremental=' "${ROOT}/vendor/build.prop" | cut -d= -f2 || true)"
 [ "${SDK}" = "31" ] || die "vendor sdk is '${SDK}', expected 31.
-   itel's stock vendor is Android 12 (notes/AUDIT-2026-08-10.md §B1). A dump
+   itel's stock vendor is Android 12. A dump
    that is not sdk 31 is not the revision this tree's identity is pinned to."
 # Prove the root actually resolves a blob, rather than merely looking plausible.
 probe="$(grep -m1 -E '^-?vendor/lib64/[^:]+\.so$' "${DEVICE_DIR}/proprietary-files.txt" | sed 's/^-//')"

@@ -13,3 +13,7 @@ tools/__pycache__/
 tools/egl-probe/eglprobe
 tools/egl-probe/eglchoose
 tools/egl-probe/ahbprobe
+
+# Markdown: only the root README is published; every other .md stays local.
+*.md
+!/README.md

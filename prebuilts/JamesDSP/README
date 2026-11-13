@@ -25,7 +25,7 @@ WHY BUILT AND NOT DOWNLOADED
     ⚠ AND THE FLAVOR ALONE IS NOT ENOUGH. UpdateManager is split on the
     "version" dimension, not "dependencies", so rootFdroid removes Firebase and
     leaves the self-updater fully intact. tools/jamesdsp-patches/ stubs it and
-    drops the two install permissions. See that directory's RATIONALE.md.
+    drops the two install permissions.
 
 WHY IT IS A DROP-IN
     The rootFdroid flavor sets applicationId "james.dsp" -- the same package the

@@ -51,5 +51,5 @@ allow vendor_init sysfs_otg_ctl_file:file w_file_perms;
 # boot or denial sweep of ours reads as a functional failure.
 #
 # No neverallow names proc_sched or restricts writing proc_type; checked across
-# system/sepolicy before writing this (BLUEPRINT section 9).
+# system/sepolicy before writing this.
 allow vendor_init proc_sched:file w_file_perms;

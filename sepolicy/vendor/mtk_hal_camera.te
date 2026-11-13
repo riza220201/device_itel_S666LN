@@ -11,8 +11,8 @@ allow mtk_hal_camera system_data_file:dir search;
 # ⚠ That grant does NOT cover the denial seen on build 61:
 #   denied { search } name="data" tcontext=u:object_r:system_data_file:s0:c512,c768
 # The target carries MLS categories and mtk_hal_camera sits at s0, so this is a
-# CONSTRAINT failure, not a missing allow, and no allow rule can satisfy it
-# (BLUEPRINT §9). It is left alone deliberately: the fix would be
+# CONSTRAINT failure, not a missing allow, and no allow rule can satisfy it.
+# It is left alone deliberately: the fix would be
 # mlstrustedsubject on a vendor camera domain, which is a far larger grant than
 # the traversal is worth, and nothing has been shown to depend on it.
 
@@ -36,7 +36,7 @@ allow mtk_hal_camera sysfs_tran_cam_file:file r_file_perms;
 # Both nodes are mode 0666 on the device, and stock grants mtk_hal_camera the
 # full rw set on both types. Read-only would pass a denial sweep at teardown —
 # the access that was actually measured — and then fail the one thing the node
-# exists for, with flash an acceptance criterion in BLUEPRINT §8. Types in
+# exists for, with flash an acceptance criterion. Types in
 # file.te, labels in genfs_contexts; all three are needed.
 allow mtk_hal_camera sysfs_torch_file:file rw_file_perms;
 allow mtk_hal_camera sysfs_sub_torch_file:file rw_file_perms;
@@ -66,7 +66,7 @@ allow mtk_hal_camera sysfs_sub_torch_file:file rw_file_perms;
 #
 # /data/data is an MLS failure, not a missing allow. The target carries
 # categories (c512,c768) and the subject sits at s0, so no allow rule can satisfy
-# it -- BLUEPRINT §9. The only fix would be mlstrustedsubject on mtk_hal_camera,
+# it. The only fix would be mlstrustedsubject on mtk_hal_camera,
 # which hands the camera HAL the right to cross every per-app category boundary
 # on the device, to service a probe for a debug file.
 #

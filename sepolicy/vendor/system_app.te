@@ -12,7 +12,7 @@
 # reflects real hardware state rather than a remembered value.
 #
 # The rule stays on system_app rather than a carved-out gamespace_app domain.
-# See BLUEPRINT.md §13 — that domain reached a public release and force-closed
+# That domain reached a public release once and force-closed
 # GameSpace, because system_app is a TYPE, not an attribute, so a domain split
 # off it inherits nothing and the missing grants produce no denial to find.
 allow system_app sysfs_aichg_file:file rw_file_perms;

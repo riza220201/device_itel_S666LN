@@ -15,7 +15,7 @@
 # full record (crash lines, closures, build numbers) stays in
 #     git show lineage-20.0:extract-files.sh
 #
-# WHAT CHANGED FOR ANDROID 16 (route L, notes/lineage23/JOURNAL.md 2026-11-13 (d))
+# WHAT CHANGED FOR ANDROID 16 (route L, 2026-11-13)
 #   There is no VNDK on this branch: no ro.vndk.version, no VNDK apex, no
 #   /vendor/lib*/vndk. The vendor namespace resolves everything from /vendor/lib*,
 #   where the build installs A16's own vendor variants of the former-VNDK libs.
@@ -70,7 +70,7 @@ namespace_imports = [
 # but not kati -- A16's libalsautils is vendor_available, so its vendor variant
 # always gets an install rule at /vendor/lib*/libalsautils.so, and a renamed
 # MODULE still collided on the PATH ("overriding commands for target
-# .../vendor/lib64/libalsautils.so", JOURNAL 11-13 (l)). The blob is now
+# .../vendor/lib64/libalsautils.so", 2026-11-13). The blob is now
 # libalsautils-stock.so; see blob_fixups.
 lib_fixups: lib_fixups_user_type = {
     **lib_fixups,

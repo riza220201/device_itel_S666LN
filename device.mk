@@ -61,8 +61,8 @@ PRODUCT_PACKAGES += \
 # and it is NOT the same as the vendor's build SDK.
 PRODUCT_SHIPPING_API_LEVEL := 31
 
-# VNDK -- there is none on lineage-23.2 (route L; notes/lineage23/JOURNAL.md
-# 2026-11-13 (d)). A16's linkerconfig builds a vndk namespace only when
+# VNDK -- there is none on lineage-23.2 (route L, 2026-11-13).
+# A16's linkerconfig builds a vndk namespace only when
 # ro.vndk.version is set, and then requires /apex/com.android.vndk.v<ver>; the
 # 23.2 build sets neither (config.mk clears BOARD_VNDK_VERSION). So the
 # lineage-20.0 machinery is retired on this branch:
@@ -572,7 +572,7 @@ PRODUCT_PACKAGES += \
 # start by hand the way wpa_supplicant was tested, so this one rests on the
 # build. Confirm on the next flash: `ls /vendor/bin/hw/hostapd`, then turn the
 # hotspot on. Found while triaging the 46 stock vendor init services missing
-# from the build (see notes/RESUME.md item 2); `hostapd` and `wpa_supplicant`
+# from the build; `hostapd` and `wpa_supplicant`
 # were both on that list and both were real.
 # The Wi-Fi HAL itself. 🔴 Without it there is NO Wi-Fi AT ALL -- measured on
 # hardware, the first build that booted far enough to try:
@@ -750,7 +750,7 @@ PRODUCT_PACKAGES += \
 # hardware/mediatek/aidl/gadget generates init.$(TARGET_BOARD_PLATFORM).usb.rc
 # as a prebuilt_etc in an exported namespace, so its install rule exists whether
 # or not anything requests it, and kati refuses the second rule for the same
-# path. This is the switch the module offers for exactly that (JOURNAL 11-13 (l)).
+# path. This is the switch the module offers for exactly that.
 $(call soong_config_set,mediatek_gadget,use_custom_usb_gadget_rc,true)
 
 PRODUCT_COPY_FILES += \

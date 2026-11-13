@@ -15,7 +15,7 @@
 #
 # Without this the binary lands as plain vendor_file, init finds no domain
 # transition and refuses to exec it under enforcing -- trading a build failure
-# for a silently missing HAL. BLUEPRINT §9: "a vendor init service needs an
+# for a silently missing HAL. The rule: "a vendor init service needs an
 # exec type".
 #
 # hal_wifi_default_exec is the right type, not a new one: it puts the service in
@@ -103,7 +103,7 @@
 # On this hardware sdc62 is tee_b and tranfs is sdc64; a tree that hardcodes the
 # number ends up granting init read/relabel on the TEE partition instead, and
 # fsck's tranfs grant can never match. Numbers also move between firmware
-# revisions. Live map is in notes/device-state-2026-08-03.md.
+# revisions; read the live map from /dev/block/by-name on the device.
 /dev/block/by-name/tranfs                                                       u:object_r:tranfs_block_device:s0
 
 # A/B device: the logo partition is SLOTTED, so a label written for the
@@ -129,7 +129,7 @@
 # 🔴 Measured 2026-09-01: all six of these have ZERO matches in the shipped
 # vendor_file_contexts. The KSU module that proved r54p1 on hardware chcon'd
 # them by hand in its installer, which is exactly the kind of workaround that
-# makes a build fail where an overlay succeeded (BLUEPRINT §9 / the 2026-08-19
+# makes a build fail where an overlay succeeded (the 2026-08-19
 # genfs_contexts miss). The controls are the libraries MediaTek DOES label:
 # libged.so, libgpu_aux.so and libgralloc_metadata.so all read back
 # same_process_hal_file on the running device.

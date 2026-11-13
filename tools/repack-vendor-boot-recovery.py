@@ -13,8 +13,8 @@ patched adaptive-ts.ko -- drop or regenerate it and you get a touch UI with no
 touch input, or a device that does not boot at all.
 
 ⚠ CORRECTED 2026-08-19. An earlier version of this comment claimed the ROM
-would fail to boot on a foreign vendor_boot. That is WRONG, and JOURNAL.md had
-already retracted it once: the kernel mounts super unaided and SECOND-stage init
+would fail to boot on a foreign vendor_boot. That is WRONG, and it had
+already been retracted once: the kernel mounts super unaided and SECOND-stage init
 loads vendor_dlkm's 198 modules from there, so the vendor_boot modules are not
 required to reach userspace -- demonstrated by OrangeFox, whose platform ramdisk
 is a bare first_stage_ramdisk with ZERO modules, on which this ROM boots fine.

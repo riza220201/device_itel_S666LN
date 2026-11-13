@@ -6,7 +6,7 @@
 All three paths are REQUIRED and none has a default. That is deliberate:
 `gen_proprietary_files.py` once defaulted to a path and silently generated the
 whole blob list from the wrong dump for every published revision of this tree
-(notes/AUDIT-2026-08-10.md §A). A gate that can be pointed at the wrong artifact
+(audit 2026-08-10). A gate that can be pointed at the wrong artifact
 by omission is worse than no gate, because it answers confidently either way.
 
 WHY THIS EXISTS

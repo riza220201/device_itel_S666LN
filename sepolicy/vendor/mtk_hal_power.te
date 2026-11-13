@@ -17,7 +17,7 @@
 # A power HAL reading memory pressure to shape its hints is doing its job, and
 # /proc/meminfo is system-wide aggregate information with nothing per-process or
 # per-app in it. Silencing this would leave the HAL making decisions on data it
-# was refused, which is the failure mode BLUEPRINT §9 warns about: a denial that
+# was refused, which is the worst failure mode: a denial that
 # produces no error and no crash, just a worse decision.
 #
 # ⚠ Appeared for the first time in build 72, the build that started shipping
