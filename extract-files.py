@@ -38,6 +38,7 @@
 #     build runs check_elf on them, so a soname nothing provides is a BUILD error
 #     here, not a boot loop.
 
+import hashlib
 import sys
 from os import path
 
@@ -338,6 +339,33 @@ def patch_bytes(offset: int, old: bytes, new: bytes):
     return patch
 
 
+def rename_import(old: bytes, new: bytes):
+    """Rename an imported symbol in place (.dynstr); same length, exactly one occurrence."""
+    assert len(old) == len(new), (old, new)
+
+    def patch(ctx: BlobFixupCtx, file: File, file_path: str, *args, **kwargs):
+        with open(file_path, 'rb') as f:
+            data = f.read()
+        if data.count(old) != 1 or new in data:
+            raise AssertionError(f'{file.dst}: {old!r} x{data.count(old)}, {new!r} x{data.count(new)}')
+        with open(file_path, 'wb') as f:
+            f.write(data.replace(old, new))
+
+    return patch
+
+
+def sha256_is(digest: str):
+    """Fail extraction unless the fixed-up file is exactly the binary proven on hardware."""
+
+    def check(ctx: BlobFixupCtx, file: File, file_path: str, *args, **kwargs):
+        with open(file_path, 'rb') as f:
+            got = hashlib.sha256(f.read()).hexdigest()
+        if got != digest:
+            raise AssertionError(f'{file.dst}: sha256 {got}, expected {digest}')
+
+    return check
+
+
 def shim(lib: str) -> blob_fixup:
     return blob_fixup().add_needed(lib)
 
@@ -480,6 +508,75 @@ ROUTE_L_FIXUPS = [
      .call(patch_bytes(0x65ef8, bytes.fromhex('00208052'), bytes.fromhex('00a68152')), need_tmp_dir=False)
      .call(patch_bytes(0x67368, bytes.fromhex('00208052'), bytes.fromhex('00a68152')), need_tmp_dir=False)
      .call(patch_bytes(0x68360, bytes.fromhex('00208052'), bytes.fromhex('00a68152')), need_tmp_dir=False)),
+
+    # The camera. (1) Thread::run. A12's run() took the thread's first strong reference
+    # itself (`mHoldSelf = this`); A16's does sp<Thread>::fromExisting(this) and aborts
+    # unless an sp<> already owns the object. MediaTek's camera stack calls run() from its
+    # constructors (AppStreamMgr::CallbackHandler::CallbackHelper): camerahalserver died
+    # with "incStrongRequireStrong() called on ... which isn't already owned" on EVERY
+    # camera open ("error while setting up the session"). Every stock camera library that
+    # imports Thread::run gets it RENAMED to libshim_thread's A12-contract wrapper
+    # (shims/thread.cpp; identical to Thread::run for an owned object). A rename, not
+    # interposition: these are dlopen'ed, and resolve libutils first in their load group.
+    (('vendor/lib64/mt6789/libcam.iopipe.so',
+      'vendor/lib64/mt6789/libcam.utils.sensorprovider.so',
+      'vendor/lib64/mt6789/libmtkcam_3rdparty.customer.so',
+      'vendor/lib64/mt6789/libmtkcam_device3_app.so',
+      'vendor/lib64/mt6789/libmtkcam_device3_hal.so',
+      'vendor/lib64/mt6789/libmtkcam_device3_utils.so',
+      'vendor/lib64/mt6789/libmtkcam.featurepipe.capture.so',
+      'vendor/lib64/mt6789/libmtkcam.featurepipe.depthmap.so',
+      'vendor/lib64/mt6789/libmtkcam.featurepipe.streaming.so',
+      'vendor/lib64/mt6789/libmtkcam_hwnode.so',
+      'vendor/lib64/mt6789/libmtkcam_hwutils.so',
+      'vendor/lib64/mt6789/libmtkcam_pipelinemodel_isp.so'), blob_fixup()
+     .call(rename_import(b'_ZN7android6Thread3runEPKcim', b's666ln_a12_thread_run_compat'),
+           need_tmp_dir=False)
+     .add_needed('libshim_thread.so')),
+    # (2) GraphicBuffer, the codec2 bug above in the camera stack: isptuning and halisp
+    # allocate A12's 256 B (`mov w0, #0x100`), the morpho stabilizer an even older 224 B
+    # (`orr w0, wzr, #0xe0`), each right before A16's 3,376-byte constructor.
+    ('vendor/lib64/mt6789/libcam.isptuning.so', blob_fixup()
+     .call(patch_bytes(0xb236c, bytes.fromhex('00208052'), bytes.fromhex('00a68152')), need_tmp_dir=False)),
+    ('vendor/lib64/mt6789/libcam.halisp.so', blob_fixup()
+     .call(patch_bytes(0x1dbe4, bytes.fromhex('00208052'), bytes.fromhex('00a68152')), need_tmp_dir=False)),
+    ('vendor/lib64/mt6789/libmorpho_video_stabilizer.so', blob_fixup()
+     .call(patch_bytes(0x254ae8, bytes.fromhex('e00b1b32'), bytes.fromhex('00a68152')), need_tmp_dir=False)),
+    # (3) RAW / DNG. Stock's HI5022Q static metadata never lists RAW in
+    # android.request.availableCapabilities, so no app can ask for a DNG -- and
+    # Aperture on Lineage 23 records DNG as soon as the HAL advertises it. These are
+    # our own edits to our own stock libmtkcam_metastore.so (a1229dfb), three parts:
+    #   1  constructCustStaticMetadata_..._HI5022Q_MIPI_RAW pushes a sixth capability,
+    #      3 (RAW), using the 180-byte error-logging branch IMetadata::update()'s
+    #      success path skips as a code cave (cbz -> nop; the cave re-runs update());
+    #   2  a RAW_SENSOR (format 0x20) 4096x3072 OUTPUT stream configuration, its
+    #      min-frame-duration and stall-duration rows;
+    #   3  the JPEG (BLOB) maximum at 4096x3072, so the JPEG matches the RAW frame.
+    # No 8192x6144 rows: on this vendor no capture fills them (remosaic and RAW are
+    # mutually exclusive in MTK's scenario table). Rear camera only; the front
+    # (GC08A8) has its own constructor and keeps BACKWARD_COMPATIBLE..BURST_CAPTURE.
+    # Proven 2026-11-14 with this exact file (cf902179) overlaid on build 16: camera 0
+    # reports RAW, Aperture saved a 4096x3072 GRBG DNG (10-bit, black 64, white 1023,
+    # both green sites 181.8 / 182.1, no zero padding).
+    ('vendor/lib64/mt6789/libmtkcam_metastore.so', blob_fixup()
+     .call(patch_bytes(0x57a6c, bytes.fromhex('c0050034f403002af30300f0739645f9680240b9a8020036'),
+                       bytes.fromhex('1f2003d568008052e8430039a04301d1e143009174f60194')), need_tmp_dir=False)
+     .call(patch_bytes(0x57a8c, bytes.fromhex('e5'),
+                       bytes.fromhex('e1')), need_tmp_dir=False)
+     .call(patch_bytes(0x57a90, bytes.fromhex('c806805261feffd0216c2f9142feffd0'),
+                       bytes.fromhex('a24301d1e00313aa5ef6019422000014')), need_tmp_dir=False)
+     .call(patch_bytes(0x57b48, bytes.fromhex('3a048052'),
+                       bytes.fromhex('d6000014')), need_tmp_dir=False)
+     .call(patch_bytes(0x57b5d, bytes.fromhex('fc81'),
+                       bytes.fromhex('0082')), need_tmp_dir=False)
+     .call(patch_bytes(0x57b71, bytes.fromhex('7d'),
+                       bytes.fromhex('80')), need_tmp_dir=False)
+     .call(patch_bytes(0x57e9c, bytes.fromhex('80070034f303002af40300f0949645f9880240b9a8020036a04301d152f50194e503002a881c805261feffd0216c2f9142feffd042640c9103feff9063181291c0008052841c8052e603132ae70303aa69fefff029a93191e907'),
+                       bytes.fromhex('3c0000141a048052fa0b00f9a04301d1e143009188f5019408008252e80b00f9a04301d1e143009183f5019408808152e80b00f9a04301d1e14300917ef50194ff0b00f9a04301d1e14300917af5019416109e52565fa072f60b')), need_tmp_dir=False)
+     .call(patch_bytes(0x57ef8, bytes.fromhex('e80300b949f50194880240b9490180521f01096a00040054e0430091e1031f2a0280805245f50194a04301d1'),
+                       bytes.fromhex('a04301d1e143009174f50194b40a9452943fa072f40b00f9a04301d1e14300916ef501943a0480520bffff17')), need_tmp_dir=False)
+     .call(sha256_is('cf9021796adfc30f7d221a6f04a73be95b6f84f5144b1f4a8627fe516756a67c'),
+           need_tmp_dir=False)),
 
     # The stock composer generation. Stock's HWC service compiles the composer HAL's
     # header-inline code (ComposerClientImpl, ComposerResources() = default) against

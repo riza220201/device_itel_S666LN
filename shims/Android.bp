@@ -97,3 +97,15 @@ cc_library_shared {
     ],
     compile_multilib: "64",
 }
+
+// libutils: A12's Thread::run() took the first strong reference itself
+// (`mHoldSelf = this`); A16's uses sp::fromExisting and aborts when the object is
+// not owned yet. MediaTek's camera stack calls run() from its constructors. The
+// stock importers' Thread::run is RENAMED to this shim's symbol (thread.cpp).
+cc_library_shared {
+    name: "libshim_thread",
+    defaults: ["s666ln_shim_defaults"],
+    srcs: ["thread.cpp"],
+    shared_libs: ["libutils"],
+    compile_multilib: "64",
+}

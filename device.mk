@@ -43,16 +43,23 @@ PRODUCT_PACKAGES += \
 # the Android-12 vendor blobs still open /dev/vndbinder, and with no context
 # manager present /vendor/bin/pnpmgr retried roughly once a second forever.
 #
-# 🔴 The DAEMON is now stock's, in proprietary-files.txt. Built at A13 it holds
-#     bin/vndservicemanager   UND _ZTVN7android2os14ConnectionInfoE
-# i.e. a vtable v33's libbinder defines and v31's does not, so under a v31 vendor
-# namespace it does not start -- and then nothing answers /dev/vndbinder and the
-# exact pnpmgr retry loop this block exists to prevent comes back. Found by
-# tools/v31-delta-check.py, which classifies it as reachable because
-# vendor/etc/init/vndservicemanager.rc starts it by path.
-#
-# `vndservice` (the CLI) stays a source build: it is a separate process, it holds
-# no v33-only reference, and nothing loads it into the daemon's address space.
+# Route L: the DAEMON is built from source again. The A13 tree ran stock's
+# (bin/vndservicemanager there held a v33-only `ConnectionInfo` vtable reference
+# that the v31 VNDK namespace could not satisfy), but on Android 16 there is no
+# VNDK: /vendor/lib64/libbinder.so is A16-built, and the stock A12 daemon's
+# ServiceManager vtable no longer matches A16's BnServiceManager::onTransact.
+# A16's AIDL inserted getService2/checkService2 ahead of addService, so A16
+# libbinder dispatched every addService two slots further, into A12's
+# registerForNotifications -- with the service binder as the "callback". pnpmgr's
+# addService("PNPMGR") at boot_completed therefore SIGSEGV'd the daemon on every
+# boot, and its onrestart restarted classes main, hal and early_hal (SurfaceFlinger
+# and gatekeeperd aborted on DEAD_OBJECT on some boots). Measured 2026-11-14 with
+# binder tracepoints + uprobes: pnpmgr sent only PING and code 5 (addService);
+# proven live with this source build staged over /vendor/bin: PNPMGR registers,
+# no crash. The stock binary and its rc left proprietary-files.txt with this.
+PRODUCT_PACKAGES += \
+    vndservicemanager
+
 PRODUCT_PACKAGES += \
     vndservice
 
@@ -1029,6 +1036,7 @@ PRODUCT_PACKAGES += \
     libshim_crypto \
     libshim_hidlbase \
     libshim_processgroup \
+    libshim_thread \
     libshim_ui
 
 # Trustonic KeyMint keeps its stock `_platform` AIDL V1 libraries (v31 files,
