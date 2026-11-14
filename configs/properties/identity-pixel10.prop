@@ -1,0 +1,11 @@
+# The Google Pixel 10 "frankel" identity, for aicp_S666LN.mk (operator, 2026-11-14:
+# the identity the One UI port shipped, board included). Only what cannot go
+# through PRODUCT_BUILD_PROP_OVERRIDES lives here: values containing spaces. The
+# override list is read twice -- by bash in build/make/core/sysprop.mk and word by
+# word in build/soong/scripts/gen_build_prop.py -- and no quoting satisfies both.
+# ro.build.description is an optional (?=) default in the generated build.prop,
+# so this explicit value replaces it.
+
+ro.build.description=frankel-user 16 BD1A.250702.001 13724644 release-keys
+ro.build.display.id=BD1A.250702.001
+ro.product.marketname=Pixel 10

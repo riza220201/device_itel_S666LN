@@ -1,0 +1,5 @@
+# Pixel 10 identity, product partition (see identity-pixel10.prop). The product
+# build.prop repeats the build section; its description and display id are
+# optional defaults computed before PRODUCT_BUILD_PROP_OVERRIDES apply.
+ro.build.description=frankel-user 16 BD1A.250702.001 13724644 release-keys
+ro.build.display.id=BD1A.250702.001

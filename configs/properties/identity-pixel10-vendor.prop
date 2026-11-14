@@ -1,0 +1,3 @@
+# Pixel 10 identity, vendor partition (see identity-pixel10.prop). make's
+# sysprop.mk writes ro.vendor.build.id as an optional default from BUILD_ID.
+ro.vendor.build.id=BD1A.250702.001

@@ -46,7 +46,12 @@ TARGET_BOARD_SUFFIX := _64
 # TARGET_USES_64_BIT_BINDER: removed on lineage-23.2 -- deprecated, 64-bit binder is the default.
 
 # Bootloader                                                            [V]
-TARGET_BOOTLOADER_BOARD_NAME := s666ln
+# A ROM product makefile may present another board (aicp_S666LN.mk: frankel). It only
+# names the board -- ro.product.board and android-info.txt; HALs select by
+# ro.board.platform (mt6789, unchanged). The six stock libraries that read
+# ro.product.board are all the embedded cpuinfo chipset decoder, which recognises
+# neither s666ln nor frankel and falls back to ro.board.platform.
+TARGET_BOOTLOADER_BOARD_NAME := $(or $(S666LN_BOARD_NAME),s666ln)
 TARGET_NO_BOOTLOADER := true
 TARGET_BOARD_PLATFORM := mt6789
 
@@ -554,6 +559,11 @@ TARGET_OTA_ASSERT_DEVICE := S666LN
 # Properties — a value containing a space must be set through these raw
 # .prop files, not PRODUCT_*_PROPERTIES.
 TARGET_SYSTEM_PROP += $(DEVICE_PATH)/configs/properties/system.prop
+# Identity: itel's by default; a ROM product makefile may set S666LN_IDENTITY_PROP
+# (and _PRODUCT_PROP / _VENDOR_PROP) to its own files (aicp_S666LN.mk: Pixel 10).
+TARGET_SYSTEM_PROP += $(or $(S666LN_IDENTITY_PROP),$(DEVICE_PATH)/configs/properties/identity-itel.prop)
+TARGET_PRODUCT_PROP += $(S666LN_IDENTITY_PRODUCT_PROP)
+TARGET_VENDOR_PROP += $(S666LN_IDENTITY_VENDOR_PROP)
 TARGET_VENDOR_PROP += $(DEVICE_PATH)/configs/properties/vendor.prop
 
 # SELinux
