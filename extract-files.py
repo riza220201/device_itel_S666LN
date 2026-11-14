@@ -442,6 +442,45 @@ ROUTE_L_FIXUPS = [
      .add_needed('libutils.so')
      .call(needed_first('libutils.so'), need_tmp_dir=False)),
 
+    # Video decode, two layout bugs in the codec2 process, each proven live on its own:
+    # (1) AHandler. A16 added Mutex mLock + three fields and widened mMessageCounter, behind an
+    # INLINE constructor; stock libcodec2_mtk_vdec/venc and libcodec2_soft_common register
+    # A12-layout handlers, and A16's out-of-line deliverMessage() locked "mLock" in their own
+    # fields: the HEVC decoder thread spun a core all boot (AHandler::deliverMessage ->
+    # MutexLockWithTimeout) and MediaProvider hung behind it. v31's deliverMessage touches only
+    # A12's fields, safe for the A16-layout handlers of libstagefright_bufferqueue_helper in the
+    # same process too, so v31 must win for EVERYONE there: DT_NEEDED[0] of the service, and the
+    # thirteen stock foundation users are repointed so they never load A16's at all.
+    (('vendor/lib64/libcodec2_mtk_c2store.so',
+      'vendor/lib64/libcodec2_mtk_vdec.so',
+      'vendor/lib64/libcodec2_mtk_venc.so',
+      'vendor/lib64/libcodec2_soft_common-stock.so',
+      'vendor/lib64/libcodec2_soft_mtk_alacdec.so',
+      'vendor/lib64/libcodec2_soft_mtk_apedec.so',
+      'vendor/lib64/libcodec2_soft_mtk_imaadpcmdec.so',
+      'vendor/lib64/libcodec2_soft_mtk_mp3dec.so',
+      'vendor/lib64/libcodec2_soft_mtk_msadpcmdec.so',
+      'vendor/lib64/libcodec2_vndk-stock.so',
+      'vendor/lib64/libcodec2_vpp_qt_plugin.so',
+      'vendor/lib64/libcodec2_vpp_rs_plugin.so',
+      'vendor/lib64/libsfplugin_ccodec_utils-stock.so'), blob_fixup()
+     .replace_needed('libstagefright_foundation.so', 'libstagefright_foundation-v31.so')
+     .call(must_not_need('libstagefright_foundation.so'), need_tmp_dir=False)),
+    ('vendor/bin/hw/android.hardware.media.c2@1.2-mediatek-64b', blob_fixup()
+     .add_needed('libstagefright_foundation-v31.so')
+     .call(needed_first('libstagefright_foundation-v31.so'), need_tmp_dir=False)),
+    # (2) GraphicBuffer. A16 appended DependencyMonitor (every earlier member keeps its offset)
+    # and grew the object 256 -> 3,376 B; stock libcodec2_vndk allocates it itself
+    # (mov w0,#0x100; bl operator new; bl GraphicBuffer ctor) at three sites, so A16's
+    # constructor wrote ~3 KB past each allocation: with (1) alone the video still never
+    # started, the VcodecProcess thread spinning on a trampled std::mutex
+    # (vcodec::util::Tasklet::consumeTask). The allocations now ask for A16's size; A16's
+    # constructor and destructor do the rest (operator delete is size-agnostic).
+    ('vendor/lib64/libcodec2_vndk-stock.so', blob_fixup()
+     .call(patch_bytes(0x65ef8, bytes.fromhex('00208052'), bytes.fromhex('00a68152')), need_tmp_dir=False)
+     .call(patch_bytes(0x67368, bytes.fromhex('00208052'), bytes.fromhex('00a68152')), need_tmp_dir=False)
+     .call(patch_bytes(0x68360, bytes.fromhex('00208052'), bytes.fromhex('00a68152')), need_tmp_dir=False)),
+
     # The stock composer generation. Stock's HWC service compiles the composer HAL's
     # header-inline code (ComposerClientImpl, ComposerResources() = default) against
     # A12's ComposerResources, which A16 changed: create() allocates 0x70 = 112 B in

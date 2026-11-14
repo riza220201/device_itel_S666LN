@@ -211,3 +211,26 @@ cc_prebuilt_library_shared {
     check_elf_files: false,
     prefer: false,
 }
+
+// stagefright foundation: A16's AHandler grew (Mutex mLock, mDeliveringMessage,
+// mCurrentMessageWhat, mCurrentMessageStartTimeUs; mMessageCounter u32 -> u64) and its
+// constructor is INLINE, so the stock codec2 components (libcodec2_mtk_vdec/venc,
+// libcodec2_soft_common) build A12-layout handlers whose own fields sit where A16's
+// out-of-line deliverMessage() locks mLock: the HEVC decoder thread spun one core all
+// boot (debuggerd: AHandler::deliverMessage -> MutexLockWithTimeout) and MediaProvider
+// hung behind it. v31's deliverMessage only touches A12's fields, which is safe for the
+// A16-layout handlers of libstagefright_bufferqueue_helper in the same process too.
+// It must win the lookup for the WHOLE codec2 process (one looper roster), so it is
+// DT_NEEDED[0] of the C2 service and every stock foundation user there is repointed
+// (extract-files.py). Proven live: the decoder thread parks in v31 ALooper::loop.
+cc_prebuilt_library_shared {
+    name: "libstagefright_foundation-v31",
+    stem: "libstagefright_foundation-v31",
+    owner: "aosp",
+    vendor: true,
+    strip: { none: true },
+    srcs: ["lib64/libstagefright_foundation.so"],
+    compile_multilib: "64",
+    check_elf_files: false,
+    prefer: false,
+}

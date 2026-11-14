@@ -1014,7 +1014,8 @@ PRODUCT_PACKAGES += \
     libhidlbase-v31 \
     libcutils-v31 \
     libbinder-v31 \
-    libtinyxml2-v31
+    libtinyxml2-v31 \
+    libstagefright_foundation-v31
 
 # Route L thunks (shims/Android.bp): where A16 changed a former-VNDK library's ABI
 # only by a rename or an argument type, the stock blob gets a shim (add_needed in
