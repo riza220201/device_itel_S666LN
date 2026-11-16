@@ -99,6 +99,10 @@ PRODUCT_SHIPPING_API_LEVEL := 31
 ifneq ($(wildcard $(LOCAL_PATH)/prebuilts/JamesDSP/JamesDSP.apk),)
 PRODUCT_PACKAGES += \
     JamesDSP
+# Not stopped on a fresh /data, and exempt from battery optimisation (configs/sysconfig/jamesdsp.xml
+# says why). /product: SystemConfig honours allow-in-power-save there, not on /vendor.
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/configs/sysconfig/jamesdsp.xml:$(TARGET_COPY_OUT_PRODUCT)/etc/sysconfig/jamesdsp.xml
 endif
 
 # --- classic JamesDSP: the system-wide audio EFFECT --------------------------

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2026 The LineageOS Project
+     SPDX-License-Identifier: Apache-2.0
+
+     JamesDSP (james.dsp, root flavor) is the ROM's audio-effect controller in place of AudioFX.
+     AudioFX is privileged, platform-signed and persistent, so it is never background-restricted;
+     JamesDSP is a plain product app and needs both entries below to do the same job.
+
+     initial-package-state: config_stopSystemPackagesByDefault is true, so a preinstalled app starts
+     STOPPED on a fresh /data and receives no broadcasts; no BOOT_COMPLETED, no
+     OPEN_AUDIO_EFFECT_CONTROL_SESSION; and the DSP stays off until the user opens the app (measured
+     on build 19 after a clean flash: stopped=true, no process, no service). LineageOS exempts its own
+     apps the same way (initial-package-stopped-states-*.xml), as does rs4-microg for microG/Aurora.
+
+     allow-in-power-save: the state JamesDSP's root flavor asks the user for itself
+     (REQUEST_IGNORE_BATTERY_OPTIMIZATIONS; MainActivity: "require battery optimizations turned off ...
+     otherwise, the service will be block from launching from background"). Without it the service's
+     first foreground starts at boot are refused (ForegroundServiceStartNotAllowedException) until
+     BOOT_COMPLETED's temporary allowance. Operator's decision (2026-11-16): pre-grant it in the ROM.
+-->
+<config>
+    <initial-package-state package="james.dsp" stopped="false" />
+    <allow-in-power-save package="james.dsp" />
+</config>
