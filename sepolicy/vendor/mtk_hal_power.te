@@ -26,3 +26,22 @@
 # and `setMode unknown type` still occurs) -- but it is the first plausible sign
 # the library is being exercised at all. Do not read more into it than that.
 allow mtk_hal_power proc_meminfo:file r_file_perms;
+
+# /proc/perfmgr/eas_ioctl: stock's power HAL issues ioctls that A16's sepolicy_vndr no
+# longer lists. sepolicy_vndr's mtk_hal_power allowxperm names the FPSGO/ADPF set only;
+# stock's own compiled policy granted (.build/work/vendor/etc/selinux/vendor_sepolicy.cil)
+#   (allowx mtk_hal_power proc_perfmgr (ioctl file (0x6701 0x6703 ((range 0x6707 0x670c))
+#           ((range 0x670e 0x6711)) ((range 0x6713 0x6716)))))
+# and our HAL is stock's. Every boot on lineage-23.2:
+#   avc: denied { ioctl } comm="mtkPowerAIDL" path="/proc/perfmgr/eas_ioctl" ioctlcmd=0x6709
+#     scontext=u:r:mtk_hal_power:s0 tcontext=u:object_r:proc_perfmgr:s0
+# Stock's set restored as-is (allowxperm rules add up with sepolicy_vndr's). Proven
+# 2026-11-16 on build 18 with the same rules in a KSU module's sepolicy.rule: 0 denials.
+allowxperm mtk_hal_power proc_perfmgr:file ioctl {
+    0x6701 0x6703 0x6707-0x670c 0x670e-0x6711 0x6713-0x6716
+};
+
+# It also writes /proc/sys/vm/watermark_scale_factor once at boot. Stock refused that
+# write too (no rule in its policy), so the HAL has never tuned it on this phone; kept
+# refused, and silenced, rather than changing memory behaviour as a side effect.
+dontaudit mtk_hal_power proc_watermark_scale_factor:file write;

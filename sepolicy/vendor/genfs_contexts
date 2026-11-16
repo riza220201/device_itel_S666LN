@@ -128,3 +128,46 @@ genfscon sysfs /devices/platform/soc/1101a000.i2c/i2c-6/6-006b/power_supply u:ob
 genfscon sysfs /devices/platform/soc/11eb3000.i2c/i2c-9/9-006a/power_supply u:object_r:sysfs_batteryinfo:s0
 genfscon sysfs /devices/platform/odm/odm:usb_switch/power_supply u:object_r:sysfs_batteryinfo:s0
 genfscon sysfs /devices/platform/soc/10026000.pwrap/10026000.pwrap:mt6366/mt6358-chrdet/power_supply u:object_r:sysfs_batteryinfo:s0
+
+# The nine wakeup sources nobody labels sysfs_wakeup (2026-11-16, build 18).
+#
+# system_suspend reads /sys/class/wakeup/wakeupN/{name,active_count,...} -- ten files per
+# source -- on every wakeup-stats pull (BatteryStats, dumpsys suspend_control_internal).
+# Nine of this board's 194 sources sit under device paths no genfscon names, so their
+# wakeup dirs inherit the parent's label:
+#   plain sysfs        3-0028, 5-004e, 9-006a (i2c), input4 (the fingerprint, spi0.0)
+#   sysfs_extcon       extcon_usb ("extcon otg ws"; sepolicy_vndr labels the whole device)
+#   sysfs_batteryinfo  charger, mtk_charger_type, primary_dvchg, usb_switch (the four
+#                      power_supply entries above; coredomain may never read batteryinfo,
+#                      so private/system_suspend.te only silences those)
+# Each pull logged 90 "Error opening wakeupN/<file> ... Permission denied" lines and the nine
+# sources were MISSING from the kernel-wakelock stats. On the 42 h boot before this fix:
+# 360 such lines per 30 min (one pull every ~8 min) plus 90 at every boot.
+#
+# MediaTek labels exactly these subdirs itself on other boards (sepolicy_vndr base
+# genfs_contexts: `.../wakeup/wakeup`, `.../power_supply/battery/wakeup`), prefix-matching
+# the wakeupN dir and its files; the device's own attributes keep their labels.
+# ✅ Proven by chcon on the running device (build 18 + v10 ksunext), same trigger each time:
+#   before                          90 Error opening, 50 avc (the 5 non-batteryinfo sources)
+#   the 5 sysfs/sysfs_extcon fixed  40, 0 avc (only the four dontaudited batteryinfo ones)
+#   all 9 fixed                      0, and the nine appear in dumpsys suspend_control_internal
+genfscon sysfs /devices/platform/soc/11015000.i2c/i2c-3/3-0028/wakeup/wakeup u:object_r:sysfs_wakeup:s0
+genfscon sysfs /devices/platform/soc/11017000.i2c/i2c-5/5-004e/wakeup/wakeup u:object_r:sysfs_wakeup:s0
+genfscon sysfs /devices/platform/soc/11eb3000.i2c/i2c-9/9-006a/wakeup/wakeup u:object_r:sysfs_wakeup:s0
+genfscon sysfs /devices/platform/soc/1100a000.spi0/spi_master/spi0/spi0.0/input/input4/wakeup u:object_r:sysfs_wakeup:s0
+genfscon sysfs /devices/platform/extcon_usb/wakeup/wakeup u:object_r:sysfs_wakeup:s0
+genfscon sysfs /devices/platform/soc/1101a000.i2c/i2c-6/6-006b/power_supply/charger/wakeup u:object_r:sysfs_wakeup:s0
+genfscon sysfs /devices/platform/soc/10026000.pwrap/10026000.pwrap:mt6366/mt6358-chrdet/power_supply/mtk_charger_type/wakeup u:object_r:sysfs_wakeup:s0
+genfscon sysfs /devices/platform/soc/11eb3000.i2c/i2c-9/9-006a/power_supply/primary_dvchg/wakeup u:object_r:sysfs_wakeup:s0
+genfscon sysfs /devices/platform/odm/odm:usb_switch/power_supply/usb_switch/wakeup u:object_r:sysfs_wakeup:s0
+
+# Mali r54p1's userspace reads kbase's large_page_conf parameter at every EGL start --
+# SurfaceFlinger, bootanim, every app's RenderThread/GLThread (stock's r38p1 never did):
+#   avc: denied { read } name="large_page_conf" scontext=u:r:surfaceflinger:s0
+#     tcontext=u:object_r:sysfs:s0 tclass=file      (+ bootanim, system_app, platform_app,
+#                                                      untrusted_app: every boot)
+# sysfs_gpu is AOSP's type for exactly this reader set (app.te: appdomain minus isolated,
+# surfaceflinger.te, bootanim.te, system_server.te). The value is "off" (kbase hands out no
+# large pages), so the DDK now reads the truth instead of failing. Proven 2026-11-16 by
+# chcon at post-fs-data (before any GPU client starts): 0 denials, UI normal.
+genfscon sysfs /module/mali_kbase/parameters/large_page_conf u:object_r:sysfs_gpu:s0

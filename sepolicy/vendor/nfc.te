@@ -1,0 +1,7 @@
+# com.android.nfc (A16 libnfc-nci, nfc_config.cc) looks for an optional
+# /data/vendor/nfc/libnfc-nci-update.conf; MediaTek labels /data/vendor/nfc
+# nfc_data_vendor_file for the HAL and grants the app nothing, so every NFC start was
+#   avc: denied { search } name="nfc" scontext=u:r:nfc:s0 tcontext=nfc_data_vendor_file dir
+# Search only: the lookup then finds the file absent, as it is. Proven 2026-11-16
+# (module sepolicy.rule): 0 denials, nothing further requested.
+allow nfc nfc_data_vendor_file:dir search;

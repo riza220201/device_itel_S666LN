@@ -1035,6 +1035,7 @@ PRODUCT_PACKAGES += \
     libshim_bqhelper \
     libshim_crypto \
     libshim_hidlbase \
+    libshim_nfcjoin \
     libshim_processgroup \
     libshim_thread \
     libshim_ui

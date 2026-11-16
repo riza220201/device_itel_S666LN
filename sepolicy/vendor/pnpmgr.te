@@ -35,3 +35,7 @@ allow pnpmgr cgroup:file r_file_perms;
 #     tcontext=u:object_r:default_android_vndservice:s0 tclass=service_manager
 # Labelled in sepolicy/vendor/vndservice_contexts, matching stock.
 add_service(pnpmgr, pnpmgr_service)
+
+# And /proc/cgroups (the controller list), once at start; A16 gives it its own label
+# (proc_cgroups) where A12 had plain proc. Proven 2026-11-16 (module sepolicy.rule): 0 denials.
+allow pnpmgr proc_cgroups:file r_file_perms;

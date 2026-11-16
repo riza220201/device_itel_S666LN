@@ -532,7 +532,6 @@ vendor.connsys.driver.ready=no
 # ---------------------------------------------------------------------------
 # Power, thermal, scheduling and memory management.
 
-persist.vendor.fd.on.charge=0
 persist.vendor.memfusion_ui_enable=true
 persist.vendor.pnpmgr.cgroup.enable=1
 persist.vendor.pnpmgr.enable=1
@@ -543,8 +542,6 @@ persist.vendor.powerhal.thermal_ux_temp_min=43000
 persist.vendor.swapfile_enable=true
 persist.vendor.swapfile_size_mb=0
 persist.vendor.uxcompaction_enable=true
-ro.cur_max_process.val=72
-ro.limit_cache.support=1
 ro.lmk.kill_heaviest_task=true
 ro.lmk.kill_timeout_ms=100
 ro.lmk.psi_complete_stall_ms=150
@@ -552,7 +549,6 @@ ro.lmk.swap_free_low_percentage=20
 ro.lmk.swap_util_max=90
 ro.lmk.thrashing_limit=30
 ro.lmk.thrashing_limit_decay=50
-ro.os_mutilevel_charge.support=1
 ro.vendor.memfusion.support=1
 ro.vendor.memfusion2_1.support=true
 ro.vendor.memfusion2_2.support=false
@@ -589,7 +585,6 @@ vendor.dalvik.vm.dex2oat-threads-ext=3
 # ---------------------------------------------------------------------------
 # TEE, keystore and secure video path. Trustonic is the TEE on this device.
 
-ro.mtk_key_manager_support=1
 ro.oem_unlock_supported=1
 ro.vendor.efuse_writer_enable=1
 ro.vendor.keymaster_version=5.0
@@ -902,3 +897,15 @@ persist.log.tag.libPowerHal=I
 persist.log.tag.mtkpower@impl=I
 persist.log.tag.mtkpower_client=I
 persist.log.tag.wpfa_iptable_android=I
+
+# ---------------------------------------------------------------------------
+# Dropped 2026-11-16 (lineage-23.2): five stock keys that A16 refuses and nothing here
+# reads. init loads this file with vendor_init's rights; A16 has no context for four of
+# them (default_prop) and gives the fifth a system-only one, so each was
+#   avc: denied { set } for property=<key> scontext=u:r:vendor_init:s0 ... (every boot)
+# i.e. none has been set on any lineage-23.2 build. Their only readers in stock are
+# Transsion/MediaTek system-side code, absent from AOSP-based ROMs (searched all stock
+# partitions): ro.os_mutilevel_charge.support (TranSystemUI, BatteryLab, SmartPanel),
+# ro.limit_cache.support + ro.cur_max_process.val (Transsion's services.jar),
+# persist.vendor.fd.on.charge (mediatek-telephony-common.jar), ro.mtk_key_manager_support
+# (no reader at all). Removing them changes nothing that runs.

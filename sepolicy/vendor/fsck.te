@@ -3,6 +3,10 @@
 # granting only the dir search leaves the file read denied behind it.
 allow fsck_untrusted sysfs_devices_block:dir search;
 allow fsck_untrusted sysfs_devices_block:file r_file_perms;
+# A16's fsck.exfat (exfatprogs) also LISTS the partition's dir (mmcblk0p1); build 18:
+#   avc: denied { read } comm="fsck.exfat" name="mmcblk0p1" tcontext=sysfs_devices_block dir
+# Proven 2026-11-16: with this rule fsck.exfat ran ("Check OK") and nothing was denied.
+allow fsck_untrusted sysfs_devices_block:dir r_dir_perms;
 
 # fstab.mt6789 mounts /tranfs with `check`, so e2fsck opens the device.
 allow fsck tranfs_block_device:blk_file rw_file_perms;

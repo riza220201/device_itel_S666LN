@@ -109,3 +109,15 @@ cc_library_shared {
     shared_libs: ["libutils"],
     compile_multilib: "64",
 }
+
+// nfc_nci_nxp.so: phTmlNfc_Shutdown() pthread_join()s a reader blocked forever in
+// read(/dev/pn553) when the NFC controller never answers (stock's pn553 driver has no
+// poll(), only the controller's IRQ wakes that read). The import is RENAMED to this
+// shim's bounded join (nfcjoin.c): 2 s grace, then a no-op SIGURG until the thread exits.
+cc_library_shared {
+    name: "libshim_nfcjoin",
+    defaults: ["s666ln_shim_defaults"],
+    srcs: ["nfcjoin.c"],
+    shared_libs: ["liblog"],
+    compile_multilib: "64",
+}

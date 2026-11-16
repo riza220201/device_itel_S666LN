@@ -640,6 +640,40 @@ ROUTE_L_FIXUPS = [
       'vendor/etc/init/md_monitor.rc'), blob_fixup()
      .regex_replace(r'(?m)^[ \t]*interface vendor\.mediatek\.hardware\.[^\n]*\n', '')
      .call(must_not_contain('interface vendor.mediatek.hardware.'), need_tmp_dir=False)),
+
+    # NFC with a controller that never answers (this unit's PN557; any unit whose chip
+    # fails). phNxpNciHal_MinOpen() fails, Minclose() -> phTmlNfc_Shutdown() clears the
+    # TML reader's run flag and pthread_join()s it -- but the reader sits in
+    # read(/dev/pn553), and stock's pn553 driver has no poll() (select() says readable
+    # at once) and wakes that read only on the controller's IRQ. The HAL's only binder
+    # thread never returns from open_1_1(); NfcService's watchdog aborts com.android.nfc
+    # (a tombstone per boot) and every later com.android.nfc blocks in JNI_OnLoad until
+    # "failed to complete startup": an ANR every ~15 s for the whole uptime (12,456
+    # ActivityManager E lines in 30 min, 42 h of it on build 18). The import is RENAMED
+    # to libshim_nfcjoin's bounded join (shims/nfcjoin.c): 2 s grace, then a no-op
+    # SIGURG without SA_RESTART until the thread exits; the reader's error path re-checks
+    # the cleared flag and returns. Proven 2026-11-16 on build 18 (this exact rename +
+    # NEEDED, overlaid): "thread exited after 1 signal(s)", MinOpen failed, NfcService
+    # "Error enabling NFC", NFC off, process alive, 0 ANRs, no tombstone. A controller
+    # that answers never reaches this join.
+    ('vendor/lib64/nfc_nci_nxp.so', blob_fixup()
+     .call(rename_import(b'pthread_join', b's666ln_pjoin'), need_tmp_dir=False)
+     .add_needed('libshim_nfcjoin.so')
+     .call(sha256_is('450476f713ad318e1f888103b1a0e8bc88463f2060c13efa8a425a7ddb436bc7'),
+           need_tmp_dir=False)),
+    # A16's linker reads /sys/kernel/mm/transparent_hugepage/enabled in EVERY process it
+    # starts (linker_transparent_hugepage_support.cpp); stock's power rc makes it
+    # system:system 0660 (A12's linker never read it). Root daemons without
+    # dac_override then fail SELinux at exec -- kcmdlinectrl x2 and misctrl, every boot
+    # (a kprobe on do_filp_open/cap_capable put both cap checks right after that open) --
+    # and every non-system process silently fails the read. 0664: the power HAL (system)
+    # still writes it, everyone may read the mode, as on a stock kernel. Proven live:
+    # misctrl's dac denials +2 at 0660, +0 at 0664.
+    ('vendor/etc/init/vendor.mediatek.hardware.mtkpower@1.0-init.rc', blob_fixup()
+     .regex_replace(r'(?m)^([ \t]*chmod )0660( /sys/kernel/mm/transparent_hugepage/enabled)$',
+                    r'\g<1>0664\g<2>')
+     .call(must_not_contain('chmod 0660 /sys/kernel/mm/transparent_hugepage/enabled'),
+           need_tmp_dir=False)),
 ]
 
 
