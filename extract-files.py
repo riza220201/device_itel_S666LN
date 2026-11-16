@@ -354,6 +354,46 @@ def rename_import(old: bytes, new: bytes):
     return patch
 
 
+def unversion_import(name: bytes):
+    """Make one imported symbol unversioned (.gnu.version entry -> 1, VER_NDX_GLOBAL).
+
+    For an import renamed onto a shim symbol that the blob used to take from a
+    VERSIONED library: `pthread_join@LIBC` renamed stays bound to libc's LIBC version,
+    and soong's check_elf_file then refuses it ("Unresolved symbol: s666ln_pjoin@LIBC";
+    build 19) although bionic's linker resolves it. ELF64 little-endian only.
+    """
+    import struct
+
+    def patch(ctx: BlobFixupCtx, file: File, file_path: str, *args, **kwargs):
+        with open(file_path, 'rb') as f:
+            data = bytearray(f.read())
+        assert data[:4] == b'\x7fELF' and data[4] == 2 and data[5] == 1, file.dst
+        shoff, = struct.unpack_from('<Q', data, 0x28)
+        shentsize, shnum = struct.unpack_from('<HH', data, 0x3a)
+        secs = [struct.unpack_from('<IIQQQQIIQQ', data, shoff + i * shentsize)
+                for i in range(shnum)]
+        dynsym = [x for x in secs if x[1] == 11]          # SHT_DYNSYM
+        versym = [x for x in secs if x[1] == 0x6fffffff]  # SHT_GNU_versym
+        assert len(dynsym) == 1 and len(versym) == 1, file.dst
+        dyn, ver = dynsym[0], versym[0]
+        strtab = secs[dyn[6]]                             # sh_link -> .dynstr
+        hits = []
+        for i in range(dyn[5] // 24):
+            st_name, = struct.unpack_from('<I', data, dyn[4] + i * 24)
+            o = strtab[4] + st_name
+            if data[o:o + len(name) + 1] == name + b'\0':
+                hits.append(i)
+        assert len(hits) == 1, f'{file.dst}: {name!r} x{len(hits)} in .dynsym'
+        off = ver[4] + hits[0] * 2
+        old, = struct.unpack_from('<H', data, off)
+        assert old > 1, f'{file.dst}: {name!r} versym {old}, expected a version index'
+        struct.pack_into('<H', data, off, 1)
+        with open(file_path, 'wb') as f:
+            f.write(data)
+
+    return patch
+
+
 def sha256_is(digest: str):
     """Fail extraction unless the fixed-up file is exactly the binary proven on hardware."""
 
@@ -652,14 +692,18 @@ ROUTE_L_FIXUPS = [
     # ActivityManager E lines in 30 min, 42 h of it on build 18). The import is RENAMED
     # to libshim_nfcjoin's bounded join (shims/nfcjoin.c): 2 s grace, then a no-op
     # SIGURG without SA_RESTART until the thread exits; the reader's error path re-checks
-    # the cleared flag and returns. Proven 2026-11-16 on build 18 (this exact rename +
-    # NEEDED, overlaid): "thread exited after 1 signal(s)", MinOpen failed, NfcService
-    # "Error enabling NFC", NFC off, process alive, 0 ANRs, no tombstone. A controller
-    # that answers never reaches this join.
+    # the cleared flag and returns. The renamed import is made UNVERSIONED (it kept libc's
+    # LIBC binding; soong's check_elf_file refused that in build 19). Proven 2026-11-16 on
+    # build 18 with this exact file overlaid (c46a682e; and the versioned 450476f7 before
+    # it): "thread exited after 1 signal(s)", MinOpen failed, NfcService "Error enabling
+    # NFC", NFC off, process alive, 0 ANRs, no tombstone. check_elf_file (run locally on
+    # the phone's libraries): 450476f7 rc 2, c46a682e rc 0. A controller that answers never
+    # reaches this join.
     ('vendor/lib64/nfc_nci_nxp.so', blob_fixup()
      .call(rename_import(b'pthread_join', b's666ln_pjoin'), need_tmp_dir=False)
+     .call(unversion_import(b's666ln_pjoin'), need_tmp_dir=False)
      .add_needed('libshim_nfcjoin.so')
-     .call(sha256_is('450476f713ad318e1f888103b1a0e8bc88463f2060c13efa8a425a7ddb436bc7'),
+     .call(sha256_is('c46a682e914a489cc2723ff3bea6d9413044b5b6d6b881f8e6bc6605cea28dd0'),
            need_tmp_dir=False)),
     # A16's linker reads /sys/kernel/mm/transparent_hugepage/enabled in EVERY process it
     # starts (linker_transparent_hugepage_support.cpp); stock's power rc makes it

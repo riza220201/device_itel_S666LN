@@ -54,14 +54,15 @@ allow vendor_init sysfs_otg_ctl_file:file w_file_perms;
 # system/sepolicy before writing this.
 allow vendor_init proc_sched:file w_file_perms;
 
-# The modem's and META mode's directories under /data/vendor_de. Stock's rcs make them at
-# post-fs-data (init.cccifsd.rc + init.cccimdinit.rc: /data/vendor_de/md, ccci_fsd's tenth
-# file-system root; init.mt6789.rc: /data/vendor_de/meta[/mddb] for meta_tst/factory). A16
-# made /data/vendor_de 0551 root:root, vendor_userdir_file, so on lineage-23.2:
-#   init: Command 'mkdir /data/vendor_de/md 0770 system radio' ... failed: Permission denied
-#   avc: denied { write } comm="init" name="vendor_de" scontext=u:r:vendor_init:s0
-#     tcontext=u:object_r:vendor_userdir_file:s0 tclass=dir     (x3 per boot)
-# Both neverallows on vendor_init and core data exempt vendor_userdir_file (private/
-# domain.te). Proven 2026-11-16 (module sepolicy.rule): md created system:radio
-# data_vendor_de_md_file, meta system:system mddb_data_file -- stock's labels -- 0 denials.
-allow vendor_init vendor_userdir_file:dir { write add_name };
+# The modem's and META mode's directories under /data/vendor_de, which A16 does not allow.
+# Stock's rcs make them at post-fs-data (init.cccifsd.rc + init.cccimdinit.rc:
+# /data/vendor_de/md, one of ccci_fsd's file-system roots; init.mt6789.rc:
+# /data/vendor_de/meta[/mddb] for meta_tst/factory). A16 made /data/vendor_de 0551
+# root:root vendor_userdir_file and reserves creating anything in it for vold
+# (private/vold.te: neverallow { domain -vold ... } vendor_userdir_file:dir { add_name
+# remove_name write } -- FBE policy is set on empty dirs, creation and encryption go
+# together). Build 19 failed on exactly that when this was an allow. The dirs therefore
+# stay absent, as on every lineage-23.2 build so far: with them created by hand (live test
+# 2026-11-16) ccci_fsd wrote nothing into md in 13 min and its errors did not change.
+# Silenced; init still logs its three "mkdir ... failed" lines.
+dontaudit vendor_init vendor_userdir_file:dir { write add_name };
