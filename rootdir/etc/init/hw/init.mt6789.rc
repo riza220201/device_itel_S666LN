@@ -1213,7 +1213,8 @@ on property:persist.vendor.swapfile_enable=true && property:ro.vendor.memfusion2
 #SPD: add for watermark_scale_factor at 20230302 start
 on property:sys.boot_completed=1
     write /proc/sys/vm/watermark_scale_factor 10
-    setprop vendor.tran.cur_max_process 72
+    # (2026-11-16) stock's `setprop vendor.tran.cur_max_process 72` dropped: only Transsion's
+    # framework read it; nothing on this ROM does.
 #SPD: add for watermark_scale_factor at 20230302 end
 
 #SPD: add for memfusion2_2 at 20230926 start

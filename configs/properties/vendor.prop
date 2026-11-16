@@ -274,7 +274,6 @@ ro.vendor.arm.egl.configs.yvu420.recordable=true
 # Display, SurfaceFlinger and composition.
 
 debug.renderengine.backend=skiagl
-debug.sf.disable_backpressure=1
 debug.sf.early.app.duration=20000000
 debug.sf.early.sf.duration=27600000
 debug.sf.earlyGl.app.duration=20000000
@@ -324,9 +323,7 @@ vendor.debug.sf.cpupolicy.xgf_min=25
 # MediaTek Picture Quality engine. Almost all of these are capability
 # switches read by the PQ HAL at startup.
 
-debug.mediatek.appgamepq_compress=1
 debug.mediatek.disp_decompress=1
-debug.mediatek.high_frame_rate_sf_set_big_core_fps_threshold=70
 ro.vendor.mtk_aal_support=1
 ro.vendor.mtk_blulight_def_support=1
 # Declared twice by stock: 3 (MGVI) and 1 (S666LN). ro.* is write-once, so
@@ -441,7 +438,6 @@ persist.vendor.mims_support=2
 persist.vendor.mtk.volte.enable=1
 persist.vendor.mtk_ct_volte_support=3
 persist.vendor.mtk_dynamic_ims_switch=1
-persist.vendor.mtk_sim_switch_policy=2
 persist.vendor.radio.fd.counter=150
 persist.vendor.radio.fd.off.counter=50
 persist.vendor.radio.fd.off.r8.counter=50
@@ -450,7 +446,6 @@ persist.vendor.radio.msimmode=dsds
 persist.vendor.radio.mtk_dsbp_support=2
 persist.vendor.radio.mtk_ps2_rat=L/W/G
 persist.vendor.radio.mtk_ps3_rat=W/G
-persist.vendor.radio.smart.data.switch=1
 persist.vendor.volte_support=1
 persist.vendor.vonr_setting_support=1
 persist.vendor.xfrm_support=1
@@ -532,16 +527,9 @@ vendor.connsys.driver.ready=no
 # ---------------------------------------------------------------------------
 # Power, thermal, scheduling and memory management.
 
-persist.vendor.memfusion_ui_enable=true
-persist.vendor.pnpmgr.cgroup.enable=1
-persist.vendor.pnpmgr.enable=1
-persist.vendor.pnpmgr.gamemode.enable=1
-persist.vendor.pnpmgr.gamerecord.enable=1
 persist.vendor.powerhal.thermal_ux_temp_max=55000
 persist.vendor.powerhal.thermal_ux_temp_min=43000
 persist.vendor.swapfile_enable=true
-persist.vendor.swapfile_size_mb=0
-persist.vendor.uxcompaction_enable=true
 ro.lmk.kill_heaviest_task=true
 ro.lmk.kill_timeout_ms=100
 ro.lmk.psi_complete_stall_ms=150
@@ -624,7 +612,6 @@ ro.vendor.tran.sw_otg_support=1
 ro.vendor.tran.version.release=S666LN-MA66BABCDEFLMNQ-T-OP-251212V1309
 ro.vendor.tran.vibrator.option=single
 ro.vendor.tran.xml.support=1
-ro.vendor.tran_dts.support=1
 ro.vendor.tran_pubg_support=false
 ro.vendor.trancare.support=1
 ro.vendor.trancare.uxdetector=1
@@ -638,7 +625,6 @@ vendor.transsion.scroll_friction=0.015
 # ---------------------------------------------------------------------------
 # AEE (MediaTek exception engine) and logging.
 
-persist.vendor.log.tel_log_ctrl=1
 ro.logd.kernel=false
 ro.vendor.aee.convert64=1
 ro.vendor.have_aeev_feature=1
@@ -909,3 +895,24 @@ persist.log.tag.wpfa_iptable_android=I
 # ro.limit_cache.support + ro.cur_max_process.val (Transsion's services.jar),
 # persist.vendor.fd.on.charge (mediatek-telephony-common.jar), ro.mtk_key_manager_support
 # (no reader at all). Removing them changes nothing that runs.
+
+# Dropped 2026-11-16, second pass: fourteen more stock keys that nothing on the ROM reads.
+# Candidates from Overridify v1.6.1's junk radar (read-only export, its scanner rebuilt from
+# source), each then verified twice: the full name and its distinctive tail occur in no file
+# on the running build-19 phone outside build.prop (every partition + APEX, rc triggers and
+# ${prop} expansions included; control ro.board.platform: 60 files), and on stock rev 28 their
+# only readers are code AICP does not ship:
+#   Transsion framework   persist.vendor.pnpmgr.{enable,cgroup.enable,gamemode.enable,
+#                         gamerecord.enable}, persist.vendor.memfusion_ui_enable,
+#                         persist.vendor.uxcompaction_enable, persist.vendor.swapfile_size_mb
+#                         (com.transsion.thub.core.apex, Transsion services.jar,
+#                         transsion_appm.jar, memfusion*.jar; swapfile size also MTK's libfs_mgr)
+#   MTK telephony         persist.vendor.mtk_sim_switch_policy, persist.vendor.radio.smart.data.switch
+#                         (mediatek-telephony-common.jar, MtkTeleService.apk)
+#   MTK EngineerMode      persist.vendor.log.tel_log_ctrl
+#   MTK's own libEGL      debug.mediatek.appgamepq_compress
+#   nothing, even stock   debug.mediatek.high_frame_rate_sf_set_big_core_fps_threshold,
+#                         debug.sf.disable_backpressure, ro.vendor.tran_dts.support
+# The pnpmgr daemon itself reads none of the persist.vendor.pnpmgr.* keys. Kept:
+# persist.vendor.swapfile_enable (an init trigger) and debug.mtk_tflite.target_nnapi
+# (libtflite_mtk.so holds the prefix; it may build the name at run time).
