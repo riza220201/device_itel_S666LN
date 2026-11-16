@@ -8,6 +8,12 @@
 # line of it is there -- lives in product_common.mk.
 include device/itel/S666LN/product_common.mk
 
+# The Pixel 10 identity (identity_pixel10.mk), opt-in: the ROM recipes building this product
+# (LineageOS, Axion, crDroid) export S666LN_IDENTITY=pixel10; a plain lunch keeps itel's.
+ifeq ($(S666LN_IDENTITY),pixel10)
+include device/itel/S666LN/identity_pixel10.mk
+endif
+
 # Inherit some common Lineage stuff
 $(call inherit-product, vendor/lineage/config/common_full_phone.mk)
 
