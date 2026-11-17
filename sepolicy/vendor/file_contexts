@@ -145,3 +145,9 @@
 /vendor/lib(64)?/libmtk_mali_user\.so                                           u:object_r:same_process_hal_file:s0
 /vendor/lib(64)?/libr54shim\.so                                                 u:object_r:same_process_hal_file:s0
 /vendor/lib(64)?/vendor\.mediatek\.hardware\.graphics-V1-ndk\.so                u:object_r:same_process_hal_file:s0
+
+# Mesa's Vulkan ICD (lineage-23.2-mesa, prebuilts/mesa). MediaTek's policy labels only
+# its own ICD names (vulkan.mali.so, vulkan.mt*.so); /vendor/lib(64)?/hw is
+# vendor_hal_file, which app processes cannot load. Mesa's EGL/GLES/gallium files sit
+# in /vendor/lib(64)?/egl, which AOSP's file_contexts labels same_process_hal_file.
+/vendor/lib(64)?/hw/vulkan\.panvk\.so                                           u:object_r:same_process_hal_file:s0

@@ -1,0 +1,87 @@
+// Mesa: OpenGL ES (gallium panfrost) and Vulkan (PanVK) on the stock Mali kbase driver -- the
+// lineage-23.2-mesa branch only. Built from the mesa-mobile tree (mm/main, FourFectVK November PanVK +
+// GLES on kbase) by its tools/build.sh, VARIANT=system, NDEBUG=true, one build per ABI; the commit, the
+// toolchain, the device libraries it linked against and every output's sha256 and DT_NEEDED are in
+// BUILDINFO-arm64.txt and BUILDINFO-arm.txt.
+//
+// Layout = what the Android loaders look for. EGL: /vendor/lib{,64}/egl/lib{EGL,GLESv1_CM,GLESv2}_mesa.so
+// (ro.hardware.egl=mesa); the gallium megadriver sits beside them, which the sphal namespace searches
+// (/vendor/${LIB}/egl) and AOSP labels same_process_hal_file. Vulkan: /vendor/lib{,64}/hw/vulkan.panvk.so
+// (ro.hardware.vulkan=panvk), labelled same_process_hal_file by this tree's file_contexts.
+//
+// Both ABIs: the ROM is zygote64_32. Proven before this branch existed, 32-bit included (kbase's compat
+// path): ES 3.1 context + mipmapped render/readback, and 100 Vulkan fill/submit/fence/readback rounds
+// of 4 MiB, in a 32-bit process with the platform loaders.
+//
+// The Mali blob stays installed (libGLES_mali for OpenCL users); only the loaders' selection moves.
+// PRODUCT_COPY_FILES cannot carry ELF prebuilts in this build, hence cc_prebuilt_library_shared;
+// check_elf_files is off as for the other GPU prebuilts (their NEEDED are LLNDK/VNDK-SP libraries soong
+// does not model for a prebuilt).
+
+cc_prebuilt_library_shared {
+    name: "libgallium_dri",
+    vendor: true,
+    relative_install_path: "egl",
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libgallium_dri.so"] },
+        android_arm: { srcs: ["lib/libgallium_dri.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+}
+
+cc_prebuilt_library_shared {
+    name: "libEGL_mesa",
+    vendor: true,
+    relative_install_path: "egl",
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libEGL_mesa.so"] },
+        android_arm: { srcs: ["lib/libEGL_mesa.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    required: ["libgallium_dri"],
+}
+
+cc_prebuilt_library_shared {
+    name: "libGLESv1_CM_mesa",
+    vendor: true,
+    relative_install_path: "egl",
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libGLESv1_CM_mesa.so"] },
+        android_arm: { srcs: ["lib/libGLESv1_CM_mesa.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    required: ["libgallium_dri"],
+}
+
+cc_prebuilt_library_shared {
+    name: "libGLESv2_mesa",
+    vendor: true,
+    relative_install_path: "egl",
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/libGLESv2_mesa.so"] },
+        android_arm: { srcs: ["lib/libGLESv2_mesa.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+    required: ["libgallium_dri"],
+}
+
+cc_prebuilt_library_shared {
+    name: "vulkan.panvk",
+    vendor: true,
+    relative_install_path: "hw",
+    strip: { none: true },
+    target: {
+        android_arm64: { srcs: ["lib64/vulkan.panvk.so"] },
+        android_arm: { srcs: ["lib/vulkan.panvk.so"] },
+    },
+    compile_multilib: "both",
+    check_elf_files: false,
+}

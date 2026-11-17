@@ -1,0 +1,13 @@
+variant      system
+source       /mnt/Data/mesa-mobile/mesa
+commit       185436f5f429e8ee7bbdf7384200213987e31a3c (mm/main)
+tree         a09fbdc03de2382a9c1aeee1c86be4b06c2ed2e3
+b_ndebug     true
+toolchain    Android (8490178, based on r450784d) clang version 14.0.6 (https://android.googlesource.com/toolchain/llvm-project 4c603efb0cca074e9238af8b4106c30add4418f6)
+built        2026-11-17T18:49:03Z
+devlibs from google/frankel/frankel:16/BD1A.250702.001/13724644:user/release-keys aicp_S666LN_w-21.2-UNOFFICIAL-20261116 
+6968487aaf97a943819fdb605a2b54044f86142eb777fdd9d33e5b835b74b5df  libEGL_mesa.so  NEEDED: libc++.so libgallium_dri.so libhardware.so liblog.so libsync.so libnativewindow.so android.hardware.graphics.mapper@4.0.so libgralloctypes.so libhidlbase.so libutils.so libbinder_ndk.so libm.so libdl.so libc.so 
+e8c403ab8ba5ea54e50a2640f76cb123cfa1e1fe091b392f0287aedc300ad4c2  libgallium_dri.so  NEEDED: libc++.so libm.so liblog.so libsync.so libdl.so libc.so 
+024221bd4f63ab341e85ce9cf9e459d1d55d54553d7f4d2e9454158a289ea045  libGLESv1_CM_mesa.so  NEEDED: libgallium_dri.so libc.so 
+a36a9d80d70a762da67ffd4dd22b6b1a3fb5323a0ab0d4f6545baac179cb7165  libGLESv2_mesa.so  NEEDED: libgallium_dri.so libc.so 
+093bc1c74002c403f5137a56fabf6e730b998581a41064abd9f5d46d0f748dac  vulkan.panvk.so  NEEDED: libc++.so libm.so libhardware.so liblog.so libsync.so libnativewindow.so android.hardware.graphics.mapper@4.0.so libgralloctypes.so libhidlbase.so libutils.so libbinder_ndk.so libdl.so libc.so 

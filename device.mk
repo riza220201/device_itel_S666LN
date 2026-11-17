@@ -167,6 +167,16 @@ PRODUCT_PACKAGES += \
     libged_kpi \
     libged_sys
 
+# --- Mesa GL + PanVK (lineage-23.2-mesa; see prebuilts/mesa/Android.bp) ------
+# Selected by ro.hardware.egl=mesa / ro.hardware.vulkan=panvk (vendor.prop); the
+# Mali blob stays installed beside it for OpenCL.
+PRODUCT_PACKAGES += \
+    libEGL_mesa \
+    libGLESv1_CM_mesa \
+    libGLESv2_mesa \
+    libgallium_dri \
+    vulkan.panvk
+
 # Vendor variants of platform-built libraries.
 #
 # NOT optional. Without these the vendor partition contains HALs that cannot
