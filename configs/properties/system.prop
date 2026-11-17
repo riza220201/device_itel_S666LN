@@ -223,3 +223,14 @@ debug.graphics.game_default_frame_rate.disabled=true
 # ged and panics. Measured 2026-11-18 on the store-free module: 126 fence callbacks
 # in 10 s from MLBB, every process fence-on through boot, 0 Oops.
 debug.gedkpi.queue_fence=1
+
+# ---- lineage-23.2-mesa: Mesa's own settings (the driver is prebuilts/mesa) ----
+# Landscape windows are rendered in the panel's orientation (honouring the
+# window's transform hint), so the display composes them instead of
+# SurfaceFlinger rotating every frame on the GPU (MTK's HWC rotates one layer at
+# most). Measured on Mobile Legends: the layer DEVICE with transform 0, SF CPU
+# 77-97 % -> 24-58 %. Read by Mesa's Android EGL platform as MESA_ANDROID_PREROTATE.
+debug.mesa.android.prerotate=1
+# zygote does not preload the GL driver: the configuration every Mesa measurement
+# on this device was taken with (apps load the driver on first use instead).
+ro.zygote.disable_gl_preload=true

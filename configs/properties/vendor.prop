@@ -147,16 +147,21 @@ ro.vendor.mgvi_name=mgvi_64_nfc_armv82
 
 # ---------------------------------------------------------------------------
 # HAL selectors. These pick which implementation each subsystem loads and
-# are the single most load-bearing block in this file — ro.hardware.egl=meow
-# in particular selects the MEOW EGL wrapper that fronts libGLES_mali.
+# are the single most load-bearing block in this file.
+#
+# lineage-23.2-mesa: GL and Vulkan come from Mesa (prebuilts/mesa) instead of
+# MediaTek's MEOW wrapper over libGLES_mali (egl=meow) and the Mali ICD
+# (vulkan=mali). The blob stays installed for OpenCL. Both loaders resolve by
+# name, so these two lines are the whole switch: egl=meow and vulkan=mali
+# bring the blob back.
 
-ro.hardware.egl=meow
+ro.hardware.egl=mesa
 ro.hardware.gatekeeper=trustonic
 ro.hardware.gralloc=common
 ro.hardware.hwcomposer=mtk_common
 ro.hardware.kmsetkey=trustonic
 ro.hardware.paytrigger=trustonic
-ro.hardware.vulkan=mali
+ro.hardware.vulkan=panvk
 
 # ---------------------------------------------------------------------------
 # Mali r38p1 EGL config table. 🔴 NOT tuning, and NOT optional.
