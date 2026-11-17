@@ -206,3 +206,20 @@ ro.product.property_source_order=system,system_ext,product,odm,vendor
 # bq_config_prop is system_restricted_prop: it can only come from the system
 # partition, which is why it lives here and not in vendor.prop.
 ro.lib_gui.frame_event_history_size=16
+
+# Games run at the panel's refresh rate. AOSP caps every game at 60 fps
+# (base_system.mk: ro.surface_flinger.game_default_frame_rate_override=60);
+# GameManagerService skips that cap while this is true -- the same property the
+# developer-options toggle sets. Measured 2026-11-18 (MLBB, Ultra): SurfaceFlinger
+# showed FrameRateOverrides {uid 10185, 60 Hz} and a 60 Hz panel; with this set,
+# none, the panel at 120 Hz and MLBB above 60 fps.
+debug.graphics.game_default_frame_rate.disabled=true
+
+# libgui hands ged the real queue fence (the GedKpiHook in the ROM recipe; default
+# off = fence_fd -1), so ged's frame-based GPU DVFS measures real GPU time instead
+# of a queue-time stamp that never asks for more clock. ONLY safe together with
+# the kernel package's store-free mali_kbase (no util_ex->delta_time store at
+# +0x38): with the old module the fence callback overwrites a saved x29 in the A12
+# ged and panics. Measured 2026-11-18 on the store-free module: 126 fence callbacks
+# in 10 s from MLBB, every process fence-on through boot, 0 Oops.
+debug.gedkpi.queue_fence=1
