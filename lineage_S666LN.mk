@@ -18,3 +18,4 @@ endif
 $(call inherit-product, vendor/lineage/config/common_full_phone.mk)
 
 PRODUCT_NAME := lineage_S666LN
+AXION_MAINTAINER := SuzunaProject
