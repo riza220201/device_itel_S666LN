@@ -171,3 +171,23 @@ genfscon sysfs /devices/platform/odm/odm:usb_switch/power_supply/usb_switch/wake
 # large pages), so the DDK now reads the truth instead of failing. Proven 2026-11-16 by
 # chcon at post-fs-data (before any GPU client starts): 0 denials, UI normal.
 genfscon sysfs /module/mali_kbase/parameters/large_page_conf u:object_r:sysfs_gpu:s0
+
+# The GPU clock, readable by apps without root. The kernel serves Samsung-style nodes in
+# /sys/kernel/gpu (DevCheck, kernel managers and game overlays read gpu_clock, gpu_freq_table,
+# gpu_max_clock ...), all labelled plain sysfs, which AOSP denies to apps:
+#   avc: denied { read } name="gpu_clock" scontext=u:r:untrusted_app:s0 tcontext=u:object_r:sysfs:s0
+# The FILES get sysfs_gpu (app.te: appdomain minus isolated may read it); the directory stays
+# sysfs, because domain.te lets every domain search sysfs dirs and nothing lets apps search a
+# sysfs_gpu dir. One line per file: a prefix line would also relabel the directory.
+# No new type and no allow rule. gpu_max_clock/gpu_min_clock stay root-writable (0644); apps
+# only read. Proven 2026-11-18 (chcon of the 8 files, AICP build 21): DevCheck as untrusted_app,
+# no root, shows a live MHz value; 0 denials after the relabel (control: the gpu_clock denial
+# above, logged before it).
+genfscon sysfs /kernel/gpu/gpu_available_governor u:object_r:sysfs_gpu:s0
+genfscon sysfs /kernel/gpu/gpu_busy               u:object_r:sysfs_gpu:s0
+genfscon sysfs /kernel/gpu/gpu_clock              u:object_r:sysfs_gpu:s0
+genfscon sysfs /kernel/gpu/gpu_freq_table         u:object_r:sysfs_gpu:s0
+genfscon sysfs /kernel/gpu/gpu_governor           u:object_r:sysfs_gpu:s0
+genfscon sysfs /kernel/gpu/gpu_max_clock          u:object_r:sysfs_gpu:s0
+genfscon sysfs /kernel/gpu/gpu_min_clock          u:object_r:sysfs_gpu:s0
+genfscon sysfs /kernel/gpu/gpu_model              u:object_r:sysfs_gpu:s0
