@@ -19,4 +19,7 @@ $(call inherit-product, vendor/lineage/config/common_full_phone.mk)
 
 PRODUCT_NAME := lineage_S666LN
 AXION_MAINTAINER := SuzunaProject
+
+ifeq ($(WITH_GAPPS),true)
 $(call inherit-product, vendor/gapps/arm64/arm64-vendor.mk)
+endif
