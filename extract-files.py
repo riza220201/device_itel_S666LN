@@ -172,6 +172,60 @@ C2_CONSUMERS = (
 c2_stock_self = blob_fixup().fix_soname()
 c2_stock_self.merge(c2_stock_repoint())
 
+
+# ---- thermal_core's default policy without its fixed CPU/GPU frequency tables ----
+# /vendor/etc/thermal/*.conf are lightly obfuscated: per line, character i is
+# stored as (p - 32 + i % 10) mod 91 + 32 (all bytes in 0x20..0x7a). Decoded,
+# the default policy (thermal.conf, "permanent= Yes") caps clocks by a fixed
+# table keyed to ap_ntc, the board thermistor:
+#   [mtk-gpu-table-mapping]  42/46/48/50/52 C -> 616/521/470/402/334 MHz
+#   [mtk-cpu-table-mapping]  cluster 0: 45/47/49/51/53 C -> 1.9/1.7/1.5/1.3/1.3 GHz
+#                            cluster 1: 45/47/49/51/53 C -> 2.0/1.9/1.7/1.5/1.5 GHz
+# The board sits above 42 C in light use, so the GPU lives at 596 MHz of 1003.
+# Stock's own game policy (thermal_policy_00.conf) is this file without the two
+# table kinds: skin control (Tj 55..85 C, board target 51 C) plus the charger and
+# modem coolers and the Android thermal levels. MediaTek's framework switches games
+# to it; AOSP does not, so it becomes the default here. Everything else is kept.
+# Measured 2026-11-18, MLBB, 7 min: CPU 2.24/2.64 GHz and the GPU free (OPP 0..30)
+# at ap_ntc 45.8 -> 50.7 C, soc_max 61 -> 67.6 C (stock: CPU 1.5/1.7, GPU 596).
+THERMAL_TABLES = ('[mtk-cpu-table-mapping]', '[mtk-gpu-table-mapping]')
+
+
+def thermal_conf_decode(raw: bytes) -> str:
+    if any(not (32 <= b <= 122 or b == 10) for b in raw):
+        raise AssertionError('thermal.conf: byte outside 0x20..0x7a, not the expected encoding')
+    return '\n'.join(''.join(chr((b - 32 - (i % 10)) % 91 + 32) for i, b in enumerate(line))
+                     for line in raw.split(b'\n'))
+
+
+def thermal_conf_encode(text: str) -> bytes:
+    return b'\n'.join(bytes((ord(c) - 32 + (i % 10)) % 91 + 32 for i, c in enumerate(line))
+                      for line in text.split('\n'))
+
+
+def thermal_drop_freq_tables(ctx: BlobFixupCtx, file: File, file_path: str, *args, **kwargs):
+    with open(file_path, 'rb') as f:
+        text = thermal_conf_decode(f.read())
+    sections = [l.strip() for l in text.split('\n') if l.startswith('[')]
+    want = {'[policy_type]': 1, '[mtk-skin-control]': 1, '[mtk-cpu-table-mapping]': 2,
+            '[mtk-gpu-table-mapping]': 1}
+    for name, n in want.items():
+        if sections.count(name) != n:
+            raise AssertionError(f'{file.dst}: {name} x{sections.count(name)}, expected {n} -- not the known policy')
+    kept, skip = [], False
+    for line in text.split('\n'):
+        if line.startswith('['):
+            skip = line.strip() in THERMAL_TABLES
+        if not skip:
+            kept.append(line)
+    out = '\n'.join(kept)
+    raw = thermal_conf_encode(out)
+    if thermal_conf_decode(raw) != out or any(t in out for t in THERMAL_TABLES):
+        raise AssertionError(f'{file.dst}: re-encoding failed')
+    with open(file_path, 'wb') as f:
+        f.write(raw)
+
+
 blob_fixups: blob_fixups_user_type = {
     # ---- `-ndk_platform` -> frozen `-V<N>-ndk` (A16 has no _platform names) ----
     # factory + lights service: the light HAL. Lights is boot-blocking --
@@ -290,6 +344,10 @@ blob_fixups: blob_fixups_user_type = {
         blob_fixup()
         .replace_needed('libalsautils.so', 'libalsautils-stock.so')
         .call(must_not_need('libalsautils.so'), need_tmp_dir=False),
+
+    # ---- thermal_core: no fixed CPU/GPU frequency tables (see THERMAL_TABLES) ---
+    'vendor/etc/thermal/thermal.conf': blob_fixup()
+        .call(thermal_drop_freq_tables, need_tmp_dir=False),
 
     # ---- the renamed A12 codec2 set, and the blobs that consume it ------------
     C2_STOCK_FILES: c2_stock_self,
